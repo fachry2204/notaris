@@ -46,7 +46,48 @@ const statusData = [
   { name: "Cicilan", value: 200, color: "#3b82f6" },
 ];
 
+import { getFinanceStats } from "@/lib/actions/finance";
+import { toast } from "sonner";
+
 export function FinanceOverview() {
+  const [stats, setStats] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchFinance = async () => {
+      setLoading(true);
+      const result = await getFinanceStats();
+      if (result.success) {
+        setStats(result.data);
+      } else {
+        toast.error(result.error);
+      }
+      setLoading(false);
+    };
+    fetchFinance();
+  }, []);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      minimumFractionDigits: 0,
+    }).format(value);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-8">
+        <div className="grid gap-4 md:grid-cols-3">
+          {[1, 2, 3].map(i => (
+            <Card key={i} className="h-32 animate-pulse bg-muted/50 border-none" />
+          ))}
+        </div>
+        <Card className="h-96 animate-pulse bg-muted/50 border-none" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-3">
@@ -56,10 +97,10 @@ export function FinanceOverview() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Rp 328.450.000</div>
+            <div className="text-2xl font-bold">{formatCurrency(stats?.totalInvoices || 0)}</div>
             <div className="flex items-center text-xs text-emerald-500 mt-1">
               <ArrowUpRight className="h-3 w-3 mr-1" />
-              +12% dari target
+              Monitoring aktif
             </div>
           </CardContent>
         </Card>
@@ -70,10 +111,10 @@ export function FinanceOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              Rp 215.120.000
+              {formatCurrency(stats?.totalPayments || 0)}
             </div>
             <div className="flex items-center text-xs text-muted-foreground mt-1">
-              65% dari total tagihan
+              {stats?.totalInvoices > 0 ? Math.round((stats.totalPayments / stats.totalInvoices) * 100) : 0}% dari total tagihan
             </div>
           </CardContent>
         </Card>
@@ -84,11 +125,11 @@ export function FinanceOverview() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              Rp 113.330.000
+              {formatCurrency(stats?.totalPending || 0)}
             </div>
             <div className="flex items-center text-xs text-red-500 mt-1">
               <ArrowDownRight className="h-3 w-3 mr-1" />
-              14 invoice jatuh tempo
+              Membutuhkan penagihan
             </div>
           </CardContent>
         </Card>

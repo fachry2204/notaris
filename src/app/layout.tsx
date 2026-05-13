@@ -11,6 +11,8 @@ export const metadata: Metadata = {
   description: "Sistem monitoring pekerjaan notaris modern, profesional, dan realtime.",
 };
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +29,7 @@ export default function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster position="top-center" richColors />
           </ThemeProvider>
         </NextAuthProvider>
       </body>

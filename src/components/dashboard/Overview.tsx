@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   BarChart,
   Bar,
@@ -75,10 +76,31 @@ const stats = [
   },
 ];
 
+import { getUpcomingDeadlines } from "@/lib/actions/jobs";
+import { toast } from "sonner";
+
 export function DashboardOverview() {
+  const [deadlines, setDeadlines] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchDeadlines = async () => {
+      setLoading(true);
+      const result = await getUpcomingDeadlines();
+      if (result.success) {
+        setDeadlines(result.data || []);
+      } else {
+        toast.error(result.error);
+      }
+      setLoading(false);
+    };
+    fetchDeadlines();
+  }, []);
+
   return (
     <div className="space-y-8">
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        {/* ... (AreaChart Card remains same for now as it needs monthly aggregate data) */}
         <Card className="lg:col-span-4 border-border/50 bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Statistik Pekerjaan</CardTitle>
@@ -142,34 +164,49 @@ export function DashboardOverview() {
           <CardHeader>
             <CardTitle>Deadline Pekerjaan</CardTitle>
             <CardDescription>
-              Pekerjaan yang mendekati batas waktu
+              Pekerjaan yang mendekati batas waktu (7 hari ke depan)
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {[
-                { title: "Akta Jual Beli - Budi", days: 1, priority: "URGENT" },
-                { title: "Perjanjian Sewa - Siska", days: 2, priority: "HIGH" },
-                { title: "Pendirian PT - Maju Jaya", days: 3, priority: "MEDIUM" },
-                { title: "Balik Nama Sertifikat", days: 5, priority: "MEDIUM" },
-              ].map((job, i) => (
-                <div key={i} className="flex items-center gap-4">
-                  <div className={`h-2 w-2 rounded-full ${
-                    job.priority === 'URGENT' ? 'bg-red-500' : 
-                    job.priority === 'HIGH' ? 'bg-amber-500' : 'bg-blue-500'
-                  }`} />
-                  <div className="flex-1 space-y-1">
-                    <p className="text-sm font-medium leading-none">{job.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Batas waktu: {job.days} hari lagi
-                    </p>
-                  </div>
-                  <div className="text-xs font-semibold px-2 py-1 rounded bg-secondary/50">
-                    {job.priority}
-                  </div>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="h-12 w-full animate-pulse bg-muted/50 rounded-lg" />
+                ))}
+              </div>
+            ) : deadlines.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center space-y-3">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500 opacity-20" />
+                <p className="text-sm text-muted-foreground">Tidak ada deadline mendesak.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {deadlines.map((job) => {
+                  const daysLeft = Math.ceil((new Date(job.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  return (
+                    <div key={job.id} className="flex items-center gap-4">
+                      <div className={`h-2 w-2 rounded-full ${
+                        daysLeft <= 1 ? 'bg-red-500' : 
+                        daysLeft <= 3 ? 'bg-amber-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="flex-1 space-y-1">
+                        <p className="text-sm font-medium leading-none line-clamp-1">{job.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {job.client?.name} • {daysLeft} hari lagi
+                        </p>
+                      </div>
+                      <div className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider",
+                        job.priority === 'URGENT' ? 'bg-red-500/10 text-red-500' : 
+                        job.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'
+                      )}>
+                        {job.priority}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

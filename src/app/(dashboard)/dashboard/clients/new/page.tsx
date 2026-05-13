@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import axios from "axios";
+import { createClient } from "@/lib/actions/clients";
+import { toast } from "sonner";
 
 interface Region {
   id: string;
@@ -149,62 +151,99 @@ export default function NewClientPage() {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [formData, setFormData] = React.useState({
+    name: "",
+    birthday: "",
+    address: "",
+    phone: "",
+    email: "",
+    npwp: "",
+    companyName: "",
+    picName: "",
+  });
+
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setFormData(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Fitur simpan sedang dalam pengembangan");
-    router.push("/dashboard/clients");
+    setIsSubmitting(true);
+    
+    const clientData = {
+      name: clientType === "individual" ? formData.name : formData.companyName,
+      email: formData.email,
+      phone: formData.phone,
+      address: formData.address,
+      birthday: formData.birthday || null,
+      npwp: formData.npwp,
+      // You can add more fields if needed
+    };
+
+    const result = await createClient(clientData);
+    
+    if (result.success) {
+      toast.success("Client berhasil disimpan");
+      router.push("/dashboard/clients");
+    } else {
+      toast.error(result.error || "Gagal menyimpan client");
+    }
+    setIsSubmitting(false);
   };
 
   if (step === "selection") {
     return (
-      <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 py-12">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">Tambah Client Baru</h1>
-          <p className="text-lg text-muted-foreground">Pilih jenis identitas client yang ingin Anda daftarkan.</p>
+      <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 py-10">
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Tambah Client Baru</h1>
+          <p className="text-sm text-muted-foreground">Pilih jenis identitas client yang ingin Anda daftarkan.</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-6">
           <div 
             onClick={() => { setClientType("individual"); setStep("form"); }}
-            className="group relative flex flex-col items-center justify-center p-12 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
+            className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="h-10 w-10 rounded-full bg-pink-500 flex items-center justify-center shadow-lg shadow-pink-500/40">
-                <ArrowLeft className="h-5 w-5 text-white rotate-180" />
+            <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center shadow-lg shadow-pink-500/40">
+                <ArrowLeft className="h-4 w-4 text-white rotate-180" />
               </div>
             </div>
-            <div className="h-24 w-24 rounded-3xl bg-pink-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-              <User className="h-12 w-12 text-pink-500" />
+            <div className="h-16 w-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500">
+              <User className="h-8 w-8 text-pink-500" />
             </div>
-            <h2 className="text-2xl font-bold mb-3">Perorangan</h2>
-            <p className="text-center text-muted-foreground leading-relaxed">
+            <h2 className="text-lg font-bold mb-2">Perorangan</h2>
+            <p className="text-center text-xs text-muted-foreground leading-relaxed">
               Daftarkan client sebagai individu pribadi dengan identitas KTP/Paspor.
             </p>
           </div>
 
           <div 
             onClick={() => { setClientType("corporate"); setStep("form"); }}
-            className="group relative flex flex-col items-center justify-center p-12 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
+            className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
           >
-            <div className="absolute top-0 right-0 p-6 opacity-0 group-hover:opacity-100 transition-opacity">
-              <div className="h-10 w-10 rounded-full bg-pink-500 flex items-center justify-center shadow-lg shadow-pink-500/40">
-                <ArrowLeft className="h-5 w-5 text-white rotate-180" />
+            <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="h-8 w-8 rounded-full bg-pink-500 flex items-center justify-center shadow-lg shadow-pink-500/40">
+                <ArrowLeft className="h-4 w-4 text-white rotate-180" />
               </div>
             </div>
-            <div className="h-24 w-24 rounded-3xl bg-pink-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-              <Building2 className="h-12 w-12 text-pink-500" />
+            <div className="h-16 w-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500">
+              <Building2 className="h-8 w-8 text-pink-500" />
             </div>
-            <h2 className="text-2xl font-bold mb-3">Badan Hukum</h2>
-            <p className="text-center text-muted-foreground leading-relaxed">
+            <h2 className="text-lg font-bold mb-2">Badan Hukum</h2>
+            <p className="text-center text-xs text-muted-foreground leading-relaxed">
               Daftarkan perusahaan, PT, CV, atau badan usaha lainnya dengan data PIC.
             </p>
           </div>
         </div>
 
-        <div className="flex justify-center pt-8">
+        <div className="flex justify-center pt-4">
           <Link href="/dashboard/clients">
-            <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" />
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground text-xs">
+              <ArrowLeft className="h-3 w-3" />
               Kembali ke Daftar Client
             </Button>
           </Link>
@@ -253,11 +292,11 @@ export default function NewClientPage() {
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="name">Nama Lengkap</Label>
-                    <Input id="name" placeholder="Masukkan nama lengkap" className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500" required />
+                    <Input id="name" placeholder="Masukkan nama lengkap" className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500" required value={formData.name} onChange={handleInputChange} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="birthday">Tanggal Lahir</Label>
-                    <Input id="birthday" type="date" className="h-12 rounded-xl border-muted-foreground/20" required />
+                    <Input id="birthday" type="date" className="h-12 rounded-xl border-muted-foreground/20" required value={formData.birthday} onChange={handleInputChange} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="gender">Jenis Kelamin</Label>
@@ -279,18 +318,18 @@ export default function NewClientPage() {
                 <>
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="companyName">Nama Badan Hukum / Usaha</Label>
-                    <Input id="companyName" placeholder="Contoh: PT Maju Jaya Sejahtera" className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500" required />
+                    <Input id="companyName" placeholder="Contoh: PT Maju Jaya Sejahtera" className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500" required value={formData.companyName} onChange={handleInputChange} />
                   </div>
                   <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="picName">Nama PIC (Person In Charge)</Label>
-                    <Input id="picName" placeholder="Masukkan nama penanggung jawab" className="h-12 rounded-xl border-muted-foreground/20" required />
+                    <Input id="picName" placeholder="Masukkan nama penanggung jawab" className="h-12 rounded-xl border-muted-foreground/20" required value={formData.picName} onChange={handleInputChange} />
                   </div>
                 </>
               )}
 
               <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="address">{clientType === "individual" ? "Alamat" : "Alamat Usaha"}</Label>
-                <Input id="address" placeholder="Jalan, No Rumah / Gedung, RT/RW" className="h-12 rounded-xl border-muted-foreground/20" required />
+                <Input id="address" placeholder="Jalan, No Rumah / Gedung, RT/RW" className="h-12 rounded-xl border-muted-foreground/20" required value={formData.address} onChange={handleInputChange} />
               </div>
 
               <div className="space-y-2">
@@ -383,12 +422,12 @@ export default function NewClientPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="phone">No Handphone</Label>
-                <Input id="phone" placeholder="0812xxxx" className="h-12 rounded-xl border-muted-foreground/20" required />
+                <Input id="phone" placeholder="0812xxxx" className="h-12 rounded-xl border-muted-foreground/20" required value={formData.phone} onChange={handleInputChange} />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" placeholder="contoh@mail.com" className="h-12 rounded-xl border-muted-foreground/20" required />
+                <Input id="email" type="email" placeholder="contoh@mail.com" className="h-12 rounded-xl border-muted-foreground/20" required value={formData.email} onChange={handleInputChange} />
               </div>
             </div>
 
@@ -402,9 +441,9 @@ export default function NewClientPage() {
                 <X className="h-5 w-5" />
                 Ganti Tipe
               </Button>
-              <Button type="submit" className="h-12 px-10 rounded-xl gap-2 font-bold shadow-lg shadow-pink-500/20 bg-pink-500 hover:bg-pink-600 transition-all">
+              <Button type="submit" disabled={isSubmitting} className="h-12 px-10 rounded-xl gap-2 font-bold shadow-lg shadow-pink-500/20 bg-pink-500 hover:bg-pink-600 transition-all">
                 <Save className="h-5 w-5" />
-                Simpan Client
+                {isSubmitting ? "Menyimpan..." : "Simpan Client"}
               </Button>
             </div>
           </form>

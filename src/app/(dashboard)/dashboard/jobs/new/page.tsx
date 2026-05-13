@@ -9,6 +9,11 @@ import { ArrowLeft, FilePlus2, Save, X, Building2, User2, Landmark, Clock, Calen
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { getClients } from "@/lib/actions/clients";
+import { getStaff } from "@/lib/actions/users";
+import { createJob } from "@/lib/actions/jobs";
+import { toast } from "sonner";
+import { JobStatus, JobPriority } from "@prisma/client";
 
 export default function NewJobPage() {
   const router = useRouter();
@@ -31,19 +36,32 @@ export default function NewJobPage() {
   // Smart Search States
   const [clientSearch, setClientSearch] = React.useState("");
   const [isClientDropdownOpen, setIsClientDropdownOpen] = React.useState(false);
-  
-  const mockClients = [
-    { name: "Budi Santoso", type: "Perorangan", phone: "08123456789", company: "" },
-    { name: "Siti Aminah", type: "Perorangan", phone: "087788990011", company: "" },
-    { name: "Joni", type: "Badan Hukum", phone: "0811223344", company: "PT Maju Terus" },
-    { name: "Dewi", type: "Badan Hukum", phone: "0855667788", company: "CV Berkah Mandiri" },
-    { name: "Ahmad Zaki", type: "Non Badan Hukum", phone: "0899001122", company: "" },
-  ];
+  const [allClients, setAllClients] = React.useState<any[]>([]);
+  const [allStaff, setAllStaff] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const filteredClients = mockClients.filter(client => 
+  React.useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      const [clientsRes, staffRes] = await Promise.all([
+        getClients(),
+        getStaff()
+      ]);
+      
+      if (clientsRes.success) setAllClients(clientsRes.data || []);
+      if (staffRes.success) setAllStaff(staffRes.data || []);
+      setLoading(false);
+    };
+    fetchData();
+  }, []);
+  
+  // Remove mockClients
+
+  const filteredClients = allClients.filter(client => 
     client.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-    client.phone.includes(clientSearch) ||
-    (client.company && client.company.toLowerCase().includes(clientSearch.toLowerCase()))
+    (client.phone && client.phone.includes(clientSearch)) ||
+    (client.email && client.email.toLowerCase().includes(clientSearch.toLowerCase()))
   );
 
   // Multi Upload States
@@ -112,31 +130,58 @@ export default function NewJobPage() {
     }
   }, [step]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Berkas berhasil diregistrasi!");
-    router.push("/dashboard/jobs/inbound");
+    if (!formData.clientName) {
+      toast.error("Silahkan pilih client terlebih dahulu");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
+    const selectedClient = allClients.find(c => c.name === formData.clientName);
+    
+    const jobData = {
+      title: formData.jenisPekerjaan === "Dan Lain-Lain" ? formData.jenisPekerjaanLainnya : `${formData.jenisPekerjaan}${formData.pengurusanUntuk ? ' - ' + formData.pengurusanUntuk : ''}`,
+      type: jobCategory,
+      clientId: selectedClient?.id,
+      staffId: formData.picPegawai || null,
+      status: JobStatus.NEW,
+      priority: JobPriority.MEDIUM,
+      deadline: new Date(Date.now() + (parseInt(formData.deadlineDays) || 7) * 24 * 60 * 60 * 1000).toISOString(),
+      notes: `Registrasi awal. Saksi: ${formData.namaSaksi}`,
+    };
+
+    const result = await createJob(jobData);
+    
+    if (result.success) {
+      toast.success("Berkas berhasil diregistrasi!");
+      router.push("/dashboard/jobs/inbound");
+    } else {
+      toast.error(result.error || "Gagal meregistrasi berkas");
+    }
+    setIsSubmitting(false);
   };
 
   if (step === "selection") {
     return (
-      <div className="max-w-5xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-8 duration-700 py-12">
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-extrabold tracking-tight text-foreground">Registrasi Berkas Baru</h1>
-          <p className="text-lg text-muted-foreground">Pilih kategori berkas yang ingin Anda daftarkan.</p>
+      <div className="max-w-3xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 py-10">
+        <div className="text-center space-y-1">
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Registrasi Berkas Baru</h1>
+          <p className="text-sm text-muted-foreground">Pilih kategori berkas yang ingin Anda daftarkan.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className="grid md:grid-cols-3 gap-6">
           {/* Badan Hukum */}
           <div 
             onClick={() => { setJobCategory("Badan Hukum/Usaha"); setStep("form"); }}
-            className="group relative flex flex-col items-center justify-center p-10 rounded-[2.5rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
+            className="group relative flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
           >
-            <div className="h-24 w-24 rounded-3xl bg-pink-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-              <Building2 className="h-12 w-12 text-pink-500" />
+            <div className="h-16 w-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500">
+              <Building2 className="h-8 w-8 text-pink-500" />
             </div>
-            <h2 className="text-xl font-bold mb-3 text-center">Badan Hukum / Usaha</h2>
-            <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            <h2 className="text-base font-bold mb-2 text-center">Badan Hukum / Usaha</h2>
+            <p className="text-center text-[10px] text-muted-foreground leading-relaxed">
               Pengurusan berkas untuk PT, CV, Yayasan, atau Koperasi.
             </p>
           </div>
@@ -144,13 +189,13 @@ export default function NewJobPage() {
           {/* Non Badan Hukum */}
           <div 
             onClick={() => { setJobCategory("Non Badan Hukum"); setStep("form"); }}
-            className="group relative flex flex-col items-center justify-center p-10 rounded-[2.5rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
+            className="group relative flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
           >
-            <div className="h-24 w-24 rounded-3xl bg-pink-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-              <User2 className="h-12 w-12 text-pink-500" />
+            <div className="h-16 w-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500">
+              <User2 className="h-8 w-8 text-pink-500" />
             </div>
-            <h2 className="text-xl font-bold mb-3 text-center">Non Badan Hukum</h2>
-            <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            <h2 className="text-base font-bold mb-2 text-center">Non Badan Hukum</h2>
+            <p className="text-center text-[10px] text-muted-foreground leading-relaxed">
               Pengurusan berkas perorangan, kuasa, atau perjanjian individu.
             </p>
           </div>
@@ -158,22 +203,22 @@ export default function NewJobPage() {
           {/* PPAT */}
           <div 
             onClick={() => { setJobCategory("PPAT"); setStep("form"); }}
-            className="group relative flex flex-col items-center justify-center p-10 rounded-[2.5rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
+            className="group relative flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 border-muted bg-card hover:border-pink-500 hover:shadow-2xl hover:shadow-pink-500/10 transition-all duration-500 cursor-pointer overflow-hidden"
           >
-            <div className="h-24 w-24 rounded-3xl bg-pink-500/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-              <Landmark className="h-12 w-12 text-pink-500" />
+            <div className="h-16 w-16 rounded-2xl bg-pink-500/10 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-500">
+              <Landmark className="h-8 w-8 text-pink-500" />
             </div>
-            <h2 className="text-xl font-bold mb-3 text-center">PPAT</h2>
-            <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            <h2 className="text-base font-bold mb-2 text-center">PPAT</h2>
+            <p className="text-center text-[10px] text-muted-foreground leading-relaxed">
               Pengurusan Akta Jual Beli, Hibah, APHB, dan Hak Tanggungan.
             </p>
           </div>
         </div>
 
-        <div className="flex justify-center pt-8">
+        <div className="flex justify-center pt-4">
           <Link href="/dashboard/jobs/inbound">
-            <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="h-4 w-4" />
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground text-xs">
+              <ArrowLeft className="h-3 w-3" />
               Kembali ke Daftar Berkas
             </Button>
           </Link>
@@ -254,10 +299,9 @@ export default function NewJobPage() {
                   onChange={(e) => setFormData(prev => ({ ...prev, picPegawai: e.target.value }))}
                 >
                   <option value="">Pilih PIC Pegawai</option>
-                  <option value="Fachry">Fachry</option>
-                  <option value="Andi">Andi</option>
-                  <option value="Siska">Siska</option>
-                  <option value="Budi">Budi</option>
+                  {allStaff.map(s => (
+                    <option key={s.id} value={s.id}>{s.fullName}</option>
+                  ))}
                 </select>
               </div>
 
@@ -637,9 +681,9 @@ export default function NewJobPage() {
                 <X className="h-5 w-5" />
                 Batal
               </Button>
-              <Button type="submit" className="h-14 px-12 rounded-2xl gap-2 font-bold shadow-xl shadow-pink-500/20 bg-pink-500 hover:bg-pink-600 transition-all scale-100 hover:scale-[1.02] active:scale-95">
+              <Button type="submit" disabled={isSubmitting} className="h-14 px-12 rounded-2xl gap-2 font-bold shadow-xl shadow-pink-500/20 bg-pink-500 hover:bg-pink-600 transition-all scale-100 hover:scale-[1.02] active:scale-95">
                 <Save className="h-5 w-5" />
-                Registrasi Berkas
+                {isSubmitting ? "Sedang Mendaftarkan..." : "Registrasi Berkas"}
               </Button>
             </div>
           </form>

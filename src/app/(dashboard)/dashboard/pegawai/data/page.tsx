@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Contact, Plus, Search, Filter, Download } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { StaffList } from "@/components/pegawai/StaffList";
 
 export default function DataPegawaiPage() {
   return (
@@ -49,19 +50,8 @@ export default function DataPegawaiPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-8 text-center py-20">
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-                <Contact className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="text-xl font-semibold">Belum Ada Data Pegawai</h3>
-              <p className="text-muted-foreground max-w-sm mx-auto">
-                Daftar pegawai kantor notaris Anda akan muncul di sini setelah ditambahkan.
-              </p>
-              <Button variant="outline" className="mt-4 rounded-xl px-8 h-11 font-bold border-primary text-primary hover:bg-primary/5">
-                Tambah Pegawai Baru
-              </Button>
-            </div>
+          <CardContent className="pt-8">
+            <StaffList />
           </CardContent>
         </Card>
       </div>

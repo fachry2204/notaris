@@ -12,50 +12,80 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const statuses = [
-  {
-    title: "Data Berkas",
-    value: "1,284",
-    trend: "+12.5%",
-    trendUp: true,
-    icon: FileText,
-    color: "text-pink-500",
-    bg: "bg-pink-500/10",
-    description: "Total dokumen diterima"
-  },
-  {
-    title: "Dalam Proses",
-    value: "145",
-    trend: "+5.2%",
-    trendUp: true,
-    icon: Clock,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-    description: "Sedang dikerjakan"
-  },
-  {
-    title: "Berkas Selesai",
-    value: "1,052",
-    trend: "+8.1%",
-    trendUp: true,
-    icon: CheckCircle2,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-    description: "Sudah diselesaikan"
-  },
-  {
-    title: "Tertunda",
-    value: "87",
-    trend: "-2.4%",
-    trendUp: false,
-    icon: AlertCircle,
-    color: "text-rose-500",
-    bg: "bg-rose-500/10",
-    description: "Membutuhkan perhatian"
-  }
-];
+import { getDashboardStats } from "@/lib/actions/jobs";
+import { toast } from "sonner";
 
 export function StatusCards() {
+  const [stats, setStats] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      const result = await getDashboardStats();
+      if (result.success) {
+        setStats(result.data);
+      } else {
+        toast.error(result.error);
+      }
+      setLoading(false);
+    };
+    fetchStats();
+  }, []);
+
+  const statuses = [
+    {
+      title: "Data Berkas",
+      value: stats?.totalJobs.toLocaleString() || "0",
+      trend: "+0%",
+      trendUp: true,
+      icon: FileText,
+      color: "text-pink-500",
+      bg: "bg-pink-500/10",
+      description: "Total dokumen diterima"
+    },
+    {
+      title: "Dalam Proses",
+      value: stats?.processingJobs.toLocaleString() || "0",
+      trend: "+0%",
+      trendUp: true,
+      icon: Clock,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+      description: "Sedang dikerjakan"
+    },
+    {
+      title: "Berkas Selesai",
+      value: stats?.doneJobs.toLocaleString() || "0",
+      trend: "+0%",
+      trendUp: true,
+      icon: CheckCircle2,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+      description: "Sudah diselesaikan"
+    },
+    {
+      title: "Tertunda",
+      value: stats?.pendingJobs.toLocaleString() || "0",
+      trend: "+0%",
+      trendUp: false,
+      icon: AlertCircle,
+      color: "text-rose-500",
+      bg: "bg-rose-500/10",
+      description: "Membutuhkan perhatian"
+    }
+  ];
+
+  if (loading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card key={i} className="h-40 animate-pulse bg-muted/50 rounded-2xl border-none" />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       {statuses.map((status, i) => (
@@ -82,7 +112,7 @@ export function StatusCards() {
           <div className="h-1.5 w-full bg-muted/20">
             <div 
               className={cn("h-full transition-all duration-1000", status.color.replace('text-', 'bg-'))} 
-              style={{ width: `${Math.random() * 40 + 60}%` }}
+              style={{ width: `${Math.min(100, (parseInt(status.value.replace(/,/g, '')) / (stats?.totalJobs || 1)) * 100)}%` }}
             />
           </div>
         </Card>
