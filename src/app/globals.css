@@ -117,10 +117,21 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground text-sm;
   }
   html {
     @apply font-sans;
+  }
+  input,
+  select,
+  textarea {
+    font-size: 14px;
+  }
+  table {
+    font-size: 13px;
+  }
+  a, button, [role="button"], .cursor-pointer {
+    cursor: pointer !important;
   }
 }
 

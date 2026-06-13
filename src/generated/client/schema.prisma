@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model BadanHukum {
+  id            String          @id @default(cuid())
+  trackingCode  String          @unique
+  clientId      String
+  staffId       String?
+  title         String
+  type          String
+  companyName   String?
+  status        JobStatus       @default(PENDING)
+  priority      JobPriority     @default(MEDIUM)
+  deadline      DateTime?
+  saksi         String?
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  invoiceStatus InvoiceStatus   @default(PENDING)
+  attachment    attachment[]
+  client        client          @relation(fields: [clientId], references: [id])
+  staff         user?           @relation("StaffBadanHukum", fields: [staffId], references: [id])
+  financerecord financerecord[]
+  founder       founder[]
+  jobprogress   jobprogress[]
+  invoices      invoice[]
+
+  @@index([clientId], map: "badan_hukum_clientId_fkey")
+  @@index([staffId], map: "badan_hukum_staffId_fkey")
+  @@map("badan_hukum")
+}
+
+model NonBadanHukum {
+  id            String          @id @default(cuid())
+  trackingCode  String          @unique
+  clientId      String
+  staffId       String?
+  title         String
+  type          String
+  companyName   String?
+  status        JobStatus       @default(PENDING)
+  priority      JobPriority     @default(MEDIUM)
+  deadline      DateTime?
+  saksi         String?
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  invoiceStatus InvoiceStatus   @default(PENDING)
+  attachment    attachment[]
+  financerecord financerecord[]
+  founder       founder[]
+  jobprogress   jobprogress[]
+  invoices      invoice[]
+  client        client          @relation(fields: [clientId], references: [id])
+  staff         user?           @relation("StaffNonBadanHukum", fields: [staffId], references: [id])
+
+  @@index([clientId], map: "non_badan_hukum_clientId_fkey")
+  @@index([staffId], map: "non_badan_hukum_staffId_fkey")
+  @@map("non_badan_hukum")
+}
+
+model Ppat {
+  id            String          @id @default(cuid())
+  trackingCode  String          @unique
+  clientId      String
+  staffId       String?
+  title         String
+  type          String
+  companyName   String?
+  status        JobStatus       @default(PENDING)
+  priority      JobPriority     @default(MEDIUM)
+  deadline      DateTime?
+  saksi         String?
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  invoiceStatus InvoiceStatus   @default(PENDING)
+  attachment    attachment[]
+  financerecord financerecord[]
+  founder       founder[]
+  jobprogress   jobprogress[]
+  invoices      invoice[]
+  client        client          @relation(fields: [clientId], references: [id])
+  staff         user?           @relation("StaffPpat", fields: [staffId], references: [id])
+
+  @@index([clientId], map: "ppat_clientId_fkey")
+  @@index([staffId], map: "ppat_staffId_fkey")
+  @@map("ppat")
+}
+
+model activitylog {
+  id        String   @id @default(cuid())
+  userId    String?
+  activity  String
+  details   String?  @db.Text
+  ipAddress String?
+  device    String?
+  createdAt DateTime @default(now())
+  user      user?    @relation(fields: [userId], references: [id], map: "ActivityLog_userId_fkey")
+
+  @@index([userId], map: "ActivityLog_userId_fkey")
+}
+
+model attachment {
+  id              String         @id @default(cuid())
+  userId          String
+  fileName        String
+  filePath        String
+  fileType        String
+  createdAt       DateTime       @default(now())
+  badanHukumId    String?
+  nonBadanHukumId String?
+  ppatId          String?
+  description     String?
+  badan_hukum     BadanHukum?    @relation(fields: [badanHukumId], references: [id], map: "Attachment_badanHukumId_fkey")
+  non_badan_hukum NonBadanHukum? @relation(fields: [nonBadanHukumId], references: [id], map: "Attachment_nonBadanHukumId_fkey")
+  ppat            Ppat?          @relation(fields: [ppatId], references: [id], map: "Attachment_ppatId_fkey")
+  user            user           @relation(fields: [userId], references: [id], map: "Attachment_userId_fkey")
+
+  @@index([badanHukumId], map: "Attachment_badanHukumId_fkey")
+  @@index([nonBadanHukumId], map: "Attachment_nonBadanHukumId_fkey")
+  @@index([ppatId], map: "Attachment_ppatId_fkey")
+  @@index([userId], map: "Attachment_userId_fkey")
+}
+
+model client {
+  id                String          @id @default(cuid())
+  indexNo           Int             @unique @default(autoincrement())
+  name              String
+  email             String?
+  phone             String?
+  address           String?         @db.Text
+  country           String?
+  province          String?
+  city              String?
+  district          String?
+  village           String?
+  type              String?         @default("individual")
+  gender            String?
+  citizenship       String?
+  picName           String?
+  npwp              String?
+  birthday          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  badanHukumJobs    BadanHukum[]
+  nonBadanHukumJobs NonBadanHukum[]
+  ppatJobs          Ppat[]
+}
+
+model expense {
+  id          String   @id @default(cuid())
+  category    String
+  amount      Decimal  @db.Decimal(15, 2)
+  description String?  @db.Text
+  expenseDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+model founder {
+  id              String         @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  createdAt       DateTime       @default(now())
+  badanHukumId    String?
+  nonBadanHukumId String?
+  ppatId          String?
+  badan_hukum     BadanHukum?    @relation(fields: [badanHukumId], references: [id], map: "Founder_badanHukumId_fkey")
+  non_badan_hukum NonBadanHukum? @relation(fields: [nonBadanHukumId], references: [id], map: "Founder_nonBadanHukumId_fkey")
+  ppat            Ppat?          @relation(fields: [ppatId], references: [id], map: "Founder_ppatId_fkey")
+
+  @@index([badanHukumId], map: "Founder_badanHukumId_fkey")
+  @@index([nonBadanHukumId], map: "Founder_nonBadanHukumId_fkey")
+  @@index([ppatId], map: "Founder_ppatId_fkey")
+}
+
+model jobprogress {
+  id              String                   @id @default(cuid())
+  userId          String
+  statusBefore    jobprogress_statusBefore
+  statusAfter     jobprogress_statusAfter
+  createdAt       DateTime                 @default(now())
+  badanHukumId    String?
+  description     String?                  @db.Text
+  nonBadanHukumId String?
+  ppatId          String?
+  badan_hukum     BadanHukum?              @relation(fields: [badanHukumId], references: [id], map: "JobProgress_badanHukumId_fkey")
+  non_badan_hukum NonBadanHukum?           @relation(fields: [nonBadanHukumId], references: [id], map: "JobProgress_nonBadanHukumId_fkey")
+  ppat            Ppat?                    @relation(fields: [ppatId], references: [id], map: "JobProgress_ppatId_fkey")
+  user            user                     @relation(fields: [userId], references: [id], map: "JobProgress_userId_fkey")
+
+  @@index([badanHukumId], map: "JobProgress_badanHukumId_fkey")
+  @@index([nonBadanHukumId], map: "JobProgress_nonBadanHukumId_fkey")
+  @@index([ppatId], map: "JobProgress_ppatId_fkey")
+  @@index([userId], map: "JobProgress_userId_fkey")
+}
+
+model notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String   @db.Text
+  type      String   @default("INFO")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      user     @relation(fields: [userId], references: [id], map: "Notification_userId_fkey")
+
+  @@index([userId], map: "Notification_userId_fkey")
+}
+
+model reminder {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String
+  description String?  @db.Text
+  remindAt    DateTime
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  user        user     @relation(fields: [userId], references: [id], map: "Reminder_userId_fkey")
+
+  @@index([userId], map: "Reminder_userId_fkey")
+}
+
+model user {
+  id                String          @id @default(cuid())
+  username          String          @unique(map: "User_username_key")
+  email             String          @unique(map: "User_email_key")
+  passwordHash      String
+  fullName          String
+  role              user_role       @default(STAFFADMIN)
+  isActive          Boolean         @default(true)
+  birthday          DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  activitylog       activitylog[]
+  attachment        attachment[]
+  badanHukumJobs    BadanHukum[]    @relation("StaffBadanHukum")
+  jobprogress       jobprogress[]
+  nonBadanHukumJobs NonBadanHukum[] @relation("StaffNonBadanHukum")
+  notification      notification[]
+  ppatJobs          Ppat[]          @relation("StaffPpat")
+  reminder          reminder[]
+  staffProfile      staff?
+}
+
+model staff {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ktpPath   String?  @db.Text
+  photoPath String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model invoice {
+  id            String    @id @default(cuid())
+  invoiceNumber String    @unique
+  amount        Decimal   @db.Decimal(15, 2)
+  status        String    @default("Belum Bayar") // Belum Bayar, DP Bayar, Lunas, Jatuh Tempo
+  description   String?   @db.Text
+  dueDate       DateTime?
+  date          DateTime  @default(now())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  badanHukumId    String?
+  nonBadanHukumId String?
+  ppatId          String?
+
+  badan_hukum     BadanHukum?    @relation(fields: [badanHukumId], references: [id])
+  non_badan_hukum NonBadanHukum? @relation(fields: [nonBadanHukumId], references: [id])
+  ppat            Ppat?          @relation(fields: [ppatId], references: [id])
+
+  payments financerecord[]
+}
+
+model financerecord {
+  id              String             @id @default(cuid())
+  badanHukumId    String?
+  nonBadanHukumId String?
+  ppatId          String?
+  invoiceId       String?
+  type            financerecord_type
+  amount          Decimal            @db.Decimal(15, 2)
+  description     String?            @db.Text
+  date            DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  badan_hukum     BadanHukum?        @relation(fields: [badanHukumId], references: [id], map: "FinanceRecord_badanHukumId_fkey")
+  non_badan_hukum NonBadanHukum?     @relation(fields: [nonBadanHukumId], references: [id], map: "FinanceRecord_nonBadanHukumId_fkey")
+  ppat            Ppat?              @relation(fields: [ppatId], references: [id], map: "FinanceRecord_ppatId_fkey")
+  invoice         invoice?           @relation(fields: [invoiceId], references: [id])
+
+  @@index([badanHukumId], map: "FinanceRecord_badanHukumId_fkey")
+  @@index([nonBadanHukumId], map: "FinanceRecord_nonBadanHukumId_fkey")
+  @@index([ppatId], map: "FinanceRecord_ppatId_fkey")
+}
+
+model sequence {
+  id        String   @id
+  category  String
+  year      Int
+  lastNum   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, year], map: "Sequence_category_year_key")
+}
+
+enum InvoiceStatus {
+  PENDING
+  DP
+  PAYMENT
+}
+
+enum JobStatus {
+  PENDING
+  PROSES
+  REVISI
+  REVISI_PROSES
+  VERIFIKASI
+  SELESAI
+  CANCELLED
+}
+
+enum JobPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum jobprogress_statusBefore {
+  PENDING
+  PROSES
+  REVISI
+  REVISI_PROSES
+  VERIFIKASI
+  SELESAI
+  CANCELLED
+}
+
+enum jobprogress_statusAfter {
+  PENDING
+  PROSES
+  REVISI
+  REVISI_PROSES
+  VERIFIKASI
+  SELESAI
+  CANCELLED
+}
+
+enum financerecord_type {
+  INCOME
+  EXPENSE
+}
+
+enum user_role {
+  ADMINISTRATOR
+  PIMPINAN
+  STAFFADMIN
+  OB
+}

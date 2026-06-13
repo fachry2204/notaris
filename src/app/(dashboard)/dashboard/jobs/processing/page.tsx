@@ -1,5 +1,6 @@
 import React from "react";
 import { JobGrid } from "@/components/jobs/JobGrid";
+import { JobStatsCards } from "@/components/jobs/JobStatsCards";
 import { Button } from "@/components/ui/button";
 import { Filter, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ export default function ProcessingJobsPage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Proses Berkas</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Proses Berkas</h1>
           <p className="text-slate-500">
             Monitoring progress pengerjaan berkas secara realtime.
           </p>
@@ -25,6 +26,8 @@ export default function ProcessingJobsPage() {
           </Button>
         </div>
       </div>
+
+      <JobStatsCards />
 
       <JobGrid />
     </div>

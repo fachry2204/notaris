@@ -15,7 +15,7 @@ export default function ReportsPage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Laporan & Analytics</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Laporan & Analytics</h1>
           <p className="text-slate-500">
             Generate laporan komprehensif untuk evaluasi operasional kantor.
           </p>

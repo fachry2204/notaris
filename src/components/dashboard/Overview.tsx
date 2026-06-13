@@ -32,75 +32,94 @@ import {
   DollarSign,
 } from "lucide-react";
 
-const data = [
-  { name: "Jan", total: 45, completed: 32 },
-  { name: "Feb", total: 52, completed: 38 },
-  { name: "Mar", total: 48, completed: 40 },
-  { name: "Apr", total: 61, completed: 45 },
-  { name: "May", total: 55, completed: 42 },
-  { name: "Jun", total: 67, completed: 50 },
-];
-
-const stats = [
-  {
-    title: "Total Berkas Masuk",
-    value: "1,284",
-    description: "+12% dari bulan lalu",
-    icon: FileText,
-    color: "text-blue-500",
-    bg: "bg-blue-500/10",
-  },
-  {
-    title: "Berkas Dalam Proses",
-    value: "145",
-    description: "24 mendesak",
-    icon: Clock,
-    color: "text-amber-500",
-    bg: "bg-amber-500/10",
-  },
-  {
-    title: "Berkas Selesai",
-    value: "1,052",
-    description: "Rata-rata 3.2 hari",
-    icon: CheckCircle2,
-    color: "text-emerald-500",
-    bg: "bg-emerald-500/10",
-  },
-  {
-    title: "Total Pendapatan",
-    value: "Rp 450M",
-    description: "+8% target tercapai",
-    icon: DollarSign,
-    color: "text-purple-500",
-    bg: "bg-purple-500/10",
-  },
-];
-
-import { getUpcomingDeadlines } from "@/lib/actions/jobs";
+import { getUpcomingDeadlines, getMonthlyJobStats, getDashboardStats } from "@/lib/actions/jobs";
 import { toast } from "sonner";
 
 export function DashboardOverview() {
   const [deadlines, setDeadlines] = React.useState<any[]>([]);
+  const [chartData, setChartData] = React.useState<any[]>([]);
+  const [dashboardStats, setDashboardStats] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    const fetchDeadlines = async () => {
+    const fetchData = async () => {
       setLoading(true);
-      const result = await getUpcomingDeadlines();
-      if (result.success) {
-        setDeadlines(result.data || []);
-      } else {
-        toast.error(result.error);
+      try {
+        const [deadlinesRes, chartRes, statsRes] = await Promise.all([
+          getUpcomingDeadlines(),
+          getMonthlyJobStats(),
+          getDashboardStats()
+        ]);
+
+        if (deadlinesRes.success) setDeadlines(deadlinesRes.data || []);
+        if (chartRes.success) setChartData(chartRes.data || []);
+        if (statsRes.success) setDashboardStats(statsRes.data);
+      } catch (error) {
+        console.error("Error fetching overview data:", error);
+        toast.error("Gagal memuat data dashboard");
       }
       setLoading(false);
     };
-    fetchDeadlines();
+    fetchData();
   }, []);
+
+  const summaryStats = [
+    {
+      title: "Total Berkas Masuk",
+      value: dashboardStats?.totalJobs.toLocaleString() || "0",
+      description: "Seluruh kategori",
+      icon: FileText,
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+    },
+    {
+      title: "Dalam Proses",
+      value: dashboardStats?.processingJobs.toLocaleString() || "0",
+      description: "Sedang dikerjakan",
+      icon: Clock,
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+    },
+    {
+      title: "Berkas Selesai",
+      value: dashboardStats?.doneJobs.toLocaleString() || "0",
+      description: "Arsip digital",
+      icon: CheckCircle2,
+      color: "text-emerald-500",
+      bg: "bg-emerald-500/10",
+    },
+    {
+      title: "Pending",
+      value: dashboardStats?.pendingJobs.toLocaleString() || "0",
+      description: "Butuh verifikasi",
+      icon: AlertCircle,
+      color: "text-rose-500",
+      bg: "bg-rose-500/10",
+    },
+  ];
 
   return (
     <div className="space-y-8">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {summaryStats.map((s, i) => (
+          <Card key={i} className="border-none shadow-sm rounded-2xl bg-card overflow-hidden group hover:shadow-md transition-all duration-300">
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 px-6 pt-6">
+              <div className={cn("p-2.5 rounded-xl transition-colors duration-300", s.bg, s.color)}>
+                <s.icon className="h-5 w-5" />
+              </div>
+            </CardHeader>
+            <CardContent className="px-6 pb-6 pt-2">
+              <div className="flex flex-col">
+                <span className="text-3xl font-bold tracking-tight text-foreground">{s.value}</span>
+                <span className="text-sm font-semibold text-foreground mt-1">{s.title}</span>
+                <span className="text-xs text-muted-foreground mt-1">{s.description}</span>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        {/* ... (AreaChart Card remains same for now as it needs monthly aggregate data) */}
         <Card className="lg:col-span-4 border-border/50 bg-card/50 backdrop-blur-sm">
           <CardHeader>
             <CardTitle>Statistik Pekerjaan</CardTitle>
@@ -111,14 +130,14 @@ export function DashboardOverview() {
           <CardContent className="pl-2">
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
+                <AreaChart data={chartData}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#f47eab" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#f47eab" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.1)" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
                   <XAxis
                     dataKey="name"
                     stroke="#888888"
@@ -135,23 +154,27 @@ export function DashboardOverview() {
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "rgba(0,0,0,0.8)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      borderRadius: "8px",
-                      color: "#fff",
+                      backgroundColor: "rgba(255,255,255,0.9)",
+                      border: "none",
+                      borderRadius: "12px",
+                      boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
                     }}
                   />
                   <Area
                     type="monotone"
                     dataKey="total"
-                    stroke="var(--color-primary)"
+                    name="Berkas Masuk"
+                    stroke="#f47eab"
+                    strokeWidth={3}
                     fillOpacity={1}
                     fill="url(#colorTotal)"
                   />
                   <Area
                     type="monotone"
                     dataKey="completed"
+                    name="Berkas Selesai"
                     stroke="#10b981"
+                    strokeWidth={3}
                     fillOpacity={0}
                   />
                 </AreaChart>
@@ -160,14 +183,14 @@ export function DashboardOverview() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 border-border/50 bg-card/50 backdrop-blur-sm">
+        <Card className="lg:col-span-3 border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
           <CardHeader>
             <CardTitle>Deadline Pekerjaan</CardTitle>
             <CardDescription>
               Pekerjaan yang mendekati batas waktu (7 hari ke depan)
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="h-[300px] overflow-y-auto custom-scrollbar pr-2">
             {loading ? (
               <div className="space-y-4">
                 {[1, 2, 3, 4].map(i => (
@@ -182,23 +205,24 @@ export function DashboardOverview() {
             ) : (
               <div className="space-y-4">
                 {deadlines.map((job) => {
-                  const daysLeft = Math.ceil((new Date(job.deadline).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  const deadlineDate = new Date(job.deadline);
+                  const daysLeft = Math.ceil((deadlineDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
                   return (
-                    <div key={job.id} className="flex items-center gap-4">
-                      <div className={`h-2 w-2 rounded-full ${
-                        daysLeft <= 1 ? 'bg-red-500' : 
+                    <div key={job.id} className="flex items-center gap-4 group hover:bg-muted/30 p-2 rounded-xl transition-all">
+                      <div className={`h-2.5 w-2.5 rounded-full ${
+                        daysLeft <= 1 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)] animate-pulse' : 
                         daysLeft <= 3 ? 'bg-amber-500' : 'bg-blue-500'
                       }`} />
-                      <div className="flex-1 space-y-1">
-                        <p className="text-sm font-medium leading-none line-clamp-1">{job.title}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {job.client?.name} • {daysLeft} hari lagi
+                      <div className="flex-1 space-y-0.5">
+                        <p className="text-sm font-bold leading-none line-clamp-1">{job.title}</p>
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                          {job.client?.name} • {daysLeft === 0 ? 'Hari ini' : daysLeft < 0 ? 'Terlambat' : `${daysLeft} hari lagi`}
                         </p>
                       </div>
                       <div className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider",
-                        job.priority === 'URGENT' ? 'bg-red-500/10 text-red-500' : 
-                        job.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-500' : 'bg-blue-500/10 text-blue-500'
+                        "text-[9px] font-black px-2 py-1 rounded-lg uppercase tracking-widest",
+                        job.priority === 'URGENT' ? 'bg-rose-500 text-white' : 
+                        job.priority === 'HIGH' ? 'bg-amber-500/10 text-amber-600' : 'bg-blue-500/10 text-blue-600'
                       )}>
                         {job.priority}
                       </div>

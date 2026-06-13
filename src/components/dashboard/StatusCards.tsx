@@ -104,7 +104,7 @@ export function StatusCards() {
           </CardHeader>
           <CardContent className="px-6 pb-6 pt-2">
             <div className="flex flex-col">
-              <span className="text-2xl font-bold tracking-tight text-foreground">{status.value}</span>
+              <span className="text-3xl font-bold tracking-tight text-foreground">{status.value}</span>
               <span className="text-sm font-semibold text-foreground mt-1">{status.title}</span>
               <span className="text-xs text-muted-foreground mt-1">{status.description}</span>
             </div>

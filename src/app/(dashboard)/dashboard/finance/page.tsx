@@ -73,7 +73,7 @@ export default function FinancePage() {
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Monitoring Keuangan</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Monitoring Keuangan</h1>
           <p className="text-muted-foreground">
             Rekap pendapatan, pengeluaran, dan status tagihan client.
           </p>

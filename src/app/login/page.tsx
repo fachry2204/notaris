@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Loader2, ShieldCheck, User } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Loader2, MapPin, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 
 export default function LoginPage() {
@@ -15,7 +15,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
+  const [appName, setAppName] = useState("NOTARIS DIGITAL");
+  const [officeName, setOfficeName] = useState("Monitoring & Management System");
   const router = useRouter();
+
+  useEffect(() => {
+    const loadBranding = async () => {
+      try {
+        const res = await fetch("/api/settings", { cache: "no-store" });
+        const result = await res.json();
+
+        if (res.ok && result.success) {
+          setLogoUrl(result.data?.branding?.logoUrl || "");
+          setAppName(result.data?.general?.appName || "NOTARIS DIGITAL");
+          setOfficeName(result.data?.general?.officeName || "Monitoring & Management System");
+        }
+      } catch (error) {
+        console.error("Failed to load login branding:", error);
+      }
+    };
+
+    loadBranding();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,95 +64,94 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 relative overflow-hidden">
-      {/* Abstract Background Decoration */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-30 pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[60%] h-[60%] rounded-full bg-blue-100 blur-[120px]" />
-        <div className="absolute -bottom-[20%] -right-[10%] w-[60%] h-[60%] rounded-full bg-amber-50 blur-[120px]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-10">
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -left-16 top-10 h-64 w-64 rounded-full bg-pink-200/40 blur-3xl" />
+        <div className="absolute -right-10 bottom-10 h-72 w-72 rounded-full bg-pink-100/50 blur-3xl" />
       </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md z-10 px-4"
+        className="relative z-10 w-full max-w-xl"
       >
-        <div className="flex flex-col items-center mb-8">
-          <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-xl shadow-primary/20">
-            <ShieldCheck className="h-10 w-10 text-primary-foreground" />
-          </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900 mb-2">NOTARIS DIGITAL</h1>
-          <p className="text-slate-500 text-sm">Sistem Monitoring Berkas & Keuangan</p>
-        </div>
+        <Card className="overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl shadow-slate-300/40">
+          <div className="h-8 bg-[radial-gradient(circle_at_10px_10px,rgba(255,255,255,0.95)_4px,transparent_4.5px),linear-gradient(135deg,#ec4899_0%,#f472b6_100%)] bg-[length:24px_24px,100%_100%] bg-repeat-x bg-left-top" />
+          <CardContent className="px-6 pb-8 pt-7 md:px-10">
+            <div className="mb-8 flex flex-col items-center text-center">
+              <div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-pink-50 shadow-lg shadow-pink-200/40">
+                {logoUrl ? (
+                  <img
+                    src={logoUrl}
+                    alt="Logo kantor"
+                    className="h-full w-full object-contain p-3"
+                  />
+                ) : (
+                  <ShieldCheck className="h-11 w-11 text-pink-500" />
+                )}
+              </div>
+              <h1 className="text-3xl font-black tracking-tight text-slate-900">{appName}</h1>
+              <p className="mt-2 text-base text-slate-500">{officeName}</p>
+            </div>
 
-        <Card className="border-slate-200 bg-white/80 backdrop-blur-xl shadow-2xl shadow-slate-200/50">
-          <CardHeader>
-            <CardTitle className="text-xl font-semibold text-slate-900">Selamat Datang</CardTitle>
-            <CardDescription className="text-slate-500">
-              Silakan login untuk mengakses dashboard Anda.
-            </CardDescription>
-          </CardHeader>
-          <form onSubmit={handleSubmit}>
-            <CardContent className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               {error && (
-                <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs">
+                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
                   {error}
                 </div>
               )}
-              <div className="space-y-2">
-                <Label htmlFor="username" className="text-slate-700">Username</Label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="username"
-                    placeholder="Enter your username"
-                    className="bg-white border-slate-200 text-slate-900 pl-10 focus:ring-primary"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    required
-                  />
-                </div>
+              <div className="space-y-1">
+                <h2 className="text-xl font-bold text-slate-900">Selamat Datang</h2>
+                <p className="text-sm text-slate-500">Silakan login untuk mengakses dashboard Anda.</p>
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-slate-700">Password</Label>
-                </div>
-                <div className="relative">
-                  <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                  <Input
-                    id="password"
-                    type="password"
-                    placeholder="••••••••"
-                    className="bg-white border-slate-200 text-slate-900 pl-10 focus:ring-primary"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </div>
+                <Label htmlFor="username" className="ml-1 text-base font-bold text-slate-900">Username</Label>
+                <Input
+                  id="username"
+                  placeholder="Masukkan username"
+                  className="h-16 rounded-2xl border-slate-200 bg-white px-5 text-base text-slate-900 shadow-sm transition-all focus:border-pink-500 focus:ring-pink-500/20"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                />
               </div>
-            </CardContent>
-            <CardFooter>
+              <div className="space-y-2">
+                <Label htmlFor="password" className="ml-1 text-base font-bold text-slate-900">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Masukkan password"
+                  className="h-16 rounded-2xl border-slate-200 bg-white px-5 text-base text-slate-900 shadow-sm transition-all focus:border-pink-500 focus:ring-pink-500/20"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
               <Button
                 type="submit"
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground h-11 shadow-lg shadow-primary/20"
+                className="h-14 w-full rounded-2xl bg-pink-500 text-base font-bold text-white shadow-xl shadow-pink-500/20 transition-all hover:bg-pink-600 active:scale-[0.98]"
                 disabled={loading}
               >
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Logging in...
+                    Memproses Login...
                   </>
                 ) : (
-                  "Sign In to Dashboard"
+                  "Masuk ke Sistem"
                 )}
               </Button>
-            </CardFooter>
-          </form>
+            </form>
+
+            <div className="mt-8 border-t border-slate-100 pt-6 text-center">
+              <p className="inline-flex items-center gap-2 text-sm text-slate-400">
+                <MapPin className="h-4 w-4" />
+                {officeName} &copy; 2026
+              </p>
+            </div>
+          </CardContent>
         </Card>
-        
-        <p className="mt-8 text-center text-xs text-slate-400">
-          &copy; 2026 Notaris Digital System. All rights reserved.
-        </p>
       </motion.div>
     </div>
   );

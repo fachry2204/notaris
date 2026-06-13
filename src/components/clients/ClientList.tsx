@@ -21,12 +21,12 @@ import { Input } from "@/components/ui/input";
 import { 
   Plus, 
   Search, 
-  MoreHorizontal, 
   UserPlus, 
   Phone, 
   Mail, 
   MapPin,
-  Calendar
+  Calendar,
+  MessageSquare
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,8 +41,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Trash2 } from "lucide-react";
 
 import { getClients, deleteClient } from "@/lib/actions/clients";
+import { formatClientId } from "@/lib/utils/client";
 import { toast } from "sonner";
 import { 
   AlertDialog,
@@ -55,7 +58,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-export function ClientList() {
+interface ClientListProps {
+  filterType?: string;
+}
+
+export function ClientList({ filterType = "all" }: ClientListProps) {
+  const { data: session } = useSession();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
   const [clients, setClients] = useState<any[]>([]);
@@ -90,10 +98,16 @@ export function ClientList() {
     setDeleteId(null);
   };
 
-  const filteredClients = clients.filter(client => 
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredClients = clients.filter(client => {
+    // Filter by type from cards
+    if (filterType !== "all" && client.type !== filterType) return false;
+    
+    // Filter by search term
+    const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase()));
+      
+    return matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
@@ -124,11 +138,11 @@ export function ClientList() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[300px]">Client</TableHead>
-                <TableHead>Kontak</TableHead>
-                <TableHead>NPWP</TableHead>
+                <TableHead className="w-[300px] pl-10">Client</TableHead>
+                <TableHead>Jenis Client</TableHead>
+                <TableHead>Nomor Handphone</TableHead>
                 <TableHead>Alamat</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
+                <TableHead className="text-right pr-10">Aksi</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,49 +155,57 @@ export function ClientList() {
               ) : (
                 filteredClients.map((client) => (
                   <TableRow key={client.id} className="group transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10 border-2 border-background shadow-sm">
-                          <AvatarImage src={`https://avatar.vercel.sh/${client.name}.png`} />
-                          <AvatarFallback>{client.name.substring(0, 2).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="font-semibold">{client.name}</span>
-                          {client.birthday && (
-                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-                              <Calendar className="h-3 w-3" />
-                              {new Date(client.birthday).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
-                              {new Date(client.birthday).getMonth() === new Date().getMonth() && 
-                               new Date(client.birthday).getDate() === new Date().getDate() && (
-                                <Badge variant="outline" className="ml-2 bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] py-0 h-4">
-                                  HUT 🎂
-                                </Badge>
-                              )}
-                            </div>
-                          )}
+                    <TableCell className="pl-10">
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-foreground">{client.name}</span>
+                          <span className="text-[9px] font-black bg-pink-500/10 text-pink-500 px-1.5 py-0.5 rounded border border-pink-500/20 uppercase tracking-wider">
+                            {formatClientId(client.indexNo)}
+                          </span>
                         </div>
+                        {client.birthday && (
+                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
+                            <Calendar className="h-3 w-3" />
+                            {new Date(client.birthday).toLocaleDateString('id-ID', { day: 'numeric', month: 'long' })}
+                            {new Date(client.birthday).getMonth() === new Date().getMonth() && 
+                             new Date(client.birthday).getDate() === new Date().getDate() && (
+                              <Badge variant="outline" className="ml-2 bg-amber-500/10 text-amber-500 border-amber-500/20 text-[10px] py-0 h-4">
+                                HUT 🎂
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex flex-col gap-1 text-sm">
-                        {client.email && (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5" />
-                            {client.email}
-                          </div>
-                        )}
+                      <Badge 
+                        variant="outline" 
+                        className={`font-bold text-[10px] uppercase tracking-wider py-0.5 px-3 rounded-full ${
+                          client.type === "corporate" 
+                            ? "bg-blue-500/10 text-blue-600 border-blue-500/20" 
+                            : "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                        }`}
+                      >
+                        {client.type === "corporate" ? "Perusahaan" : "Individu"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <code className="text-xs bg-secondary/50 px-2 py-1 rounded">
+                          {client.phone || "-"}
+                        </code>
                         {client.phone && (
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <Phone className="h-3.5 w-3.5" />
-                            {client.phone}
-                          </div>
+                          <a 
+                            href={`https://wa.me/${client.phone.replace(/\D/g, '')}`} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="h-7 w-7 inline-flex items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                            title="Chat WhatsApp"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                          </a>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <code className="text-xs bg-secondary/50 px-2 py-1 rounded">
-                        {client.npwp || "-"}
-                      </code>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -191,31 +213,27 @@ export function ClientList() {
                         <span className="truncate max-w-[200px]">{client.address || "-"}</span>
                       </div>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuGroup>
-                            <DropdownMenuLabel>Opsi Client</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
-                              Lihat Detail
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push(`/dashboard/clients/${client.id}/edit`)}>
-                              Edit Data
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem 
-                              className="text-destructive"
-                              onClick={() => setDeleteId(client.id)}
-                            >
-                              Hapus Client
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                     <TableCell className="text-right pr-10">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-8 rounded-lg border-pink-200 text-pink-600 font-bold text-[10px] uppercase hover:bg-pink-500 hover:text-white transition-all shadow-sm"
+                          onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+                        >
+                          Detail
+                        </Button>
+                        {(session?.user?.role === "ADMINISTRATOR" || session?.user?.role === "PIMPINAN") && (
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-all"
+                            onClick={() => setDeleteId(client.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))

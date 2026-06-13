@@ -23,8 +23,10 @@ import { MoreHorizontal, Shield, User, Trash2, Edit } from "lucide-react";
 import { getStaff } from "@/lib/actions/users";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { useSession } from "next-auth/react";
 
 export function StaffList() {
+  const { data: session } = useSession();
   const [staff, setStaff] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -108,9 +110,11 @@ export function StaffList() {
                       <DropdownMenuItem className="gap-2">
                         <Edit className="h-4 w-4" /> Edit Data
                       </DropdownMenuItem>
-                      <DropdownMenuItem className="gap-2 text-destructive">
-                        <Trash2 className="h-4 w-4" /> Hapus
-                      </DropdownMenuItem>
+                      {(session?.user?.role === "ADMINISTRATOR" || session?.user?.role === "PIMPINAN") && (
+                        <DropdownMenuItem className="gap-2 text-destructive">
+                          <Trash2 className="h-4 w-4" /> Hapus
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>

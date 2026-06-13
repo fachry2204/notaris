@@ -27,6 +27,7 @@ export default function RootLayout({
             defaultTheme="light"
             enableSystem
             disableTransitionOnChange
+            suppressHydrationWarning
           >
             {children}
             <Toaster position="top-center" richColors />

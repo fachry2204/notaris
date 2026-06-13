@@ -48,7 +48,7 @@ export default function AuditLogPage() {
           <ShieldCheck className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Audit Log System</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Audit Log System</h1>
           <p className="text-slate-500">
             Riwayat lengkap aktivitas seluruh pengguna dalam sistem.
           </p>
@@ -91,7 +91,9 @@ export default function AuditLogPage() {
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-slate-400" />
-                        <span className="font-semibold text-sm">{log.user?.fullName || "System / Guest"}</span>
+                        <span className="font-semibold text-sm">
+                          {log.user?.fullName || log.user?.username || "User tidak diketahui"}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell>

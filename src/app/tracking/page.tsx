@@ -51,7 +51,7 @@ export default function TrackingPage() {
           <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
             <QrCode className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Tracking Berkas Digital</h1>
+          <h1 className="text-2xl font-bold tracking-tight mb-2">Tracking Berkas Digital</h1>
           <p className="text-slate-500">Masukkan kode tracking Anda untuk melihat progress pekerjaan secara realtime.</p>
         </div>
 

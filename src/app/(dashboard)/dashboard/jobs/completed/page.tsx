@@ -1,51 +1,46 @@
-import React from "react";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Download, FileCheck, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
+"use client";
 
-import { CompletedJobsTable } from "@/components/jobs/CompletedJobsTable";
+import { JobStatsCards } from "@/components/jobs/JobStatsCards";
+import { JobTable } from "@/components/jobs/JobTable";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Download, Search, Filter, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useState } from "react";
 
 export default function CompletedJobsPage() {
+  const [statusFilter, setStatusFilter] = useState<string | null>("SELESAI");
+
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Berkas Selesai</h1>
-          <p className="text-slate-500">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Berkas Selesai</h1>
+          <p className="text-slate-500 text-sm">
             Arsip digital seluruh pekerjaan yang telah diselesaikan.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input placeholder="Cari arsip..." className="pl-9 w-[250px]" />
-          </div>
-          <Button variant="outline" size="sm">
-            <Download className="mr-2 h-4 w-4" />
+          <Button variant="outline" className="h-11 rounded-xl font-bold border-muted gap-2">
+            <Download className="h-4 w-4" />
             Export Excel
           </Button>
         </div>
       </div>
 
-      <Card className="border-slate-200 bg-white/50 backdrop-blur-sm">
-        <CardHeader>
-          <CardTitle>Daftar Riwayat Berkas</CardTitle>
-          <CardDescription>Menampilkan berkas yang telah selesai diproses dalam 1 tahun terakhir.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CompletedJobsTable />
-        </CardContent>
-      </Card>
+      <JobStatsCards 
+        selectedStatus={statusFilter}
+        onStatusClick={(status) => setStatusFilter(status)}
+      />
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-slate-900">
+            {statusFilter ? `Daftar Berkas ${statusFilter}` : "Semua Daftar Berkas"}
+          </h2>
+        </div>
+        <JobTable statusFilter={statusFilter} />
+      </div>
     </div>
   );
 }

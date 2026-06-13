@@ -1,0 +1,85 @@
+{
+  "general": {
+    "appName": "NOTARIS DIGITAL",
+    "officeName": "Kantor Notaris Salfa Novia Roza, S.H.,M.Kn",
+    "officeAddress": "Jl. KH. Ahmad Dahlan Kby. No.10 D, RT.1/RW.1, Kramat Pela, Kec. Kby. Baru, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta 12130",
+    "officeEmail": "info@notarisfachry.com",
+    "officePhone": "+62 21 12345678"
+  },
+  "branding": {
+    "logoUrl": "/uploads/Screenshot_115.jpg",
+    "faviconUrl": ""
+  },
+  "roles": [
+    {
+      "id": "ADMINISTRATOR",
+      "key": "ADMINISTRATOR",
+      "name": "Administrator",
+      "color": "bg-pink-500",
+      "systemRole": true,
+      "permissions": {
+        "dashboard": true,
+        "client": true,
+        "berkas": true,
+        "finance": true,
+        "invoice": false,
+        "settings": true
+      }
+    },
+    {
+      "id": "PIMPINAN",
+      "key": "PIMPINAN",
+      "name": "Pimpinan",
+      "color": "bg-blue-500",
+      "systemRole": true,
+      "permissions": {
+        "dashboard": true,
+        "client": true,
+        "berkas": true,
+        "finance": true,
+        "invoice": false,
+        "settings": false
+      }
+    },
+    {
+      "id": "STAFFADMIN",
+      "key": "STAFFADMIN",
+      "name": "Staff Admin",
+      "color": "bg-emerald-500",
+      "systemRole": true,
+      "permissions": {
+        "dashboard": true,
+        "client": true,
+        "berkas": true,
+        "finance": false,
+        "invoice": false,
+        "settings": false
+      }
+    },
+    {
+      "id": "OB",
+      "key": "OB",
+      "name": "OB / Kurir",
+      "color": "bg-slate-500",
+      "systemRole": true,
+      "permissions": {
+        "dashboard": true,
+        "client": false,
+        "berkas": true,
+        "finance": false,
+        "invoice": false,
+        "settings": false
+      }
+    }
+  ],
+  "whatsapp": {
+    "provider": "fonnte",
+    "endpointUrl": "https://api.fonnte.com/send",
+    "apiToken": "",
+    "messages": {
+      "newJob": "Halo {clientName}, berkas baru Anda dengan judul {jobTitle} telah dibuat dan sedang diproses oleh sistem kami.",
+      "statusUpdate": "Halo {clientName}, status berkas {jobTitle} telah diperbarui menjadi {status}. Silakan hubungi kantor kami bila memerlukan bantuan.",
+      "newInvoice": "Halo {clientName}, invoice baru untuk {jobTitle} telah dibuat dengan nominal {amount}. Mohon cek informasi pembayaran Anda."
+    }
+  }
+}

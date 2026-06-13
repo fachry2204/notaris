@@ -29,25 +29,9 @@ import {
   Receipt,
   FileSpreadsheet
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-
-const revenueData = [
-  { month: "Jan", revenue: 45000000, expenses: 28000000 },
-  { month: "Feb", revenue: 52000000, expenses: 31000000 },
-  { month: "Mar", revenue: 48000000, expenses: 29000000 },
-  { month: "Apr", revenue: 61000000, expenses: 34000000 },
-  { month: "May", revenue: 55000000, expenses: 30000000 },
-  { month: "Jun", revenue: 67000000, expenses: 35000000 },
-];
-
-const statusData = [
-  { name: "Lunas", value: 400, color: "#10b981" },
-  { name: "Belum Lunas", value: 300, color: "#f59e0b" },
-  { name: "Cicilan", value: 200, color: "#3b82f6" },
-];
-
 import { getFinanceStats } from "@/lib/actions/finance";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 
 export function FinanceOverview() {
   const [stats, setStats] = React.useState<any>(null);
@@ -66,6 +50,9 @@ export function FinanceOverview() {
     };
     fetchFinance();
   }, []);
+
+  const revenueData = stats?.monthlyData || [];
+  const statusData = stats?.statusBreakdown || [];
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -196,7 +183,7 @@ export function FinanceOverview() {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {statusData.map((entry, index) => (
+                    {statusData.map((entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -205,7 +192,7 @@ export function FinanceOverview() {
               </ResponsiveContainer>
             </div>
             <div className="w-full space-y-2 mt-4">
-              {statusData.map((item, i) => (
+              {statusData.map((item: any, i: number) => (
                 <div key={i} className="flex items-center justify-between text-sm">
                   <div className="flex items-center gap-2">
                     <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }} />
