@@ -7,11 +7,11 @@ import { StatusCards } from "@/components/dashboard/StatusCards";
 import { DashboardOverview } from "@/components/dashboard/Overview";
 import { Button } from "@/components/ui/button";
 import { Calendar, Download, Plus, ArrowRight, LayoutDashboard, Clock, UserCheck, ClipboardList, PlaneTakeoff, UserX, Home, Receipt } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { getMyAttendanceToday } from "@/lib/actions/attendance";
 import { toast } from "sonner";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const [isMobile, setIsMobile] = useState(false);
@@ -305,5 +305,13 @@ export default function DashboardPage() {
         <DashboardOverview />
       </div>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><div className="h-12 w-12 animate-spin rounded-full border-4 border-pink-500 border-t-transparent" /></div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }

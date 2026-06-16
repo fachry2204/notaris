@@ -7,7 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export default function ForbiddenPage() {
+import { Suspense } from "react";
+
+function ForbiddenContent() {
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/dashboard";
   const section = searchParams.get("section") || "halaman ini";
@@ -68,5 +70,13 @@ export default function ForbiddenPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ForbiddenPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><div className="h-10 w-10 animate-spin rounded-full border-4 border-pink-500 border-t-transparent" /></div>}>
+      <ForbiddenContent />
+    </Suspense>
   );
 }

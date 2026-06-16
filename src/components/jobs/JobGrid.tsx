@@ -51,7 +51,7 @@ const statusConfig = {
 export function JobGrid() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteInfo, setDeleteInfo] = useState<{id: string, category: string} | null>(null);
 
   const fetchJobs = async () => {
     setLoading(true);
@@ -69,15 +69,15 @@ export function JobGrid() {
   }, []);
 
   const handleDelete = async () => {
-    if (!deleteId) return;
-    const result = await deleteJob(deleteId);
+    if (!deleteInfo) return;
+    const result = await deleteJob(deleteInfo.id, deleteInfo.category);
     if (result.success) {
       toast.success("Pekerjaan berhasil dihapus");
       fetchJobs();
     } else {
       toast.error(result.error || "Gagal menghapus pekerjaan");
     }
-    setDeleteId(null);
+    setDeleteInfo(null);
   };
 
   if (loading) {
@@ -115,7 +115,7 @@ export function JobGrid() {
                   <DropdownMenuItem onClick={() => {}} className="rounded-xl px-4 py-2.5">Detail Berkas</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {}} className="rounded-xl px-4 py-2.5">Update Progress</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {}} className="rounded-xl px-4 py-2.5">Cetak Tanda Terima</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setDeleteId(job.id)} className="rounded-xl px-4 py-2.5 text-destructive font-bold">Hapus</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDeleteInfo({id: job.id, category: job.category})} className="rounded-xl px-4 py-2.5 text-destructive font-bold">Hapus</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -172,7 +172,7 @@ export function JobGrid() {
         </Card>
       ))}
 
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog open={!!deleteInfo} onOpenChange={(open) => !open && setDeleteInfo(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Hapus Pekerjaan?</AlertDialogTitle>
