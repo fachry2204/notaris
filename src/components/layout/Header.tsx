@@ -17,7 +17,7 @@ export function Header() {
   const { setTheme, theme } = useTheme();
 
   return (
-    <header className="sticky top-0 z-30 flex h-20 w-full items-center justify-between border-b bg-background px-8 border-border/40 shadow-sm">
+    <header className="hidden md:flex sticky top-0 z-30 h-20 w-full items-center justify-between border-b bg-background px-8 border-border/40 shadow-sm">
       <div className="flex items-center gap-6 flex-1">
         <Button variant="ghost" size="icon" className="md:hidden">
           <Menu className="h-5 w-5" />

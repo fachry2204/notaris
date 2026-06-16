@@ -60,7 +60,7 @@ export default function EditUmumPage() {
       setLoading(true);
       const [jobRes, clientsRes, staffRes] = await Promise.all([getJobById(id as string), getClients(), getStaff()]);
 
-      if (jobRes.success) {
+      if (jobRes.success && jobRes.data) {
         const job = jobRes.data;
         setFormData({
           noBerkas: job.trackingCode,
@@ -195,9 +195,9 @@ export default function EditUmumPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-10 border-t border-muted/5">
-              <Button variant="ghost" type="button" className="h-11 px-10 font-bold" onClick={() => router.back()}>Batal</Button>
-              <Button type="submit" disabled={isSubmitting} className="h-11 px-12 rounded-xl font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20">{isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+            <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-10 border-t border-muted/5">
+              <Button variant="ghost" type="button" className="w-full md:w-auto h-11 px-10 rounded-xl font-bold" onClick={() => router.back()}>Batal</Button>
+              <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto h-11 px-12 rounded-xl font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20">{isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </div>
           </form>
         </CardContent>

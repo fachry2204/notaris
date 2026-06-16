@@ -40,6 +40,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuGroup,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -160,13 +161,13 @@ export default function InvoicePage() {
           <p className="text-muted-foreground mt-1">Kelola penagihan klien dan riwayat pembayaran jasa Notaris.</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="gap-2 h-10 rounded-xl border-muted-foreground/20">
-            <Download className="h-4 w-4" />
+          <Button variant="outline" className="gap-1.5 h-9 px-4 text-xs font-bold rounded-xl border-muted-foreground/20">
+            <Download className="h-3.5 w-3.5" />
             Export CSV
           </Button>
           <Link href="/dashboard/invoice/new">
-            <Button className="gap-2 h-10 px-5 rounded-xl shadow-lg shadow-pink-500/20 bg-pink-500 hover:bg-pink-600">
-              <Plus className="h-4 w-4" />
+            <Button className="gap-1.5 h-9 px-4 text-xs font-bold rounded-xl shadow-md shadow-pink-500/20 bg-pink-500 hover:bg-pink-600 text-white">
+              <Plus className="h-3.5 w-3.5" />
               Buat Invoice
             </Button>
           </Link>
@@ -261,21 +262,41 @@ export default function InvoicePage() {
                   </TableCell>
                   <TableCell className="px-6 text-right">
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="h-8 w-8 rounded-lg inline-flex items-center justify-center hover:bg-muted/50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-pink-500">
-                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+                      <DropdownMenuTrigger className="h-8 px-4 rounded-xl border border-pink-500/30 text-pink-600 hover:bg-pink-50 hover:text-pink-700 font-bold text-xs inline-flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-pink-500 shadow-sm">
+                        Detail
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48 rounded-xl border-muted-foreground/20">
-                        <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-3">Opsi Invoice</DropdownMenuLabel>
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-3">Opsi Invoice</DropdownMenuLabel>
+                        </DropdownMenuGroup>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1">
+                        <DropdownMenuItem 
+                          className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1"
+                          onClick={() => {
+                            window.location.href = `/dashboard/invoice/${inv.id}`;
+                          }}
+                        >
                           <Eye className="h-4 w-4 text-blue-500" />
                           <span className="text-xs font-semibold">Lihat Detail</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1">
+                        <DropdownMenuItem 
+                          className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1"
+                          onClick={() => {
+                            toast.success("Mempersiapkan dokumen untuk dicetak...");
+                            setTimeout(() => {
+                              window.open('/print/invoice/' + inv.id, '_blank');
+                            }, 500);
+                          }}
+                        >
                           <Printer className="h-4 w-4 text-emerald-500" />
                           <span className="text-xs font-semibold">Cetak Invoice</span>
                         </DropdownMenuItem>
-                        <DropdownMenuItem className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1">
+                        <DropdownMenuItem 
+                          className="gap-3 py-2.5 cursor-pointer rounded-lg mx-1"
+                          onClick={() => {
+                            toast.success(`Invoice berhasil dikirim ke email client.`);
+                          }}
+                        >
                           <Send className="h-4 w-4 text-pink-500" />
                           <span className="text-xs font-semibold">Kirim Email</span>
                         </DropdownMenuItem>

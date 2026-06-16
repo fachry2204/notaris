@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -64,90 +65,91 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4 py-10">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -left-16 top-10 h-64 w-64 rounded-full bg-pink-200/40 blur-3xl" />
-        <div className="absolute -right-10 bottom-10 h-72 w-72 rounded-full bg-pink-100/50 blur-3xl" />
-      </div>
-
+    <div className="relative flex min-h-screen items-center justify-center bg-slate-200 sm:px-4 sm:py-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-xl"
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4 }}
+        className="relative z-10 w-full h-full sm:h-auto sm:max-w-md"
       >
-        <Card className="overflow-hidden rounded-[2rem] border border-pink-100 bg-white shadow-2xl shadow-slate-300/40">
-          <div className="h-8 bg-[radial-gradient(circle_at_10px_10px,rgba(255,255,255,0.95)_4px,transparent_4.5px),linear-gradient(135deg,#ec4899_0%,#f472b6_100%)] bg-[length:24px_24px,100%_100%] bg-repeat-x bg-left-top" />
-          <CardContent className="px-6 pb-8 pt-7 md:px-10">
+        <Card className="overflow-hidden rounded-none sm:rounded-[2rem] border-none bg-white shadow-none sm:shadow-2xl min-h-[100dvh] sm:min-h-0 flex flex-col justify-center">
+          <CardContent className="px-8 pb-10 pt-8">
             <div className="mb-8 flex flex-col items-center text-center">
-              <div className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-3xl bg-pink-50 shadow-lg shadow-pink-200/40">
+              <div className="mb-4 flex h-20 w-20 items-center justify-center overflow-hidden">
                 {logoUrl ? (
                   <img
                     src={logoUrl}
                     alt="Logo kantor"
-                    className="h-full w-full object-contain p-3"
+                    className="h-full w-full object-contain"
                   />
                 ) : (
-                  <ShieldCheck className="h-11 w-11 text-pink-500" />
+                  <ShieldCheck className="h-16 w-16 text-orange-500" />
                 )}
               </div>
-              <h1 className="text-3xl font-black tracking-tight text-slate-900">{appName}</h1>
-              <p className="mt-2 text-base text-slate-500">{officeName}</p>
+              <h1 className="text-2xl font-black tracking-tight text-slate-900">{appName}</h1>
+              <p className="mt-1 text-sm text-slate-500">{officeName}</p>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-5">
+            <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
-                <div className="rounded-2xl border border-destructive/20 bg-destructive/10 p-4 text-sm text-destructive">
+                <div className="rounded-xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
                   {error}
                 </div>
               )}
-              <div className="space-y-1">
-                <h2 className="text-xl font-bold text-slate-900">Selamat Datang</h2>
-                <p className="text-sm text-slate-500">Silakan login untuk mengakses dashboard Anda.</p>
-              </div>
+              
               <div className="space-y-2">
-                <Label htmlFor="username" className="ml-1 text-base font-bold text-slate-900">Username</Label>
+                <Label htmlFor="username" className="text-sm font-bold text-slate-900">Username</Label>
                 <Input
                   id="username"
                   placeholder="Masukkan username"
-                  className="h-16 rounded-2xl border-slate-200 bg-white px-5 text-base text-slate-900 shadow-sm transition-all focus:border-pink-500 focus:ring-pink-500/20"
+                  className="h-14 rounded-2xl border-none bg-[#f0f4f8] px-5 text-base text-slate-900 focus-visible:ring-2 focus-visible:ring-pink-500/50"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password" className="ml-1 text-base font-bold text-slate-900">Password</Label>
+                <Label htmlFor="password" className="text-sm font-bold text-slate-900">Password</Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Masukkan password"
-                  className="h-16 rounded-2xl border-slate-200 bg-white px-5 text-base text-slate-900 shadow-sm transition-all focus:border-pink-500 focus:ring-pink-500/20"
+                  placeholder="••••••••"
+                  className="h-14 rounded-2xl border-none bg-[#f0f4f8] px-5 text-base text-slate-900 focus-visible:ring-2 focus-visible:ring-pink-500/50"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
-              <Button
-                type="submit"
-                className="h-14 w-full rounded-2xl bg-pink-500 text-base font-bold text-white shadow-xl shadow-pink-500/20 transition-all hover:bg-pink-600 active:scale-[0.98]"
-                disabled={loading}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Memproses Login...
-                  </>
-                ) : (
-                  "Masuk ke Sistem"
-                )}
-              </Button>
+              <div className="pt-2">
+                <Button
+                  type="submit"
+                  className="h-14 w-full rounded-2xl bg-pink-500 text-base font-bold text-white shadow-lg shadow-pink-500/30 transition-all hover:bg-pink-600 active:scale-[0.98]"
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    "Masuk ke Sistem"
+                  )}
+                </Button>
+              </div>
+              <div className="pt-2">
+                <Link 
+                  href="/cek-berkas" 
+                  className="flex items-center justify-center h-14 w-full rounded-2xl bg-sky-400 text-base font-bold text-white shadow-lg shadow-sky-400/30 transition-all hover:bg-sky-500 active:scale-[0.98]"
+                >
+                  Cek Berkas Client
+                </Link>
+              </div>
             </form>
 
-            <div className="mt-8 border-t border-slate-100 pt-6 text-center">
-              <p className="inline-flex items-center gap-2 text-sm text-slate-400">
-                <MapPin className="h-4 w-4" />
-                {officeName} &copy; 2026
+            <div className="mt-6 border-t border-slate-100 pt-4 text-center">
+              <p className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+                <MapPin className="h-3.5 w-3.5" />
+                Sistem Informasi Notaris &copy; 2026
               </p>
             </div>
           </CardContent>

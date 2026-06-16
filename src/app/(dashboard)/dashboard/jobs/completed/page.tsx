@@ -5,11 +5,21 @@ import { JobTable } from "@/components/jobs/JobTable";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, Search, Filter, ChevronDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
+import { FilterCepat, FilterType } from "@/components/dashboard/FilterCepat";
 
 export default function CompletedJobsPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>("SELESAI");
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [activeFilter, setActiveFilter] = useState<string | null>("Tahun Ini");
+
+  const handleFilterChange = (start: Date | null, end: Date | null, type: FilterType) => {
+    setDateRange({ from: start || undefined, to: end || undefined });
+    setActiveFilter(type);
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -21,8 +31,12 @@ export default function CompletedJobsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" className="h-11 rounded-xl font-bold border-muted gap-2">
-            <Download className="h-4 w-4" />
+          <FilterCepat 
+            onFilterChange={handleFilterChange} 
+            defaultFilter={activeFilter as FilterType || "Tahun Ini"} 
+          />
+          <Button variant="outline" className="h-9 px-4 text-xs rounded-xl font-bold border-muted gap-1.5">
+            <Download className="h-3.5 w-3.5" />
             Export Excel
           </Button>
         </div>
@@ -39,7 +53,7 @@ export default function CompletedJobsPage() {
             {statusFilter ? `Daftar Berkas ${statusFilter}` : "Semua Daftar Berkas"}
           </h2>
         </div>
-        <JobTable statusFilter={statusFilter} />
+        <JobTable statusFilter={statusFilter} dateRange={dateRange} />
       </div>
     </div>
   );

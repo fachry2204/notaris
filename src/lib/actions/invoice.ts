@@ -82,10 +82,13 @@ export async function createInvoice(data: {
 
     if (data.jobType === "badan_hukum") {
       invoiceData.badanHukumId = data.jobId;
+      await db.update(badanHukum).set({ invoiceStatus: data.dpAmount > 0 ? "DP" : "PAYMENT" }).where(eq(badanHukum.id, data.jobId));
     } else if (data.jobType === "non_badan_hukum") {
       invoiceData.nonBadanHukumId = data.jobId;
+      await db.update(nonBadanHukum).set({ invoiceStatus: data.dpAmount > 0 ? "DP" : "PAYMENT" }).where(eq(nonBadanHukum.id, data.jobId));
     } else if (data.jobType === "ppat") {
       invoiceData.ppatId = data.jobId;
+      await db.update(ppat).set({ invoiceStatus: data.dpAmount > 0 ? "DP" : "PAYMENT" }).where(eq(ppat.id, data.jobId));
     }
 
     await db.insert(invoice).values(invoiceData);
@@ -112,6 +115,8 @@ export async function createInvoice(data: {
     const result = await db.select().from(invoice).where(eq(invoice.id, invoiceId)).limit(1);
 
     revalidatePath("/dashboard/invoice");
+    revalidatePath("/dashboard/jobs");
+    revalidatePath(`/dashboard/jobs/${data.jobId}`);
     revalidatePath("/dashboard/clients");
     if (clientIdToRevalidate) {
       revalidatePath(`/dashboard/clients/${clientIdToRevalidate}`);
@@ -120,6 +125,61 @@ export async function createInvoice(data: {
   } catch (error: any) {
     console.error("Error creating invoice:", error);
     return { success: false, error: "Gagal membuat invoice: " + error.message };
+  }
+}
+
+export async function updateInvoice(id: string, data: { amount: number; description: string; date: Date; dueDate: Date; status: string }) {
+  try {
+    await db.update(invoice).set({
+      amount: data.amount.toString(),
+      description: data.description,
+      date: data.date,
+      dueDate: data.dueDate,
+      status: data.status,
+    }).where(eq(invoice.id, id));
+
+    await db.update(financerecord).set({
+      amount: data.amount.toString(),
+      description: data.description,
+      date: data.date,
+    }).where(eq(financerecord.invoiceId, id));
+
+    revalidatePath("/dashboard/invoice");
+    revalidatePath(`/dashboard/invoice/${id}`);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: "Gagal mengupdate invoice: " + error.message };
+  }
+}
+
+export async function deleteInvoice(id: string) {
+  try {
+    const inv = await db.select().from(invoice).where(eq(invoice.id, id)).limit(1);
+    if (!inv || inv.length === 0) return { success: false, error: "Invoice tidak ditemukan" };
+
+    const invData = inv[0];
+    
+    // Reset job invoiceStatus
+    if (invData.badanHukumId) {
+      await db.update(badanHukum).set({ invoiceStatus: "PENDING" }).where(eq(badanHukum.id, invData.badanHukumId));
+    } else if (invData.nonBadanHukumId) {
+      await db.update(nonBadanHukum).set({ invoiceStatus: "PENDING" }).where(eq(nonBadanHukum.id, invData.nonBadanHukumId));
+    } else if (invData.ppatId) {
+      await db.update(ppat).set({ invoiceStatus: "PENDING" }).where(eq(ppat.id, invData.ppatId));
+    }
+
+    await db.delete(financerecord).where(eq(financerecord.invoiceId, id));
+    await db.delete(invoice).where(eq(invoice.id, id));
+
+    revalidatePath("/dashboard/invoice");
+    revalidatePath("/dashboard/jobs");
+    if (invData.badanHukumId) revalidatePath(`/dashboard/jobs/${invData.badanHukumId}`);
+    if (invData.nonBadanHukumId) revalidatePath(`/dashboard/jobs/${invData.nonBadanHukumId}`);
+    if (invData.ppatId) revalidatePath(`/dashboard/jobs/${invData.ppatId}`);
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: "Gagal menghapus invoice: " + error.message };
   }
 }
 
@@ -242,6 +302,21 @@ export async function getInvoicesList() {
   }
 }
 
+export async function getInvoiceByJobId(jobId: string) {
+  try {
+    const result = await db.select().from(invoice)
+      .where(drizzleSql`${invoice.badanHukumId} = ${jobId} OR ${invoice.nonBadanHukumId} = ${jobId} OR ${invoice.ppatId} = ${jobId}`)
+      .limit(1);
+    
+    if (result && result.length > 0) {
+      return { success: true, data: result[0] };
+    }
+    return { success: false, error: "Invoice not found" };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 export async function getInvoicesByClientId(clientId: string) {
   try {
     const invoices = await db.select().from(invoice).orderBy(desc(invoice.createdAt));
@@ -286,5 +361,49 @@ export async function getInvoicesByClientId(clientId: string) {
     return { success: true, data: mapped };
   } catch (error: any) {
     return { success: false, error: error.message || "Gagal mengambil invoice client." };
+  }
+}
+
+export async function getInvoiceById(invoiceId: string) {
+  try {
+    const invoices = await db.select().from(invoice).where(eq(invoice.id, invoiceId)).limit(1);
+    if (!invoices.length) return { success: false, error: "Invoice tidak ditemukan." };
+
+    const inv = invoices[0];
+    const { jobsByKey, clientById } = await getAllJobsWithClients();
+
+    const resolved = resolveInvoiceJobType(inv);
+    const job = resolved ? jobsByKey.get(`${resolved.type}:${resolved.id}`) : null;
+    const jobClient = job?.clientId ? clientById.get(job.clientId) : null;
+
+    const mapped: InvoiceListItem = {
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      amount: Number(inv.amount),
+      status: inv.status || "Belum Bayar",
+      description: inv.description || null,
+      date: inv.date,
+      dueDate: inv.dueDate || null,
+      job: job
+        ? {
+            id: job.id,
+            type: job.type,
+            title: job.title,
+            trackingCode: job.trackingCode || null,
+          }
+        : null,
+      client: jobClient
+        ? {
+            id: jobClient.id,
+            name: jobClient.name,
+          }
+        : null,
+    };
+
+    const payments = await db.select().from(financerecord).where(eq(financerecord.invoiceId, invoiceId)).orderBy(desc(financerecord.date));
+
+    return { success: true, data: { ...mapped, payments } };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal mengambil data invoice." };
   }
 }

@@ -7,7 +7,7 @@ import { getServerSession } from "next-auth";
 import { revalidatePath } from "next/cache";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { attendance, staff } from "@/lib/db/schema";
+import { attendance, staff, user } from "@/lib/db/schema";
 import { logActivity } from "./logs";
 
 function getTodayRange() {
@@ -20,23 +20,7 @@ function getTodayRange() {
   return { start, end };
 }
 
-async function ensureAttendanceTable() {
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS attendance (
-      id VARCHAR(255) PRIMARY KEY,
-      staffId VARCHAR(255) NOT NULL,
-      \`date\` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      checkIn DATETIME NULL,
-      checkOut DATETIME NULL,
-      status VARCHAR(255) NULL DEFAULT 'Hadir',
-      notes TEXT NULL,
-      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX attendance_staffId_fkey (staffId),
-      INDEX attendance_date_idx (\`date\`)
-    )
-  `);
-}
+
 
 async function getMyStaffProfile() {
   const session = await getServerSession(authOptions);
@@ -83,7 +67,6 @@ async function saveAttendanceImage(base64Data: string, staffId: string) {
 
 export async function getMyAttendanceToday() {
   try {
-    await ensureAttendanceTable();
     const { session, myStaff } = await getMyStaffProfile();
     const { start, end } = getTodayRange();
 
@@ -119,7 +102,6 @@ export async function submitMyAttendance(data: {
   systemName?: string;
 }) {
   try {
-    await ensureAttendanceTable();
     const { session, myStaff } = await getMyStaffProfile();
     const { start, end } = getTodayRange();
 
@@ -145,12 +127,29 @@ export async function submitMyAttendance(data: {
 
     if (existingRows[0]) {
       attendanceType = existingRows[0].checkOut ? "UPDATE_ABSENSI" : "CHECK_OUT";
+      let existingNotes: any = {};
+      try {
+        if (existingRows[0].notes) {
+          existingNotes = JSON.parse(existingRows[0].notes);
+        }
+      } catch (e) {}
+
+      // Keep existing notes for backward compatibility, but move them to checkIn if not structured yet
+      if (!existingNotes.checkIn && existingNotes.locationLabel) {
+        existingNotes = { checkIn: { ...existingNotes } };
+      }
+
+      // Merge new checkOut notes
+      const newNotes = {
+        ...existingNotes,
+        checkOut: attendancePayload
+      };
 
       await db
         .update(attendance)
         .set({
           checkOut: existingRows[0].checkOut ? existingRows[0].checkOut : now,
-          notes: JSON.stringify(attendancePayload),
+          notes: JSON.stringify(newNotes),
         })
         .where(eq(attendance.id, existingRows[0].id));
 
@@ -158,13 +157,16 @@ export async function submitMyAttendance(data: {
       savedRecord = updatedRows[0] || null;
     } else {
       const attendanceId = `attendance-${Math.random().toString(36).slice(2, 11)}`;
+      const newNotes = {
+        checkIn: attendancePayload
+      };
       await db.insert(attendance).values({
         id: attendanceId,
         staffId: myStaff.id,
         date: now,
         checkIn: now,
         status: "Hadir",
-        notes: JSON.stringify(attendancePayload),
+        notes: JSON.stringify(newNotes),
       });
 
       const newRows = await db.select().from(attendance).where(eq(attendance.id, attendanceId)).limit(1);
@@ -183,5 +185,133 @@ export async function submitMyAttendance(data: {
     return { success: true, data: savedRecord };
   } catch (error: any) {
     return { success: false, error: error.message || "Gagal menyimpan absensi." };
+  }
+}
+
+export async function getTodayAllStaffAttendance(filterStart?: Date, filterEnd?: Date) {
+  try {
+    const now = new Date();
+    
+    // Default to Bulan Ini
+    const defaultStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const defaultEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    
+    const finalStart = filterStart || defaultStart;
+    const finalEnd = filterEnd || defaultEnd;
+
+    // Format dates manually for safety with raw SQL
+    const startStr = `${finalStart.getFullYear()}-${String(finalStart.getMonth() + 1).padStart(2, '0')}-${String(finalStart.getDate()).padStart(2, '0')} 00:00:00`;
+    const endStr = `${finalEnd.getFullYear()}-${String(finalEnd.getMonth() + 1).padStart(2, '0')}-${String(finalEnd.getDate()).padStart(2, '0')} 23:59:59`;
+
+    // Added COLLATE to fix mix of collations error in MySQL when joining tables
+    const result = await db.execute(sql`
+      SELECT 
+        a.id, 
+        a.date, 
+        a.checkIn, 
+        a.checkOut, 
+        a.status, 
+        a.notes,
+        u.fullName as staffName, 
+        u.role as staffRole
+      FROM attendance a
+      JOIN staff s ON a.staffId COLLATE utf8mb4_unicode_ci = s.id COLLATE utf8mb4_unicode_ci
+      JOIN user u ON s.userId COLLATE utf8mb4_unicode_ci = u.id COLLATE utf8mb4_unicode_ci
+      WHERE a.date >= ${startStr} AND a.date <= ${endStr}
+      ORDER BY a.createdAt DESC
+    `);
+
+    return { success: true, data: (result[0] as unknown as any[]) || [] };
+  } catch (error: any) {
+    console.error(error);
+    return { success: false, error: error.message || "Gagal mengambil data." };
+  }
+}
+
+export async function getMyAttendanceHistory() {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) throw new Error("Unauthenticated");
+
+    const myStaffRows = await db.select().from(staff).where(eq(staff.userId, session.user.id)).limit(1);
+    const myStaff = myStaffRows[0];
+    if (!myStaff) throw new Error("Staff record not found.");
+
+    const history = await db.execute(sql`
+      SELECT 
+        a.id, 
+        a.date, 
+        a.checkIn, 
+        a.checkOut, 
+        a.status, 
+        a.notes
+      FROM attendance a
+      WHERE a.staffId = ${myStaff.id}
+      ORDER BY a.date DESC
+      LIMIT 30
+    `);
+
+    return { success: true, data: (history[0] as unknown as any[]) || [] };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal mengambil riwayat absensi." };
+  }
+}
+
+export async function getAbsensiDashboardData(filterStart?: Date, filterEnd?: Date) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) throw new Error("Sesi tidak ditemukan.");
+    
+    const role = session.user.role;
+    if (role === "ADMINISTRATOR" || role === "PIMPINAN") {
+      const allData = await getTodayAllStaffAttendance(filterStart, filterEnd);
+      return { success: true, role, data: allData.data };
+    } else {
+      const myData = await getMyAttendanceToday();
+      const myHistory = await getMyAttendanceHistory();
+      return { success: true, role, data: { today: myData.data, history: myHistory.data } };
+    }
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal memuat dashboard." };
+  }
+}
+
+export async function deleteAttendance(id: string) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) throw new Error("Sesi tidak ditemukan.");
+    
+    if (session.user.role !== "ADMINISTRATOR" && session.user.role !== "PIMPINAN") {
+      throw new Error("Tidak memiliki izin.");
+    }
+
+    await db.delete(attendance).where(eq(attendance.id, id));
+    revalidatePath("/dashboard/pegawai/absensi");
+    return { success: true, message: "Data absensi berhasil dihapus." };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal menghapus absensi." };
+  }
+}
+
+export async function editAttendance(id: string, checkInTime: Date | null, checkOutTime: Date | null) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) throw new Error("Sesi tidak ditemukan.");
+    
+    if (session.user.role !== "ADMINISTRATOR" && session.user.role !== "PIMPINAN") {
+      throw new Error("Tidak memiliki izin.");
+    }
+
+    await db.update(attendance)
+      .set({
+        checkIn: checkInTime,
+        checkOut: checkOutTime,
+      })
+      .where(eq(attendance.id, id));
+
+    revalidatePath("/dashboard/pegawai/absensi");
+    return { success: true, message: "Data absensi berhasil diperbarui." };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal memperbarui absensi." };
   }
 }

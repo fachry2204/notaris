@@ -76,7 +76,7 @@ const statusConfig = {
   PENDING: { label: "Pending", color: "bg-amber-500/10 text-amber-500 border-amber-500/20", progress: 0 },
   PROSES: { label: "Proses", color: "bg-blue-500/10 text-blue-500 border-blue-500/20", progress: 40 },
   REVISI: { label: "Revisi", color: "bg-rose-500/10 text-rose-500 border-rose-500/20", progress: 20 },
-  REVISI_PROSES: { label: "Revisi Proses", color: "bg-orange-500/10 text-orange-500 border-orange-500/20", progress: 60 },
+  REVISI_PROSES: { label: "revisi Proses", color: "bg-orange-500/10 text-orange-500 border-orange-500/20", progress: 60 },
   VERIFIKASI: { label: "Menunggu verifikasi", color: "bg-purple-500/10 text-purple-500 border-purple-500/20", progress: 85 },
   SELESAI: { label: "Selesai", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20", progress: 100 },
   CANCELLED: { label: "Dibatalkan", color: "bg-slate-500/10 text-slate-500 border-slate-500/20", progress: 0 },
@@ -138,13 +138,14 @@ export default function JobDetailPage() {
     <>
       <div className="w-full space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 pb-8">
         {/* Header Navigation */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        {/* Header Navigation */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start md:items-center gap-4">
             <Button 
               variant="ghost" 
               size="icon" 
-              className="rounded-full hover:bg-pink-500/10 hover:text-pink-500 transition-all"
-              onClick={() => router.back()}
+              className="rounded-full hover:bg-pink-500/10 hover:text-pink-500 transition-all shrink-0"
+              onClick={() => router.push('/dashboard/jobs')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -154,11 +155,11 @@ export default function JobDetailPage() {
                 <ChevronRight className="h-3 w-3" />
                 <span className="text-pink-600">{job.trackingCode}</span>
               </div>
-              <h1 className="text-2xl font-black tracking-tight text-foreground leading-none">{job.title}</h1>
+              <h1 className="text-xl md:text-2xl font-black tracking-tight text-foreground leading-snug md:leading-none">{job.title}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2 md:gap-3 pl-14 md:pl-0">
+            <div className="flex items-center gap-1.5 w-full md:w-auto mb-2 md:mb-0">
               <Badge className={cn("rounded-full px-3 py-1.5 border-none font-black text-[9px] uppercase tracking-widest shadow-sm", (statusConfig[job.status as keyof typeof statusConfig] || statusConfig.PENDING).color)}>
                 {(statusConfig[job.status as keyof typeof statusConfig] || { label: job.status }).label}
               </Badge>
@@ -174,11 +175,11 @@ export default function JobDetailPage() {
                 <ChevronDown className="h-3 w-3" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="rounded-xl border-none shadow-2xl min-w-[150px] p-1.5">
-                <DropdownMenuItem onClick={() => toast.info("Mencetak Penyerahan...")} className="rounded-lg px-2 py-2 gap-2 cursor-pointer text-xs">
+                <DropdownMenuItem onClick={() => setTimeout(() => window.open('/print/tanda-terima/' + job.id + '?type=penyerahan', '_blank'), 100)} className="rounded-lg px-2 py-2 gap-2 cursor-pointer text-xs">
                   <FileText className="h-3.5 w-3.5 text-blue-500" />
                   Penyerahan Berkas
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info("Mencetak Pengambilan...")} className="rounded-lg px-2 py-2 gap-2 cursor-pointer text-xs">
+                <DropdownMenuItem onClick={() => setTimeout(() => window.open('/print/tanda-terima/' + job.id + '?type=pengambilan', '_blank'), 100)} className="rounded-lg px-2 py-2 gap-2 cursor-pointer text-xs">
                   <FileText className="h-3.5 w-3.5 text-emerald-500" />
                   Ambil Berkas
                 </DropdownMenuItem>
@@ -208,9 +209,9 @@ export default function JobDetailPage() {
               size="sm"
               onClick={() => setIsUpdateStatusOpen(true)}
               variant="outline"
-              className="rounded-xl gap-2 font-bold border-amber-200 text-amber-600 hover:bg-amber-50 h-10 px-4 text-sm"
+              className="rounded-xl gap-2 font-bold border-amber-200 text-amber-600 hover:bg-amber-50 h-8 text-xs"
             >
-              <Clock className="h-4 w-4" />
+              <Clock className="h-3.5 w-3.5" />
               Status
             </Button>
 
@@ -580,7 +581,7 @@ export default function JobDetailPage() {
           }} className="space-y-6 py-4">
             <div className="space-y-2">
               <Label htmlFor="status">Status Pekerjaan</Label>
-              <Select name="status" defaultValue={job.status || "PENDING"}>
+              <Select key={job.status} name="status" defaultValue={job.status || "PENDING"}>
                 <SelectTrigger className="h-12 rounded-xl border-muted-foreground/20">
                   <SelectValue placeholder="Pilih Status" />
                 </SelectTrigger>
@@ -596,14 +597,15 @@ export default function JobDetailPage() {
 
             <div className="space-y-2">
               <Label htmlFor="invoiceStatus">Status Invoice</Label>
-              <Select name="invoiceStatus" defaultValue={job.invoiceStatus || "PENDING"}>
+              <Select key={`invoice-${job.invoiceStatus}`} name="invoiceStatus" defaultValue={job.invoiceStatus || "PENDING"}>
                 <SelectTrigger className="h-12 rounded-xl border-muted-foreground/20">
                   <SelectValue placeholder="Pilih Status Invoice" />
                 </SelectTrigger>
                 <SelectContent sideOffset={5} className="rounded-xl border-none shadow-2xl">
                   <SelectItem value="PENDING" className="rounded-lg font-bold">Pending</SelectItem>
+                  <SelectItem value="PAYMENT" className="rounded-lg font-bold">Belum Bayar</SelectItem>
                   <SelectItem value="DP" className="rounded-lg font-bold">DP</SelectItem>
-                  <SelectItem value="PAYMENT" className="rounded-lg font-bold">Payment</SelectItem>
+                  <SelectItem value="LUNAS" className="rounded-lg font-bold">Lunas</SelectItem>
                 </SelectContent>
               </Select>
             </div>

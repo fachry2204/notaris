@@ -6,9 +6,20 @@ import { Button } from "@/components/ui/button";
 import { Plus, Download, ArrowLeft, TrendingUp, TrendingDown, Wallet, Receipt } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { FilterCepat, FilterType } from "@/components/dashboard/FilterCepat";
 
 export default function FinancePage() {
   const [view, setView] = useState<"overview" | "selection">("overview");
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({
+    from: undefined,
+    to: undefined,
+  });
+  const [activeFilter, setActiveFilter] = useState<string | null>("Tahun Ini");
+
+  const handleFilterChange = (start: Date | null, end: Date | null, type: FilterType) => {
+    setDateRange({ from: start || undefined, to: end || undefined });
+    setActiveFilter(type);
+  };
 
   if (view === "selection") {
     return (
@@ -79,15 +90,19 @@ export default function FinancePage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline" className="rounded-2xl h-12 px-6 border-pink-200 text-pink-600 hover:bg-pink-50">
-            <Download className="mr-2 h-4 w-4" />
+          <FilterCepat 
+            onFilterChange={handleFilterChange} 
+            defaultFilter={activeFilter as FilterType || "Tahun Ini"} 
+          />
+          <Button variant="outline" className="rounded-xl h-9 px-4 text-xs font-bold border-pink-200 text-pink-600 hover:bg-pink-50">
+            <Download className="mr-1.5 h-3.5 w-3.5" />
             Export PDF
           </Button>
           <Button 
-            className="rounded-2xl h-12 px-8 bg-pink-500 hover:bg-pink-600 shadow-lg shadow-pink-500/20 gap-2 font-bold"
+            className="rounded-xl h-9 px-4 text-xs font-bold bg-pink-500 hover:bg-pink-600 text-white shadow-md shadow-pink-500/20"
             onClick={() => setView("selection")}
           >
-            <Plus className="h-5 w-5" />
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
             Tambah Keuangan
           </Button>
         </div>

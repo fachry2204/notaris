@@ -45,7 +45,7 @@ export default function EditBadanHukumPage() {
   const [isPicDropdownOpen, setIsPicDropdownOpen] = useState(false);
   const [saksiSearch, setSaksiSearch] = useState("");
   const [isSaksiDropdownOpen, setIsSaksiDropdownOpen] = useState(false);
-  const saksiOptions = ["Rahma", "Doni", "Maya", "Rizky", "Siti", "Ahmad"];
+
 
   const clientRef = useRef<HTMLDivElement>(null);
   const picRef = useRef<HTMLDivElement>(null);
@@ -72,7 +72,7 @@ export default function EditBadanHukumPage() {
       setLoading(true);
       const [jobRes, clientsRes, staffRes] = await Promise.all([getJobById(id as string), getClients(), getStaff()]);
 
-      if (jobRes.success) {
+      if (jobRes.success && jobRes.data) {
         const job = jobRes.data;
         const titleParts = job.title.split(' - ');
         setFormData({
@@ -179,9 +179,12 @@ export default function EditBadanHukumPage() {
                 <Label className="text-sm font-bold text-muted-foreground">Nama Saksi</Label>
                 <Input value={saksiSearch} onChange={(e) => { setSaksiSearch(e.target.value); setIsSaksiDropdownOpen(true); }} onFocus={() => setIsSaksiDropdownOpen(true)} className="h-11 rounded-xl border-muted px-4 font-medium" />
                 {isSaksiDropdownOpen && (
-                  <div className="absolute z-50 w-full mt-2 bg-card border border-muted shadow-2xl rounded-xl p-2">
-                    {saksiOptions.filter(s => s.toLowerCase().includes(saksiSearch.toLowerCase())).map((s, i) => (
-                      <div key={i} onClick={() => { setSaksiSearch(s); setIsSaksiDropdownOpen(false); }} className="p-3 rounded-xl hover:bg-pink-50 cursor-pointer font-bold text-sm">{s}</div>
+                  <div className="absolute z-50 w-full mt-2 bg-card border border-muted shadow-2xl rounded-xl p-2 max-h-[250px] overflow-y-auto">
+                    {allStaff.filter(s => s.isActive && s.role !== 'ADMINISTRATOR' && s.fullName.toLowerCase().includes(saksiSearch.toLowerCase())).map(staff => (
+                      <div key={staff.id} onClick={() => { setSaksiSearch(staff.fullName); setIsSaksiDropdownOpen(false); }} className="flex items-center gap-3 p-3 rounded-xl hover:bg-pink-50 cursor-pointer">
+                        <div className="h-9 w-9 rounded-full bg-pink-500/10 flex items-center justify-center text-pink-500"><User2 className="h-5 w-5" /></div>
+                        <div><p className="font-bold text-sm">{staff.fullName}</p><p className="text-[10px] text-muted-foreground uppercase">{staff.role}</p></div>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -263,9 +266,9 @@ export default function EditBadanHukumPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-10 border-t border-muted/5">
-              <Button variant="ghost" type="button" className="h-11 px-10 font-bold" onClick={() => router.back()}>Batal</Button>
-              <Button type="submit" disabled={isSubmitting} className="h-11 px-12 rounded-xl font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20">{isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}</Button>
+            <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-10 border-t border-muted/5">
+              <Button variant="ghost" type="button" className="w-full md:w-auto h-11 px-10 rounded-xl font-bold" onClick={() => router.back()}>Batal</Button>
+              <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto h-11 px-12 rounded-xl font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20">{isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}</Button>
             </div>
           </form>
         </CardContent>

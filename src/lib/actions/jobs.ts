@@ -9,6 +9,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { eq, and, or, desc, asc, sql as drizzleSql } from "drizzle-orm";
 
+import { cache } from "react";
+
 async function checkAdminOrPimpinan() {
   const session = await getServerSession(authOptions);
   if (!session || !["ADMINISTRATOR", "PIMPINAN"].includes(session.user.role)) {
@@ -18,7 +20,7 @@ async function checkAdminOrPimpinan() {
 }
 
 // Helper to get all jobs from all tables with Drizzle
-export async function getAllJobsFromTables() {
+export const getAllJobsFromTables = cache(async () => {
   try {
     // Fetch badan hukum with client and staff
     const bh = await db.select({
@@ -155,7 +157,8 @@ export async function getAllJobsFromTables() {
     console.error("Failed to fetch all jobs:", err);
     throw err;
   }
-}
+});
+
 
 export async function getJobStats() {
   try {
@@ -199,15 +202,8 @@ export async function getUpcomingDeadlines() {
 
 export async function getDashboardStats() {
   try {
-    const [countBH, countNBH, countPPAT] = await Promise.all([
-      db.select({ count: drizzleSql`count(*)` }).from(badanHukum).then(r => Number(r[0].count)),
-      db.select({ count: drizzleSql`count(*)` }).from(nonBadanHukum).then(r => Number(r[0].count)),
-      db.select({ count: drizzleSql`count(*)` }).from(ppat).then(r => Number(r[0].count)),
-    ]);
-
-    const totalJobs = countBH + countNBH + countPPAT;
-    
     const allJobs = await getAllJobsFromTables();
+    const totalJobs = allJobs.length;
     const processingJobs = allJobs.filter((j: any) => j.status === "PROSES").length;
     const doneJobs = allJobs.filter((j: any) => j.status === "SELESAI").length;
     const pendingJobs = allJobs.filter((j: any) => j.status === "PENDING").length;

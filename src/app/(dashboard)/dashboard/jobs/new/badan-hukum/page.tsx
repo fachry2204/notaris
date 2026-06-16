@@ -386,9 +386,11 @@ export default function NewBadanHukumPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-4 pt-10 border-t border-muted/5">
-              <Link href="/dashboard/jobs/new"><Button variant="ghost" type="button" className="h-11 px-10 rounded-xl font-bold">Batal</Button></Link>
-              <Button type="submit" disabled={isSubmitting} className="h-11 px-12 rounded-xl gap-2 font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20 transition-all">
+            <div className="flex flex-col md:flex-row items-center justify-end gap-4 pt-10 border-t border-muted/5">
+              <Link href="/dashboard/jobs/new" className="w-full md:w-auto">
+                <Button variant="ghost" type="button" className="w-full md:w-auto h-11 px-10 rounded-xl font-bold">Batal</Button>
+              </Link>
+              <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto h-11 px-12 rounded-xl gap-2 font-bold bg-pink-500 hover:bg-pink-600 shadow-xl shadow-pink-500/20 transition-all">
                 <Save className="h-5 w-5" />
                 {isSubmitting ? "Sedang Mendaftarkan..." : "Registrasi Berkas"}
               </Button>

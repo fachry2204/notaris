@@ -75,6 +75,7 @@ export function Sidebar() {
         { title: "Data Client", icon: Users, href: "/dashboard/clients", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "client" },
         { title: "Data Berkas", icon: FileText, href: "/dashboard/jobs/inbound", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "berkas" },
         { title: "Berkas Selesai", icon: CheckCircle, href: "/dashboard/jobs/completed", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "berkas" },
+        { title: "Data Saksi", icon: Users, href: "/dashboard/saksi", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"] },
       ]
     },
     {
@@ -87,15 +88,15 @@ export function Sidebar() {
     {
       title: "Pegawai",
       items: [
-        { title: "Absensi", icon: Clock, href: "/dashboard/pegawai/absensi", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"] },
         { title: "Data Pegawai", icon: Contact, href: "/dashboard/pegawai/data", roles: ["ADMINISTRATOR", "PIMPINAN"] },
+        { title: "Absensi", icon: Clock, href: "/dashboard/pegawai/absensi", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"] },
         { title: "Laporan Absensi", icon: FileBarChart, href: "/dashboard/pegawai/laporan", roles: ["ADMINISTRATOR", "PIMPINAN"] },
+        { title: "Produktivitas", icon: PieChart, href: "/dashboard/productivity", roles: ["ADMINISTRATOR", "PIMPINAN"] },
       ]
     },
     {
-      title: "UI Elements",
+      title: "Manajemen Sistem",
       items: [
-        { title: "Produktivitas", icon: PieChart, href: "/dashboard/productivity", roles: ["ADMINISTRATOR", "PIMPINAN"] },
         { title: "Laporan", icon: FileText, href: "/dashboard/reports", roles: ["ADMINISTRATOR", "PIMPINAN"] },
         { title: "Audit Log", icon: ShieldCheck, href: "/dashboard/audit", roles: ["ADMINISTRATOR", "PIMPINAN"] },
         { title: "Settings", icon: Settings, href: "/dashboard/settings", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "settings" },
@@ -106,7 +107,7 @@ export function Sidebar() {
   const userRole = session?.user?.role || "";
 
   return (
-    <div className="flex h-screen w-64 flex-col border-r bg-sidebar border-sidebar-border relative z-[100] shadow-xl text-sm">
+    <div className="hidden md:flex h-screen w-64 flex-col border-r bg-sidebar border-sidebar-border relative z-[100] shadow-xl text-sm">
       <div className="flex h-20 items-center px-6">
         <Link href="/dashboard" className="flex items-center gap-3 group">
           <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform duration-300">

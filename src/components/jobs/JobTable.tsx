@@ -38,7 +38,7 @@ const statusConfig = {
   PENDING: { label: "Pending", color: "bg-amber-500/10 text-amber-500 border-amber-500/20" },
   PROSES: { label: "Proses", color: "bg-blue-500/10 text-blue-500 border-blue-500/20" },
   REVISI: { label: "Revisi", color: "bg-rose-500/10 text-rose-500 border-rose-500/20" },
-  REVISI_PROSES: { label: "Revisi Proses", color: "bg-orange-500/10 text-orange-500 border-orange-500/20" },
+  REVISI_PROSES: { label: "revisi Proses", color: "bg-orange-500/10 text-orange-500 border-orange-500/20" },
   VERIFIKASI: { label: "Menunggu verifikasi", color: "bg-purple-500/10 text-purple-500 border-purple-500/20" },
   SELESAI: { label: "Selesai", color: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" },
   CANCELLED: { label: "Dibatalkan", color: "bg-slate-500/10 text-slate-500 border-slate-500/20" },
@@ -74,33 +74,31 @@ export function JobTable({
   }, []);
 
   useEffect(() => {
-    if (!dateRange || (!dateRange.from && !dateRange.to)) {
-      setFilteredJobs(allJobs);
-      return;
+    let filtered = allJobs;
+
+    // Apply Date Filter
+    if (dateRange && (dateRange.from || dateRange.to)) {
+      filtered = filtered.filter((job: any) => {
+        const jobDate = new Date(job.createdAt);
+        const from = dateRange.from ? new Date(dateRange.from) : new Date(0);
+        const to = dateRange.to ? new Date(dateRange.to) : new Date();
+        to.setHours(23, 59, 59, 999);
+        return jobDate >= from && jobDate <= to;
+      });
     }
 
-    const filtered = allJobs.filter((job: any) => {
-      // Date filter
-      const jobDate = new Date(job.createdAt);
-      const from = dateRange?.from ? new Date(dateRange.from) : new Date(0);
-      const to = dateRange?.to ? new Date(dateRange.to) : new Date();
-      to.setHours(23, 59, 59, 999);
-
-      const matchesDate = jobDate >= from && jobDate <= to;
-      
-      // Status filter
-      let matchesStatus = !statusFilter || job.status === statusFilter;
-      
-      // Special case for REVISI to include REVISI_PROSES
-      if (statusFilter === "REVISI") {
-        matchesStatus = job.status === "REVISI" || job.status === "REVISI_PROSES";
-      }
-
-      return matchesDate && matchesStatus;
-    });
+    // Apply Status Filter
+    if (statusFilter) {
+      filtered = filtered.filter((job: any) => {
+        if (statusFilter === "REVISI") {
+          return job.status === "REVISI" || job.status === "REVISI_PROSES";
+        }
+        return job.status === statusFilter;
+      });
+    }
 
     setFilteredJobs(filtered);
-  }, [dateRange, allJobs]);
+  }, [dateRange, allJobs, statusFilter]);
 
   if (loading) {
     return (
@@ -178,11 +176,14 @@ export function JobTable({
               <TableCell className="text-center">
                 <Badge className={cn(
                   "rounded-full px-3 py-1 border-none font-bold text-[10px] uppercase tracking-wider",
-                  job.invoiceStatus === "PAYMENT" ? "bg-emerald-500/10 text-emerald-500" :
+                  job.invoiceStatus === "PAYMENT" ? "bg-amber-500/10 text-amber-500" :
+                  job.invoiceStatus === "LUNAS" ? "bg-emerald-500/10 text-emerald-500" :
                   job.invoiceStatus === "DP" ? "bg-blue-500/10 text-blue-500" :
-                  "bg-amber-500/10 text-amber-500"
+                  "bg-slate-500/10 text-slate-500"
                 )}>
-                  {job.invoiceStatus || "PENDING"}
+                  {job.invoiceStatus === "PAYMENT" ? "Belum Bayar" : 
+                   job.invoiceStatus === "LUNAS" ? "Lunas" : 
+                   job.invoiceStatus || "PENDING"}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -200,32 +201,7 @@ export function JobTable({
                   >
                     Detail
                   </Button>
-                  {(session?.user?.role === "ADMINISTRATOR" || session?.user?.role === "PIMPINAN") && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-muted transition-all" />}>
-                        <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-muted/20">
-                        <DropdownMenuItem 
-                          className="text-destructive font-bold gap-2 focus:text-destructive cursor-pointer"
-                          onClick={async () => {
-                            if (confirm("Apakah Anda yakin ingin menghapus berkas ini?")) {
-                              const res = await deleteJob(job.id, job.category);
-                              if (res.success) {
-                                toast.success("Berkas berhasil dihapus");
-                                fetchJobs();
-                              } else {
-                                toast.error(res.error);
-                              }
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Hapus Berkas
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
+                  {/* Removed action menu as requested */}
                 </div>
               </TableCell>
             </TableRow>

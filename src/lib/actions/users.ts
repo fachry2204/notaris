@@ -45,8 +45,6 @@ export async function getStaff() {
     const users = await db.select()
       .from(user)
       .where(or(
-        eq(user.role, "ADMINISTRATOR"),
-        eq(user.role, "PIMPINAN"),
         eq(user.role, "STAFFADMIN"),
         eq(user.role, "OB")
       ))

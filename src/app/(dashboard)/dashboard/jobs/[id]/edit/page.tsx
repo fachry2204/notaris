@@ -13,7 +13,7 @@ export default function EditJobDispatcher() {
   useEffect(() => {
     const checkCategory = async () => {
       const result = await getJobById(id as string);
-      if (result.success) {
+      if (result.success && result.data) {
         const category = result.data.category;
         let route = "";
         

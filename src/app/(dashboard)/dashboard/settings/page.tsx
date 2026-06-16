@@ -1,5 +1,7 @@
 "use client";
 
+import AdminList from "@/components/settings/AdminList";
+
 import React, { useEffect, useState } from "react";
 import { 
   Card, 
@@ -36,7 +38,9 @@ import {
   Info,
   Image,
   Upload,
-  Loader2
+  Loader2,
+  UserCog,
+  CreditCard
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
@@ -137,6 +141,9 @@ export default function SettingsPage() {
   const [officePhone, setOfficePhone] = useState("+62 21 12345678");
   const [logoUrl, setLogoUrl] = useState("");
   const [faviconUrl, setFaviconUrl] = useState("");
+  const [bankName, setBankName] = useState("Bank Central Asia (BCA)");
+  const [accountNumber, setAccountNumber] = useState("1234567890");
+  const [accountName, setAccountName] = useState("Kantor Notaris Fachry");
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
   const [roles, setRoles] = useState<AppRole[]>(defaultRoles);
@@ -161,6 +168,11 @@ export default function SettingsPage() {
     branding: {
       logoUrl,
       faviconUrl,
+    },
+    finance: {
+      bankName,
+      accountNumber,
+      accountName,
     },
     roles: nextRoles,
     whatsapp: {
@@ -223,6 +235,9 @@ export default function SettingsPage() {
             ? settings.roles.map(normalizeRolePermissions)
             : defaultRoles
         );
+        setBankName(settings.finance?.bankName || "Bank Central Asia (BCA)");
+        setAccountNumber(settings.finance?.accountNumber || "1234567890");
+        setAccountName(settings.finance?.accountName || "Kantor Notaris Fachry");
         setWaProvider(settings.whatsapp?.provider || "fonnte");
         setWaEndpointUrl(settings.whatsapp?.endpointUrl || "https://api.fonnte.com/send");
         setWaApiToken(settings.whatsapp?.apiToken || "");
@@ -398,9 +413,9 @@ export default function SettingsPage() {
         <Button 
           onClick={handleSave} 
           disabled={loading}
-          className="h-14 px-8 rounded-2xl bg-pink-500 hover:bg-pink-600 text-white shadow-xl shadow-pink-500/20 font-bold gap-2 transition-all active:scale-95"
+          className="h-9 px-4 text-xs rounded-xl bg-pink-500 hover:bg-pink-600 text-white shadow-md shadow-pink-500/20 font-bold gap-1.5 transition-all active:scale-95"
         >
-          <Save className="h-5 w-5" />
+          <Save className="h-3.5 w-3.5" />
           {loading ? "Menyimpan..." : "Simpan Semua Perubahan"}
         </Button>
       </div>
@@ -409,28 +424,37 @@ export default function SettingsPage() {
         <TabsList className="bg-transparent h-auto p-0 border-none w-full justify-start gap-4 flex flex-wrap">
           <TabsTrigger 
             value="system" 
-            className="h-14 px-8 rounded-2xl font-black text-base border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/20 transition-all gap-3 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
+            className="h-10 px-5 rounded-xl font-bold text-xs border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-md data-[state=active]:shadow-pink-500/20 transition-all gap-2 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
           >
-            <div className="h-8 w-8 rounded-xl bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
-              <Settings2 className="h-4 w-4" />
+            <div className="h-6 w-6 rounded-lg bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
+              <Settings2 className="h-3.5 w-3.5" />
             </div>
             System Settings
           </TabsTrigger>
           <TabsTrigger 
             value="roles" 
-            className="h-14 px-8 rounded-2xl font-black text-base border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/20 transition-all gap-3 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
+            className="h-10 px-5 rounded-xl font-bold text-xs border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-md data-[state=active]:shadow-pink-500/20 transition-all gap-2 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
           >
-            <div className="h-8 w-8 rounded-xl bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
-              <ShieldCheck className="h-4 w-4" />
+            <div className="h-6 w-6 rounded-lg bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
+              <ShieldCheck className="h-3.5 w-3.5" />
             </div>
             Role & Akses
           </TabsTrigger>
           <TabsTrigger 
-            value="wa" 
-            className="h-14 px-8 rounded-2xl font-black text-base border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-xl data-[state=active]:shadow-pink-500/20 transition-all gap-3 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
+            value="admins" 
+            className="h-10 px-5 rounded-xl font-bold text-xs border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-md data-[state=active]:shadow-pink-500/20 transition-all gap-2 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
           >
-            <div className="h-8 w-8 rounded-xl bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
-              <MessageSquare className="h-4 w-4" />
+            <div className="h-6 w-6 rounded-lg bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
+              <UserCog className="h-3.5 w-3.5" />
+            </div>
+            Akun Admin & Pimpinan
+          </TabsTrigger>
+          <TabsTrigger 
+            value="wa" 
+            className="h-10 px-5 rounded-xl font-bold text-xs border-2 border-muted bg-white text-muted-foreground data-[state=active]:bg-pink-500 data-[state=active]:text-white data-[state=active]:border-pink-500 data-[state=active]:shadow-md data-[state=active]:shadow-pink-500/20 transition-all gap-2 hover:border-pink-200 hover:text-pink-600 data-[state=active]:hover:text-white"
+          >
+            <div className="h-6 w-6 rounded-lg bg-pink-500/10 flex items-center justify-center text-inherit group-data-[state=active]:bg-white/20">
+              <MessageSquare className="h-3.5 w-3.5" />
             </div>
             WhatsApp Gateway
           </TabsTrigger>
@@ -464,7 +488,12 @@ export default function SettingsPage() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                       <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Alamat Kantor</Label>
-                      <Input value={officeAddress} onChange={(e) => setOfficeAddress(e.target.value)} className="h-12 rounded-xl" />
+                      <Textarea 
+                        value={officeAddress} 
+                        onChange={(e) => setOfficeAddress(e.target.value)} 
+                        rows={3} 
+                        className="rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500" 
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Email Kantor</Label>
@@ -601,6 +630,51 @@ export default function SettingsPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              <Card className="border-none shadow-sm rounded-[2.5rem] bg-card overflow-hidden">
+                <CardHeader className="border-b bg-muted/5 px-8 py-6">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded-xl bg-pink-500/10 flex items-center justify-center text-pink-500">
+                      <CreditCard className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Informasi Rekening Bank</CardTitle>
+                      <CardDescription>Digunakan untuk ditampilkan pada halaman invoice.</CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Nama Bank</Label>
+                      <Input
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        placeholder="Contoh: Bank Central Asia (BCA)"
+                        className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Nomor Rekening</Label>
+                      <Input
+                        value={accountNumber}
+                        onChange={(e) => setAccountNumber(e.target.value)}
+                        placeholder="Contoh: 1234567890"
+                        className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500"
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Rekening Atas Nama</Label>
+                      <Input
+                        value={accountName}
+                        onChange={(e) => setAccountName(e.target.value)}
+                        placeholder="Contoh: Kantor Notaris Fachry"
+                        className="h-12 rounded-xl border-muted-foreground/20 focus-visible:ring-pink-500"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </div>
         </TabsContent>
@@ -684,6 +758,11 @@ export default function SettingsPage() {
               </div>
             </CardFooter>
           </Card>
+        </TabsContent>
+
+        {/* --- AKUN ADMIN TAB --- */}
+        <TabsContent value="admins" className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+          <AdminList />
         </TabsContent>
 
         {/* --- WA GATEWAY TAB --- */}

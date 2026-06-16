@@ -90,23 +90,23 @@ export function StatusCards() {
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
       {statuses.map((status, i) => (
         <Card key={i} className="border-none shadow-sm rounded-2xl bg-card overflow-hidden group hover:shadow-md transition-all duration-300">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 px-6 pt-6">
-            <div className={cn("p-2.5 rounded-xl transition-colors duration-300", status.bg, status.color)}>
-              <status.icon className="h-5 w-5" />
+          <CardHeader className="flex flex-row items-center justify-between pb-1 space-y-0 px-5 pt-5">
+            <div className={cn("p-2 rounded-xl transition-colors duration-300", status.bg, status.color)}>
+              <status.icon className="h-4 w-4" />
             </div>
             <div className={cn(
-              "flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-lg",
+              "flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md",
               status.trendUp ? "bg-green-500/10 text-green-600" : "bg-rose-500/10 text-rose-600"
             )}>
               {status.trendUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
               {status.trend}
             </div>
           </CardHeader>
-          <CardContent className="px-6 pb-6 pt-2">
+          <CardContent className="px-5 pb-5 pt-1.5">
             <div className="flex flex-col">
-              <span className="text-3xl font-bold tracking-tight text-foreground">{status.value}</span>
-              <span className="text-sm font-semibold text-foreground mt-1">{status.title}</span>
-              <span className="text-xs text-muted-foreground mt-1">{status.description}</span>
+              <span className="text-2xl font-bold tracking-tight text-foreground">{status.value}</span>
+              <span className="text-[13px] font-semibold text-foreground mt-0.5">{status.title}</span>
+              <span className="text-[11px] text-muted-foreground mt-0.5">{status.description}</span>
             </div>
           </CardContent>
           <div className="h-1.5 w-full bg-muted/20">

@@ -100,25 +100,6 @@ export function DashboardOverview() {
 
   return (
     <div className="space-y-8">
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {summaryStats.map((s, i) => (
-          <Card key={i} className="border-none shadow-sm rounded-2xl bg-card overflow-hidden group hover:shadow-md transition-all duration-300">
-            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 px-6 pt-6">
-              <div className={cn("p-2.5 rounded-xl transition-colors duration-300", s.bg, s.color)}>
-                <s.icon className="h-5 w-5" />
-              </div>
-            </CardHeader>
-            <CardContent className="px-6 pb-6 pt-2">
-              <div className="flex flex-col">
-                <span className="text-3xl font-bold tracking-tight text-foreground">{s.value}</span>
-                <span className="text-sm font-semibold text-foreground mt-1">{s.title}</span>
-                <span className="text-xs text-muted-foreground mt-1">{s.description}</span>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4 border-border/50 bg-card/50 backdrop-blur-sm">
           <CardHeader>

@@ -41,6 +41,11 @@ const defaultSettings = {
     logoUrl: "",
     faviconUrl: "",
   },
+  finance: {
+    bankName: "Bank Central Asia (BCA)",
+    accountNumber: "1234567890",
+    accountName: "Kantor Notaris Fachry",
+  },
   roles: [
     {
       id: "ADMINISTRATOR",
@@ -141,6 +146,10 @@ function mergeWithDefaults(input: any) {
     branding: {
       ...defaultSettings.branding,
       ...(input.branding || {}),
+    },
+    finance: {
+      ...defaultSettings.finance,
+      ...(input.finance || {}),
     },
     whatsapp: {
       ...defaultSettings.whatsapp,

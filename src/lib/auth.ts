@@ -1,7 +1,7 @@
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { db } from "@/lib/db";
-import { user } from "@/lib/db/schema";
+import { user, admin } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
@@ -16,25 +16,39 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) return null;
 
+        // 1. Check admin table
+        const admins = await db.select().from(admin).where(eq(admin.username, credentials.username)).limit(1);
+        if (admins.length > 0) {
+          const foundAdmin = admins[0];
+          if (!foundAdmin.isActive) return null;
+          const isPasswordValid = await bcrypt.compare(credentials.password, foundAdmin.passwordHash);
+          if (!isPasswordValid) return null;
+          return {
+            id: foundAdmin.id,
+            username: foundAdmin.username,
+            email: foundAdmin.email,
+            fullName: foundAdmin.fullName,
+            role: foundAdmin.role,
+          } as any;
+        }
+
+        // 2. Check user table (Pegawai)
         const users = await db.select().from(user).where(eq(user.username, credentials.username)).limit(1);
-        const foundUser = users[0];
+        if (users.length > 0) {
+          const foundUser = users[0];
+          if (!foundUser.isActive) return null;
+          const isPasswordValid = await bcrypt.compare(credentials.password, foundUser.passwordHash);
+          if (!isPasswordValid) return null;
+          return {
+            id: foundUser.id,
+            username: foundUser.username,
+            email: foundUser.email,
+            fullName: foundUser.fullName,
+            role: foundUser.role,
+          } as any;
+        }
 
-        if (!foundUser || !foundUser.isActive) return null;
-
-        const isPasswordValid = await bcrypt.compare(
-          credentials.password,
-          foundUser.passwordHash
-        );
-
-        if (!isPasswordValid) return null;
-
-        return {
-          id: foundUser.id,
-          username: foundUser.username,
-          email: foundUser.email,
-          fullName: foundUser.fullName,
-          role: foundUser.role,
-        } as any;
+        return null;
       },
     }),
   ],

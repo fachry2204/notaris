@@ -150,10 +150,10 @@ export default function DataPegawaiPage() {
           href="/dashboard/pegawai/new"
           className={cn(
             buttonVariants({ variant: "default" }),
-            "bg-pink-500 hover:bg-pink-600 text-white rounded-2xl px-6 h-14 shadow-lg shadow-pink-500/20 font-bold gap-2 transition-all active:scale-95 inline-flex items-center justify-center"
+            "bg-pink-500 hover:bg-pink-600 text-white rounded-xl px-4 h-9 text-xs shadow-md shadow-pink-500/20 font-bold gap-1.5 transition-all active:scale-95 inline-flex items-center justify-center"
           )}
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="h-3.5 w-3.5" />
           Tambah Pegawai
         </Link>
       </div>

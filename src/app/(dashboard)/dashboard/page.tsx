@@ -166,7 +166,10 @@ export default function DashboardPage() {
           <div className="mt-6 space-y-4 pb-20">
             <div className="flex items-center justify-between px-2">
               <h2 className="text-base font-black text-foreground">Absensi</h2>
-              <Link href="/dashboard/pegawai/absensi" className="text-xs font-black text-pink-600">
+              <Link 
+                href="/dashboard/pegawai/absensi" 
+                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-blue-700 active:scale-95"
+              >
                 Lihat Semua
               </Link>
             </div>
@@ -191,22 +194,7 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="fixed bottom-0 left-0 right-0 z-30 bg-background/80 backdrop-blur-xl border-t border-border/60">
-              <div className="mx-auto flex max-w-lg items-center justify-around px-6 py-3">
-                <Link href="/dashboard" className="flex flex-col items-center gap-1 text-pink-600">
-                  <Home className="h-5 w-5" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Home</span>
-                </Link>
-                <Link href="/dashboard/pegawai/absensi" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-pink-600 transition-colors">
-                  <Clock className="h-5 w-5" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Absensi</span>
-                </Link>
-                <Link href="/dashboard/invoice" className="flex flex-col items-center gap-1 text-muted-foreground hover:text-pink-600 transition-colors">
-                  <Receipt className="h-5 w-5" />
-                  <span className="text-[9px] font-black uppercase tracking-widest">Invoice</span>
-                </Link>
-              </div>
-            </div>
+
           </div>
         </div>
       );

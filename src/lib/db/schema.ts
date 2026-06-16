@@ -4,7 +4,7 @@ import { sql } from 'drizzle-orm';
 // Enums
 export const JobStatus = mysqlEnum('JobStatus', ['PENDING', 'PROSES', 'REVISI', 'REVISI_PROSES', 'VERIFIKASI', 'SELESAI', 'CANCELLED']);
 export const JobPriority = mysqlEnum('JobPriority', ['LOW', 'MEDIUM', 'HIGH', 'URGENT']);
-export const InvoiceStatus = mysqlEnum('InvoiceStatus', ['PENDING', 'DP', 'PAYMENT']);
+export const InvoiceStatus = mysqlEnum('InvoiceStatus', ['PENDING', 'DP', 'PAYMENT', 'LUNAS']);
 export const UserRole = mysqlEnum('user_role', ['ADMINISTRATOR', 'PIMPINAN', 'STAFFADMIN', 'OB']);
 export const FinanceRecordType = mysqlEnum('financerecord_type', ['INCOME', 'EXPENSE']);
 
@@ -24,7 +24,7 @@ export const badanHukum = mysqlTable('badan_hukum', {
   notes: text('notes'),
   createdAt: datetime('createdAt', { mode: 'date' }).default(sql`now()`).notNull(),
   updatedAt: datetime('updatedAt', { mode: 'date' }).default(sql`now()`).$onUpdate(() => sql`now()`).notNull(),
-  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT']).default('PENDING').notNull(),
+  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT', 'LUNAS']).default('PENDING').notNull(),
 }, (table) => ({
   clientIdx: index('badan_hukum_clientId_fkey').on(table.clientId),
   staffIdx: index('badan_hukum_staffId_fkey').on(table.staffId),
@@ -46,7 +46,7 @@ export const nonBadanHukum = mysqlTable('non_badan_hukum', {
   notes: text('notes'),
   createdAt: datetime('createdAt', { mode: 'date' }).default(sql`now()`).notNull(),
   updatedAt: datetime('updatedAt', { mode: 'date' }).default(sql`now()`).$onUpdate(() => sql`now()`).notNull(),
-  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT']).default('PENDING').notNull(),
+  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT', 'LUNAS']).default('PENDING').notNull(),
 }, (table) => ({
   clientIdx: index('non_badan_hukum_clientId_fkey').on(table.clientId),
   staffIdx: index('non_badan_hukum_staffId_fkey').on(table.staffId),
@@ -68,7 +68,7 @@ export const ppat = mysqlTable('ppat', {
   notes: text('notes'),
   createdAt: datetime('createdAt', { mode: 'date' }).default(sql`now()`).notNull(),
   updatedAt: datetime('updatedAt', { mode: 'date' }).default(sql`now()`).$onUpdate(() => sql`now()`).notNull(),
-  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT']).default('PENDING').notNull(),
+  invoiceStatus: mysqlEnum('invoiceStatus', ['PENDING', 'DP', 'PAYMENT', 'LUNAS']).default('PENDING').notNull(),
 }, (table) => ({
   clientIdx: index('ppat_clientId_fkey').on(table.clientId),
   staffIdx: index('ppat_staffId_fkey').on(table.staffId),
@@ -331,3 +331,24 @@ export type Expense = typeof expense.$inferSelect;
 export type NewExpense = typeof expense.$inferInsert;
 export type Sequence = typeof sequence.$inferSelect;
 export type NewSequence = typeof sequence.$inferInsert;
+
+// Admin table
+export const admin = mysqlTable('admin', {
+  id: varchar('id', { length: 255 }).primaryKey().$defaultFn(() => sql`cuid()`),
+  username: varchar('username', { length: 255 }).notNull().unique(),
+  email: varchar('email', { length: 255 }).notNull().unique(),
+  phone: varchar('phone', { length: 255 }).unique(),
+  passwordHash: varchar('passwordHash', { length: 255 }).notNull(),
+  fullName: varchar('fullName', { length: 255 }).notNull(),
+  role: mysqlEnum('role', ['ADMINISTRATOR', 'PIMPINAN']).default('ADMINISTRATOR').notNull(),
+  isActive: boolean('isActive').default(true).notNull(),
+  createdAt: datetime('createdAt', { mode: 'date' }).default(sql`now()`).notNull(),
+  updatedAt: datetime('updatedAt', { mode: 'date' }).default(sql`now()`).$onUpdate(() => sql`now()`).notNull(),
+}, (table) => ({
+  usernameIdx: uniqueIndex('Admin_username_key').on(table.username),
+  emailIdx: uniqueIndex('Admin_email_key').on(table.email),
+  phoneIdx: uniqueIndex('Admin_phone_key').on(table.phone),
+}));
+
+export type Admin = typeof admin.$inferSelect;
+export type NewAdmin = typeof admin.$inferInsert;
