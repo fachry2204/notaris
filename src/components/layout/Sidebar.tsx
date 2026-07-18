@@ -75,6 +75,7 @@ export function Sidebar() {
         { title: "Data Client", icon: Users, href: "/dashboard/clients", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "client" },
         { title: "Data Berkas", icon: FileText, href: "/dashboard/jobs/inbound", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "berkas" },
         { title: "Berkas Selesai", icon: CheckCircle, href: "/dashboard/jobs/completed", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "berkas" },
+        { title: "Daftar Akta", icon: ClipboardList, href: "/dashboard/akta", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"], permissionKey: "berkas" },
         { title: "Data Saksi", icon: Users, href: "/dashboard/saksi", roles: ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"] },
       ]
     },

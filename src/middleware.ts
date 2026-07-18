@@ -14,28 +14,17 @@ export default withAuth(
       return NextResponse.redirect(url);
     };
 
-    const getSettingsPermissions = async () => {
-      if (!userRole) return null;
-
-      try {
-        const res = await fetch(`${req.nextUrl.origin}/api/settings`, {
-          headers: {
-            cookie: req.headers.get("cookie") || "",
-          },
-          cache: "no-store",
-        });
-
-        if (!res.ok) return null;
-        const result = await res.json();
-        const matchedRole = result?.data?.roles?.find((role: any) => role.key === userRole);
-
-        return matchedRole?.permissions || null;
-      } catch {
-        return null;
-      }
+    // Middleware runs before every dashboard request. Do not call our own API
+    // here: that used to add an HTTP round-trip and multiple DB queries to
+    // every page navigation. These are the system-role access rules; sensitive
+    // mutations still perform their own authorization in the server actions.
+    const permissionsByRole: Record<string, Record<string, boolean>> = {
+      ADMINISTRATOR: { client: true, berkas: true, finance: true, invoice: false, settings: true },
+      PIMPINAN: { client: true, berkas: true, finance: true, invoice: false, settings: false },
+      STAFFADMIN: { client: true, berkas: true, finance: false, invoice: false, settings: false },
+      OB: { client: false, berkas: true, finance: false, invoice: false, settings: false },
     };
-
-    const rolePermissions = await getSettingsPermissions();
+    const rolePermissions = userRole ? permissionsByRole[userRole] : null;
 
     // Role-based access control for Audit Log
     if (path.startsWith("/dashboard/audit")) {

@@ -32,28 +32,25 @@ import {
   DollarSign,
 } from "lucide-react";
 
-import { getUpcomingDeadlines, getMonthlyJobStats, getDashboardStats } from "@/lib/actions/jobs";
+import { getDashboardOverviewData } from "@/lib/actions/jobs";
 import { toast } from "sonner";
 
 export function DashboardOverview() {
   const [deadlines, setDeadlines] = React.useState<any[]>([]);
   const [chartData, setChartData] = React.useState<any[]>([]);
-  const [dashboardStats, setDashboardStats] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const [deadlinesRes, chartRes, statsRes] = await Promise.all([
-          getUpcomingDeadlines(),
-          getMonthlyJobStats(),
-          getDashboardStats()
-        ]);
-
-        if (deadlinesRes.success) setDeadlines(deadlinesRes.data || []);
-        if (chartRes.success) setChartData(chartRes.data || []);
-        if (statsRes.success) setDashboardStats(statsRes.data);
+        const result = await getDashboardOverviewData();
+        if (result.success && result.data) {
+          setDeadlines(result.data.deadlines);
+          setChartData(result.data.monthlyStats);
+        } else {
+          toast.error(result.error || "Gagal memuat data dashboard");
+        }
       } catch (error) {
         console.error("Error fetching overview data:", error);
         toast.error("Gagal memuat data dashboard");
@@ -62,41 +59,6 @@ export function DashboardOverview() {
     };
     fetchData();
   }, []);
-
-  const summaryStats = [
-    {
-      title: "Total Berkas Masuk",
-      value: dashboardStats?.totalJobs.toLocaleString() || "0",
-      description: "Seluruh kategori",
-      icon: FileText,
-      color: "text-blue-500",
-      bg: "bg-blue-500/10",
-    },
-    {
-      title: "Dalam Proses",
-      value: dashboardStats?.processingJobs.toLocaleString() || "0",
-      description: "Sedang dikerjakan",
-      icon: Clock,
-      color: "text-amber-500",
-      bg: "bg-amber-500/10",
-    },
-    {
-      title: "Berkas Selesai",
-      value: dashboardStats?.doneJobs.toLocaleString() || "0",
-      description: "Arsip digital",
-      icon: CheckCircle2,
-      color: "text-emerald-500",
-      bg: "bg-emerald-500/10",
-    },
-    {
-      title: "Pending",
-      value: dashboardStats?.pendingJobs.toLocaleString() || "0",
-      description: "Butuh verifikasi",
-      icon: AlertCircle,
-      color: "text-rose-500",
-      bg: "bg-rose-500/10",
-    },
-  ];
 
   return (
     <div className="space-y-8">

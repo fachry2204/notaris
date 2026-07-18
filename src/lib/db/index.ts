@@ -27,9 +27,9 @@ const globalForDb = globalThis as unknown as {
 
 const pool = globalForDb.pool ?? createPool();
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForDb.pool = pool;
-}
+// Keep one pool per Node.js process in both development and production.
+// This prevents duplicated pools when the app is reloaded by a Plesk runner.
+globalForDb.pool = pool;
 
 export const db = drizzle(pool, { schema, mode: 'default' });
 

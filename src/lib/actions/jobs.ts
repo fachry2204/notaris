@@ -23,7 +23,7 @@ async function checkAdminOrPimpinan() {
 export const getAllJobsFromTables = cache(async () => {
   try {
     // Fetch badan hukum with client and staff
-    const bh = await db.select({
+    const bhQuery = db.select({
       id: badanHukum.id,
       trackingCode: badanHukum.trackingCode,
       clientId: badanHukum.clientId,
@@ -50,7 +50,7 @@ export const getAllJobsFromTables = cache(async () => {
     .leftJoin(user, eq(badanHukum.staffId, user.id));
 
     // Fetch non badan hukum with client and staff
-    const nbh = await db.select({
+    const nbhQuery = db.select({
       id: nonBadanHukum.id,
       trackingCode: nonBadanHukum.trackingCode,
       clientId: nonBadanHukum.clientId,
@@ -77,7 +77,7 @@ export const getAllJobsFromTables = cache(async () => {
     .leftJoin(user, eq(nonBadanHukum.staffId, user.id));
 
     // Fetch ppat with client and staff
-    const ppatData = await db.select({
+    const ppatQuery = db.select({
       id: ppat.id,
       trackingCode: ppat.trackingCode,
       clientId: ppat.clientId,
@@ -102,6 +102,9 @@ export const getAllJobsFromTables = cache(async () => {
     .from(ppat)
     .leftJoin(client, eq(ppat.clientId, client.id))
     .leftJoin(user, eq(ppat.staffId, user.id));
+
+    // The three job categories are independent, so run the queries together.
+    const [bh, nbh, ppatData] = await Promise.all([bhQuery, nbhQuery, ppatQuery]);
 
     // Format and add category
     const formattedBh = bh.map(j => ({
@@ -737,5 +740,33 @@ export async function getMonthlyJobStats() {
   } catch (error: any) {
     console.error("Error fetching monthly stats:", error);
     return { success: false, error: error.message };
+  }
+}
+
+export async function getDashboardOverviewData() {
+  try {
+    // Both functions share getAllJobsFromTables(). Calling them in the same
+    // server request lets React's request cache deduplicate that database work.
+    const [deadlines, monthlyStats] = await Promise.all([
+      getUpcomingDeadlines(),
+      getMonthlyJobStats(),
+    ]);
+
+    if (!deadlines.success) {
+      return { success: false, error: deadlines.error || "Gagal memuat deadline" };
+    }
+    if (!monthlyStats.success) {
+      return { success: false, error: monthlyStats.error || "Gagal memuat statistik bulanan" };
+    }
+
+    return {
+      success: true,
+      data: {
+        deadlines: deadlines.data || [],
+        monthlyStats: monthlyStats.data || [],
+      },
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Gagal memuat ringkasan dashboard" };
   }
 }
