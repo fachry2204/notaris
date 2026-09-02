@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --background: #f8fafc;
+    --foreground: #1e293b;
+    --card: #ffffff;
+    --primary: #F47EAB;
+    --primary-hover: color-mix(in srgb, var(--primary) 85%, black);
+    --primary-light: color-mix(in srgb, var(--primary) 12%, white);
+    --primary-foreground: #ffffff;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --border: #e2e8f0;
+    --sidebar: #ffffff;
+    --sidebar-foreground: #475569;
+    --sidebar-border: #f1f5f9;
+    --sidebar-accent: color-mix(in srgb, var(--primary) 12%, transparent);
+    --radius: 0.75rem;
+}
+
+* {
+    border-color: var(--border);
+}
+
+html {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-size: 0.875rem;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+}
+
+input, select, textarea {
+    font-size: 0.875rem !important;
+    background-color: var(--card) !important;
+    color: var(--foreground) !important;
+}
+
+button, a, [role="button"] {
+    cursor: pointer !important;
+}
+
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--muted-foreground) 25%, transparent);
+    border-radius: 999px;
+}
+
+/* Status-Based CardView Color Helper Classes */
+.card-status-pending {
+    background-color: rgba(254, 243, 199, 0.65) !important;
+    border-color: rgba(252, 211, 77, 0.7) !important;
+    color: #78350f !important;
+}
+
+.card-status-proses {
+    background-color: rgba(224, 242, 254, 0.65) !important;
+    border-color: rgba(186, 230, 253, 0.7) !important;
+    color: #0c4a6e !important;
+}
+
+.card-status-selesai {
+    background-color: rgba(209, 250, 229, 0.65) !important;
+    border-color: rgba(167, 243, 208, 0.7) !important;
+    color: #064e3b !important;
+}
+
+.card-status-revisi {
+    background-color: rgba(243, 232, 255, 0.65) !important;
+    border-color: rgba(233, 213, 255, 0.7) !important;
+    color: #581c87 !important;
+}
+
+.card-status-batal {
+    background-color: rgba(2ffe, 226, 226, 0.65) !important;
+    border-color: rgba(254, 202, 202, 0.7) !important;
+    color: #881337 !important;
+}
+
+@media print {
+    @page { margin: 12mm; }
+    body { background: white !important; }
+}
+

@@ -1,0 +1,6 @@
+<script setup lang="ts">
+import { Head, useForm } from '@inertiajs/vue3';
+const form = useForm({ username: '', password: '' });
+const submit = () => form.post('/login');
+</script>
+<template><Head title="Masuk"/><main class="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-pink-950 p-6"><form @submit.prevent="submit" class="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl"><p class="text-xs font-black uppercase tracking-[.25em] text-pink-500">Notaris Digital</p><h1 class="mt-3 text-3xl font-black">Selamat datang</h1><p class="mt-2 text-sm text-slate-500">Masuk menggunakan akun lama Anda.</p><label class="mt-8 block text-sm font-bold">Username</label><input v-model="form.username" autofocus class="mt-2 w-full rounded-xl border-slate-200"/><p class="mt-1 text-xs text-red-600">{{ form.errors.username }}</p><label class="mt-5 block text-sm font-bold">Password</label><input v-model="form.password" type="password" class="mt-2 w-full rounded-xl border-slate-200"/><button :disabled="form.processing" class="mt-8 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white hover:bg-pink-700 disabled:opacity-50">{{ form.processing ? 'Memproses…' : 'Masuk' }}</button></form></main></template>
