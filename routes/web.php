@@ -83,6 +83,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::post('/dashboard/pegawai/data', [StaffController::class, 'store'])->name('staff.store');
     Route::get('/dashboard/pegawai/absensi', [AttendanceController::class, 'index'])->name('attendance.index');
     Route::get('/dashboard/pegawai/absensi/absenku', [AttendanceController::class, 'checkIn'])->name('attendance.checkin');
+    Route::get('/dashboard/pegawai/absensi/location', [AttendanceController::class, 'reverseGeocode'])->name('attendance.location');
     Route::post('/dashboard/pegawai/absensi', [AttendanceController::class, 'submit'])->name('attendance.submit');
     Route::delete('/dashboard/pegawai/absensi/{id}', [AttendanceController::class, 'destroy'])->name('attendance.destroy');
     Route::put('/dashboard/pegawai/absensi/{id}', [AttendanceController::class, 'update'])->name('attendance.update');

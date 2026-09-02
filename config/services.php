@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'geocoding' => [
+        'url' => env('GEOCODING_URL', 'https://nominatim.openstreetmap.org/reverse'),
+        'user_agent' => env('GEOCODING_USER_AGENT', 'NotarisDigital/1.0'),
+    ],
+
 ];

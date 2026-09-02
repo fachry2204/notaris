@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
@@ -68,6 +70,50 @@ class AttendanceController extends Controller
         return Inertia::render('Attendance/Report', compact('rows','month'));
     }
 
+    public function reverseGeocode(Request $request)
+    {
+        $coordinates = $request->validate([
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+        ]);
+        $latitude = round((float) $coordinates['latitude'], 5);
+        $longitude = round((float) $coordinates['longitude'], 5);
+        $cacheKey = "attendance-address:{$latitude}:{$longitude}";
+
+        try {
+            $address = Cache::store('file')->remember($cacheKey, now()->addDays(7), function () use ($latitude, $longitude) {
+                $client = Http::withHeaders([
+                    'User-Agent' => (string) config('services.geocoding.user_agent'),
+                    'Accept-Language' => 'id',
+                ])->acceptJson()->timeout(8);
+                if (app()->isLocal()) {
+                    $client = $client->withoutVerifying();
+                }
+                $response = $client->get((string) config('services.geocoding.url'), [
+                    'format' => 'jsonv2',
+                    'lat' => $latitude,
+                    'lon' => $longitude,
+                    'zoom' => 18,
+                    'addressdetails' => 1,
+                ])->throw();
+
+                return Str::limit(trim((string) $response->json('display_name')), 255, '');
+            });
+        } catch (\Throwable) {
+            return response()->json([
+                'message' => 'Alamat saat ini belum dapat ditemukan. Silakan coba kembali.',
+            ], 502);
+        }
+
+        if (! $address) {
+            return response()->json([
+                'message' => 'Alamat tidak ditemukan untuk titik GPS ini.',
+            ], 404);
+        }
+
+        return response()->json(['address' => $address]);
+    }
+
     public function submit(Request $request)
     {
         $user = $request->session()->get('auth_user');
@@ -75,13 +121,14 @@ class AttendanceController extends Controller
         abort_unless($staff, 422, 'Profil staff tidak ditemukan.');
 
         $data = $request->validate([
+            'workLocationType' => 'required|in:Office,Dinas Luar,WFC,WFH',
             'locationLabel' => 'required|string|max:255',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'photo' => 'nullable|image|max:5120',
+            'latitude' => 'required|numeric|between:-90,90',
+            'longitude' => 'required|numeric|between:-180,180',
+            'photo' => 'required|image|max:5120',
         ]);
         $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first();
-        $payload = ['locationLabel' => $data['locationLabel'], 'latitude' => $data['latitude'] ?? null, 'longitude' => $data['longitude'] ?? null, 'submittedAt' => now()->toIso8601String()];
+        $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'submittedAt' => now()->toIso8601String()];
         if ($request->hasFile('photo')) $payload['photoPath'] = '/'.$request->file('photo')->store('uploads/attendance', 'public_root');
 
         if ($existing) {
