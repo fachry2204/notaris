@@ -28,11 +28,24 @@ grep '"laravel/framework"' composer.json
 php scripts/verify-plesk.php
 ```
 
-Baris kedua wajib menampilkan `^12.0`, dan pemeriksaan wajib berakhir dengan
+Baris kedua wajib menampilkan `^12.64`, dan pemeriksaan wajib berakhir dengan
 `Pemeriksaan deployment OK`. Jika file pemeriksaan tidak ditemukan, Plesk belum
 memakai source terbaru.
 
 ## Perintah deployment
+
+Cara yang direkomendasikan adalah menjalankan satu skrip berikut dari
+Application Root:
+
+```bash
+bash scripts/plesk-deploy.sh
+```
+
+Skrip akan memvalidasi pasangan `composer.json` dan `composer.lock` sebelum
+memasang dependency. Jangan mengambil salah satu file Composer dari skeleton
+Laravel Plesk atau dari branch lain.
+
+Jika harus menjalankan setiap langkah secara manual, gunakan:
 
 Gunakan `composer install`, bukan `composer update`, agar Plesk memasang versi
 yang sudah dikunci dan diuji:

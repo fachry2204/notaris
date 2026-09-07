@@ -8,9 +8,9 @@
     "require": {
         "php": "^8.2",
         "inertiajs/inertia-laravel": "^2.0",
-        "laravel/framework": "^12.0",
+        "laravel/framework": "^12.64",
         "laravel/sanctum": "^4.0",
-        "laravel/tinker": "^2.10.1",
+        "laravel/tinker": "^2.11.1",
         "tightenco/ziggy": "^2.0"
     },
     "require-dev": {
@@ -77,6 +77,9 @@
         }
     },
     "config": {
+        "audit": {
+            "block-insecure": true
+        },
         "optimize-autoloader": true,
         "preferred-install": "dist",
         "sort-packages": true,
