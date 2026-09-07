@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { Head, useForm } from "@inertiajs/vue3";
+import { computed } from "vue";
+import { Head, useForm, usePage } from "@inertiajs/vue3";
 defineProps<{ result: any; error?: string }>();
+const page = usePage<any>();
+const branding = computed(() => page.props.branding || {});
+const content = computed(() => branding.value.frontend || {});
 const f = useForm({ trackingCode: "" });
 const money = (x: any) =>
     new Intl.NumberFormat("id-ID", {
@@ -15,16 +19,18 @@ const money = (x: any) =>
             <p
                 class="text-sm font-black uppercase tracking-[.25em] text-pink-400"
             >
-                Notaris Digital
+                {{ content.trackingEyebrow || branding.appName }}
             </p>
-            <h1 class="mt-3 text-4xl font-black">Lacak berkas Anda</h1>
+            <h1 class="mt-3 text-4xl font-black">
+                {{ content.trackingTitle }}
+            </h1>
             <p class="mt-2 text-slate-400">
-                Masukkan nomor berkas untuk melihat status dan pembayaran.
+                {{ content.trackingSubtitle }}
             </p>
             <form @submit.prevent="f.post('/tracking')" class="mt-8 flex gap-2">
                 <input
                     v-model="f.trackingCode"
-                    placeholder="Contoh: BHM/24072026/0001"
+                    :placeholder="content.trackingPlaceholder"
                     class="min-w-0 flex-1 rounded-xl border-0 text-slate-900"
                 /><button class="rounded-xl bg-pink-600 px-6 font-black">
                     Cari

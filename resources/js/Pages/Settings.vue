@@ -10,13 +10,14 @@ import {
     KeyRound,
     Mail,
     MessageSquare,
+    Monitor,
     Save,
     Shield,
     Upload,
     Users,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-const p = defineProps<{ settings: any; admins: any[] }>();
+const p = defineProps<{ settings: any; admins: any[]; initialTab?: string }>();
 const defaults = [
     {
         id: "ADMINISTRATOR",
@@ -84,6 +85,21 @@ const f = useForm({
         faviconUrl: p.settings.branding?.faviconUrl || "",
         primaryColor: p.settings.branding?.primaryColor || "#F47EAB",
     },
+    frontend: {
+        loginEyebrow: p.settings.frontend?.loginEyebrow || "Notaris Digital",
+        loginTitle: p.settings.frontend?.loginTitle || "Selamat datang",
+        loginSubtitle:
+            p.settings.frontend?.loginSubtitle || "Masuk menggunakan akun Anda.",
+        trackingEyebrow:
+            p.settings.frontend?.trackingEyebrow || "Notaris Digital",
+        trackingTitle: p.settings.frontend?.trackingTitle || "Lacak berkas Anda",
+        trackingSubtitle:
+            p.settings.frontend?.trackingSubtitle ||
+            "Masukkan nomor berkas untuk melihat status dan pembayaran.",
+        trackingPlaceholder:
+            p.settings.frontend?.trackingPlaceholder ||
+            "Contoh: BHM/24072026/0001",
+    },
     finance: {
         bankName: p.settings.finance?.bankName || "",
         accountNumber: p.settings.finance?.accountNumber || "",
@@ -115,7 +131,7 @@ const f = useForm({
         apiToken: p.settings.whatsapp?.apiToken || "",
     },
 });
-const tab = ref("system");
+const tab = ref(p.initialTab || "system");
 const uploading = ref("");
 const upload = async (type: "logo" | "favicon", e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -176,6 +192,7 @@ const save = () =>
                 <button
                     v-for="x in [
                         { id: 'system', l: 'Sistem', i: Building2 },
+                        { id: 'frontend', l: 'Halaman Depan', i: Monitor },
                         { id: 'numbers', l: 'Nomor Dokumen', i: Hash },
                         { id: 'email', l: 'Email SMTP', i: Mail },
                         { id: 'admins', l: 'Administrator', i: Users },
@@ -332,6 +349,38 @@ const save = () =>
                         </div>
                     </section>
                 </div>
+                <section
+                    v-else-if="tab === 'frontend'"
+                    class="grid gap-6 lg:grid-cols-2"
+                >
+                    <div class="space-y-4 rounded-3xl border bg-white p-6">
+                        <div>
+                            <h2 class="flex items-center gap-2 font-black">
+                                <Monitor class="h-5 w-5 text-pink-500" />Halaman Login
+                            </h2>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Konten untuk login pengguna dan Administrator.
+                            </p>
+                        </div>
+                        <label><span class="input-label">Label aplikasi</span><input v-model="f.frontend.loginEyebrow" class="field" /></label>
+                        <label><span class="input-label">Judul login</span><input v-model="f.frontend.loginTitle" class="field" /></label>
+                        <label><span class="input-label">Keterangan login</span><textarea v-model="f.frontend.loginSubtitle" class="field h-24 py-3" /></label>
+                    </div>
+                    <div class="space-y-4 rounded-3xl border bg-white p-6">
+                        <div>
+                            <h2 class="flex items-center gap-2 font-black">
+                                <Monitor class="h-5 w-5 text-pink-500" />Halaman Pelacakan Berkas
+                            </h2>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Konten halaman publik untuk pengecekan berkas.
+                            </p>
+                        </div>
+                        <label><span class="input-label">Label aplikasi</span><input v-model="f.frontend.trackingEyebrow" class="field" /></label>
+                        <label><span class="input-label">Judul pelacakan</span><input v-model="f.frontend.trackingTitle" class="field" /></label>
+                        <label><span class="input-label">Keterangan pelacakan</span><textarea v-model="f.frontend.trackingSubtitle" class="field h-24 py-3" /></label>
+                        <label><span class="input-label">Contoh nomor berkas</span><input v-model="f.frontend.trackingPlaceholder" class="field" /></label>
+                    </div>
+                </section>
                 <section
                     v-else-if="tab === 'numbers'"
                     class="rounded-3xl border bg-white p-6"

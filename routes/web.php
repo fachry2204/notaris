@@ -20,6 +20,8 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/dashboard');
 Route::get('/login', [AuthController::class, 'create'])->name('login');
 Route::post('/login', [AuthController::class, 'store'])->name('login.store');
+Route::get('/admin/login', [AuthController::class, 'createAdmin'])->name('admin.login');
+Route::post('/admin/login', [AuthController::class, 'storeAdmin'])->name('admin.login.store');
 Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 Route::get('/tracking', [PublicTrackingController::class, 'index'])->name('tracking');
 Route::post('/tracking', [PublicTrackingController::class, 'search'])->name('tracking.search');
@@ -28,6 +30,11 @@ Route::get('/print/invoice/{id}', [PrintController::class, 'invoice'])->name('pr
 Route::get('/print/quotation/{id}', [QuotationController::class, 'print'])->name('print.quotation');
 Route::get('/print/tanda-terima/{id}', [PrintController::class, 'legacyReceipt'])->name('print.receipt.legacy');
 Route::get('/print/tanda-terima/{type}/{id}', [PrintController::class, 'receipt'])->name('print.receipt');
+
+Route::middleware('admin.auth')->group(function () {
+    Route::redirect('/admin', '/admin/frontend')->name('admin.index');
+    Route::get('/admin/frontend', [SettingsController::class, 'index'])->name('admin.frontend');
+});
 
 Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -95,9 +102,11 @@ Route::middleware('legacy.auth')->group(function () {
     Route::post('/dashboard/pegawai/data/{id}/reset-password', [StaffController::class, 'resetPassword'])->name('staff.reset-password');
     Route::delete('/dashboard/pegawai/data/{id}', [StaffController::class, 'destroy'])->name('staff.destroy');
     Route::get('/dashboard/audit', [ModuleController::class, 'audit'])->name('audit.index');
-    Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('settings.index');
-    Route::put('/dashboard/settings', [SettingsController::class, 'update'])->name('settings.update');
-    Route::post('/dashboard/settings/upload', [SettingsController::class, 'upload'])->name('settings.upload');
+    Route::middleware('admin.auth')->group(function () {
+        Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::put('/dashboard/settings', [SettingsController::class, 'update'])->name('settings.update');
+        Route::post('/dashboard/settings/upload', [SettingsController::class, 'upload'])->name('settings.upload');
+    });
     Route::get('/dashboard/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/dashboard/reports/export', [ReportController::class, 'export'])->name('reports.export');
     Route::get('/dashboard/stats', [ModuleController::class, 'stats'])->name('stats.index');

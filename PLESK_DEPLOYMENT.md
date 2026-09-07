@@ -1,9 +1,55 @@
 # Deployment Plesk
 
-1. Set document root domain/subdomain ke folder `public` proyek ini.
-2. Gunakan PHP 8.2 atau lebih baru dan aktifkan ekstensi `pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, dan `intl`.
-3. Salin `.env.example` menjadi `.env`, isi koneksi MySQL produksi, lalu set `APP_ENV=production`, `APP_DEBUG=false`, dan URL HTTPS.
-4. Jalankan `composer install --no-dev --optimize-autoloader` dan `npm ci && npm run build`.
-5. Jalankan `php artisan optimize`. Arahkan folder `storage` dan `bootstrap/cache` agar writable.
+## Penyebab error Laravel Toolkit
 
-Database lama digunakan langsung. Jangan jalankan `migrate:fresh` atau menghapus tabel produksi.
+Repository `master` saat ini memakai Laravel 12 dan `composer.lock` mengunci versi
+Laravel yang sudah diperbarui. Jika log Plesk masih menampilkan
+`Root composer.json requires laravel/framework ^11.31`, berarti Plesk sedang
+membangun folder, branch, atau revisi lama. Jangan menonaktifkan Composer security
+audit dan jangan menambahkan advisory ke daftar ignore.
+
+## Konfigurasi Plesk
+
+1. Repository: `https://github.com/fachry2204/notaris.git`.
+2. Branch deployment: `master`.
+3. Application root: folder yang langsung berisi `artisan`, `composer.json`, dan
+   `composer.lock` dari repository ini.
+4. Document root domain/subdomain: `<application-root>/public`.
+5. Gunakan PHP 8.2 atau lebih baru. Aktifkan `pdo_mysql`, `mbstring`, `openssl`,
+   `fileinfo`, dan `intl`.
+6. Hapus source deployment lama di Plesk hanya setelah memastikan `.env` dan data
+   upload sudah dicadangkan, lalu lakukan Pull Updates dari `master`.
+
+Sebelum instalasi dependency, jalankan dari Application root:
+
+```bash
+git rev-parse HEAD
+grep '"laravel/framework"' composer.json
+php scripts/verify-plesk.php
+```
+
+Baris kedua wajib menampilkan `^12.0`, dan pemeriksaan wajib berakhir dengan
+`Pemeriksaan deployment OK`. Jika file pemeriksaan tidak ditemukan, Plesk belum
+memakai source terbaru.
+
+## Perintah deployment
+
+Gunakan `composer install`, bukan `composer update`, agar Plesk memasang versi
+yang sudah dikunci dan diuji:
+
+```bash
+composer install --no-dev --prefer-dist --optimize-autoloader --no-interaction
+npm ci
+npm run build
+php artisan migrate --force
+php artisan storage:link
+php artisan optimize:clear
+php artisan optimize
+```
+
+Salin `.env.example` menjadi `.env` pada instalasi pertama, isi koneksi MySQL
+produksi, lalu gunakan `APP_ENV=production`, `APP_DEBUG=false`, dan `APP_URL`
+HTTPS yang benar. Folder `storage` dan `bootstrap/cache` harus writable.
+
+Database produksi tidak boleh diproses dengan `migrate:fresh`, `db:wipe`, atau
+perintah lain yang menghapus tabel.

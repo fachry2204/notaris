@@ -11,10 +11,35 @@ class AuthController extends Controller
 {
     public function create()
     {
-        return Inertia::render('Auth/Login');
+        return Inertia::render('Auth/Login', [
+            'adminMode' => false,
+            'loginAction' => route('login.store'),
+        ]);
+    }
+
+    public function createAdmin(Request $request)
+    {
+        if (($request->session()->get('auth_user.role')) === 'ADMINISTRATOR') {
+            return redirect()->route('admin.frontend');
+        }
+
+        return Inertia::render('Auth/Login', [
+            'adminMode' => true,
+            'loginAction' => route('admin.login.store'),
+        ]);
     }
 
     public function store(Request $request)
+    {
+        return $this->authenticate($request, false);
+    }
+
+    public function storeAdmin(Request $request)
+    {
+        return $this->authenticate($request, true);
+    }
+
+    private function authenticate(Request $request, bool $adminOnly)
     {
         $credentials = $request->validate([
             'username' => ['required', 'string'],
@@ -28,8 +53,16 @@ class AuthController extends Controller
             $source = 'user';
         }
 
-        if (!$account || !$this->passwordMatches($credentials['password'], $account->passwordHash)) {
-            return back()->withErrors(['username' => 'Username atau password tidak valid.'])->onlyInput('username');
+        if (
+            ! $account
+            || ($adminOnly && $account->role !== 'ADMINISTRATOR')
+            || ! $this->passwordMatches($credentials['password'], $account->passwordHash)
+        ) {
+            $message = $adminOnly
+                ? 'Akun Administrator atau password tidak valid.'
+                : 'Username atau password tidak valid.';
+
+            return back()->withErrors(['username' => $message])->onlyInput('username');
         }
 
         // bcryptjs writes the valid bcrypt prefix $2b$, while PHP/Laravel
@@ -52,7 +85,7 @@ class AuthController extends Controller
             'source' => $source,
         ]);
 
-        return redirect()->intended(route('dashboard'));
+        return redirect()->intended($adminOnly ? route('admin.frontend') : route('dashboard'));
     }
 
     public function destroy(Request $request)

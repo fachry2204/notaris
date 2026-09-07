@@ -28,6 +28,8 @@ class ApplicationTest extends TestCase
     {
         $routes = app('router')->getRoutes();
         $this->assertTrue($routes->hasNamedRoute('login'));
+        $this->assertTrue($routes->hasNamedRoute('admin.login'));
+        $this->assertTrue($routes->hasNamedRoute('admin.frontend'));
         $this->assertTrue($routes->hasNamedRoute('dashboard'));
         $this->assertTrue($routes->hasNamedRoute('clients.index'));
         $this->assertTrue($routes->hasNamedRoute('jobs.index'));

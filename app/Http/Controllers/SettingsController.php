@@ -35,6 +35,15 @@ class SettingsController extends Controller
                         'endpointUrl' => 'https://api.fonnte.com/send',
                         'apiToken' => '',
                     ],
+                    'frontend' => [
+                        'loginEyebrow' => 'Notaris Digital',
+                        'loginTitle' => 'Selamat datang',
+                        'loginSubtitle' => 'Masuk menggunakan akun Anda.',
+                        'trackingEyebrow' => 'Notaris Digital',
+                        'trackingTitle' => 'Lacak berkas Anda',
+                        'trackingSubtitle' => 'Masukkan nomor berkas untuk melihat status dan pembayaran.',
+                        'trackingPlaceholder' => 'Contoh: BHM/24072026/0001',
+                    ],
                 ],
                 $this->read(),
             ),
@@ -43,6 +52,7 @@ class SettingsController extends Controller
                 ->select('id', 'fullName', 'username', 'email', 'role', 'isActive')
                 ->orderBy('fullName')
                 ->get(),
+            'initialTab' => request()->routeIs('admin.frontend') ? 'frontend' : 'system',
         ]);
     }
 
@@ -58,6 +68,13 @@ class SettingsController extends Controller
             'branding.logoUrl' => 'nullable|string|max:500',
             'branding.faviconUrl' => 'nullable|string|max:500',
             'branding.primaryColor' => 'nullable|string|max:30',
+            'frontend.loginEyebrow' => 'required|string|max:100',
+            'frontend.loginTitle' => 'required|string|max:150',
+            'frontend.loginSubtitle' => 'required|string|max:300',
+            'frontend.trackingEyebrow' => 'required|string|max:100',
+            'frontend.trackingTitle' => 'required|string|max:150',
+            'frontend.trackingSubtitle' => 'required|string|max:300',
+            'frontend.trackingPlaceholder' => 'required|string|max:150',
             'finance.bankName' => 'nullable|string|max:255',
             'finance.accountNumber' => 'nullable|string|max:255',
             'finance.accountName' => 'nullable|string|max:255',
