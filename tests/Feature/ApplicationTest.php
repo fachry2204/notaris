@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\JobController;
+use App\Http\Controllers\UserLoginController;
 use App\Mail\SystemNotificationMail;
 use App\Services\DocumentNumberService;
 use App\Services\NotificationGateway;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Mockery;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class ApplicationTest extends TestCase
@@ -33,12 +36,61 @@ class ApplicationTest extends TestCase
         $this->assertTrue($routes->hasNamedRoute('dashboard'));
         $this->assertTrue($routes->hasNamedRoute('clients.index'));
         $this->assertTrue($routes->hasNamedRoute('jobs.index'));
+        $this->assertTrue($routes->hasNamedRoute('tracking'));
+        $this->assertTrue($routes->hasNamedRoute('tracking.search'));
+        $this->assertStringEndsWith('/cekberkas', route('tracking'));
+        $this->assertTrue($routes->hasNamedRoute('jobs.fees.update'));
         $this->assertTrue($routes->hasNamedRoute('quotations.index'));
         $this->assertTrue($routes->hasNamedRoute('quotations.store'));
         $this->assertTrue($routes->hasNamedRoute('quotations.publish'));
         $this->assertTrue($routes->hasNamedRoute('quotations.cancel'));
         $this->assertTrue($routes->hasNamedRoute('invoices.notify'));
         $this->assertTrue($routes->hasNamedRoute('jobs.notify'));
+        $this->assertTrue($routes->hasNamedRoute('user-logins.index'));
+        $this->assertTrue($routes->hasNamedRoute('user-logins.store'));
+        $this->assertTrue($routes->hasNamedRoute('user-logins.update'));
+        $this->assertTrue($routes->hasNamedRoute('user-logins.status'));
+        $this->assertTrue($routes->hasNamedRoute('user-logins.destroy'));
+    }
+
+    public function test_employee_cannot_update_employee_fees(): void
+    {
+        $request = Request::create('/dashboard/jobs/badan_hukum/job-test/fees', 'PATCH', [
+            'employeeTasks' => [],
+        ]);
+        $session = app('session')->driver();
+        $session->put('auth_user', [
+            'id' => 'employee-test',
+            'role' => 'STAFFADMIN',
+        ]);
+        $request->setLaravelSession($session);
+
+        try {
+            app(JobController::class)->updateEmployeeFees($request, 'badan_hukum', 'job-test');
+            $this->fail('Pegawai tidak boleh dapat mengubah fee.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+            $this->assertSame('Hanya Admin atau Pimpinan yang dapat mengubah fee pegawai.', $exception->getMessage());
+        }
+    }
+
+    public function test_employee_cannot_manage_user_logins(): void
+    {
+        $request = Request::create('/dashboard/system/users', 'GET');
+        $session = app('session')->driver();
+        $session->put('auth_user', [
+            'id' => 'employee-test',
+            'role' => 'STAFFADMIN',
+            'source' => 'user',
+        ]);
+        $request->setLaravelSession($session);
+
+        try {
+            app(UserLoginController::class)->index($request);
+            $this->fail('STAFFADMIN seharusnya tidak dapat mengelola user login.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
     }
 
     public function test_every_main_page_can_be_opened_with_an_authenticated_session(): void
@@ -173,14 +225,15 @@ class ApplicationTest extends TestCase
                 'KTP — KTP Direktur Utama',
                 'NPWP — NPWP Perusahaan',
             ],
+            'attachmentDeposits' => [true, false],
         ]);
 
         $response->assertRedirect(route('jobs.index'));
         $job = DB::table('badan_hukum')->where('title', 'QA Multi Lampiran')->orderByDesc('createdAt')->first();
         $this->assertNotNull($job);
         $this->assertMatchesRegularExpression('/^[A-Z]+\/\d{8}\/\d{4}$/', $job->trackingCode);
-        $this->assertDatabaseHas('attachment', ['fileName' => $firstName, 'description' => 'KTP — KTP Direktur Utama']);
-        $this->assertDatabaseHas('attachment', ['fileName' => $secondName, 'description' => 'NPWP — NPWP Perusahaan']);
+        $this->assertDatabaseHas('attachment', ['fileName' => $firstName, 'description' => 'KTP — KTP Direktur Utama', 'isPhysicalDeposited' => true]);
+        $this->assertDatabaseHas('attachment', ['fileName' => $secondName, 'description' => 'NPWP — NPWP Perusahaan', 'isPhysicalDeposited' => false]);
     }
 
     public function test_quotation_can_store_pic_and_multiple_items(): void
@@ -534,7 +587,7 @@ class ApplicationTest extends TestCase
             'number' => 'BH/24072026/0001',
             'title' => 'Pendirian PT',
             'status' => 'PROSES',
-            'url' => 'http://localhost/tracking',
+            'url' => 'http://localhost/cekberkas',
             'picName' => 'Admin QA',
         ]);
 

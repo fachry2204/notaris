@@ -15,6 +15,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\UserLoginController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -23,9 +24,10 @@ Route::post('/login', [AuthController::class, 'store'])->name('login.store');
 Route::get('/admin/login', [AuthController::class, 'createAdmin'])->name('admin.login');
 Route::post('/admin/login', [AuthController::class, 'storeAdmin'])->name('admin.login.store');
 Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
-Route::get('/tracking', [PublicTrackingController::class, 'index'])->name('tracking');
-Route::post('/tracking', [PublicTrackingController::class, 'search'])->name('tracking.search');
-Route::redirect('/cek-berkas', '/tracking');
+Route::get('/cekberkas', [PublicTrackingController::class, 'index'])->name('tracking');
+Route::post('/cekberkas', [PublicTrackingController::class, 'search'])->middleware('throttle:30,1')->name('tracking.search');
+Route::redirect('/tracking', '/cekberkas');
+Route::redirect('/cek-berkas', '/cekberkas');
 Route::get('/print/invoice/{id}', [PrintController::class, 'invoice'])->name('print.invoice');
 Route::get('/print/quotation/{id}', [QuotationController::class, 'print'])->name('print.quotation');
 Route::get('/print/tanda-terima/{id}', [PrintController::class, 'legacyReceipt'])->name('print.receipt.legacy');
@@ -56,6 +58,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/jobs/{id}', [JobController::class, 'legacyShow'])->name('jobs.legacy-show');
     Route::get('/dashboard/jobs/{type}/{id}', [JobController::class, 'show'])->name('jobs.show');
     Route::get('/dashboard/jobs/{type}/{id}/edit', [JobController::class, 'edit'])->name('jobs.edit');
+    Route::patch('/dashboard/jobs/{type}/{id}/fees', [JobController::class, 'updateEmployeeFees'])->name('jobs.fees.update');
     Route::put('/dashboard/jobs/{type}/{id}/progress', [JobController::class, 'updateProgress'])->name('jobs.progress');
     Route::put('/dashboard/jobs/{type}/{id}', [JobController::class, 'update'])->name('jobs.update');
     Route::delete('/dashboard/jobs/{type}/{id}', [JobController::class, 'destroy'])->name('jobs.destroy');
@@ -102,6 +105,13 @@ Route::middleware('legacy.auth')->group(function () {
     Route::post('/dashboard/pegawai/data/{id}/reset-password', [StaffController::class, 'resetPassword'])->name('staff.reset-password');
     Route::delete('/dashboard/pegawai/data/{id}', [StaffController::class, 'destroy'])->name('staff.destroy');
     Route::get('/dashboard/audit', [ModuleController::class, 'audit'])->name('audit.index');
+    Route::get('/dashboard/system/users', [UserLoginController::class, 'index'])->name('user-logins.index');
+    Route::get('/dashboard/system/users/new', [UserLoginController::class, 'create'])->name('user-logins.create');
+    Route::post('/dashboard/system/users', [UserLoginController::class, 'store'])->name('user-logins.store');
+    Route::get('/dashboard/system/users/{source}/{id}/edit', [UserLoginController::class, 'edit'])->where('source', 'admin|user')->name('user-logins.edit');
+    Route::put('/dashboard/system/users/{source}/{id}', [UserLoginController::class, 'update'])->where('source', 'admin|user')->name('user-logins.update');
+    Route::patch('/dashboard/system/users/{source}/{id}/status', [UserLoginController::class, 'toggleStatus'])->where('source', 'admin|user')->name('user-logins.status');
+    Route::delete('/dashboard/system/users/{source}/{id}', [UserLoginController::class, 'destroy'])->where('source', 'admin|user')->name('user-logins.destroy');
     Route::middleware('admin.auth')->group(function () {
         Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/dashboard/settings', [SettingsController::class, 'update'])->name('settings.update');

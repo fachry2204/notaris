@@ -68,8 +68,14 @@ class PrintController extends Controller
 
         $attachments = DB::table('attachment')
             ->where($fk, $id)
+            ->where('isPhysicalDeposited', true)
             ->orderBy('createdAt')
             ->get();
+        abort_if(
+            $attachments->isEmpty(),
+            404,
+            'Tanda terima tidak tersedia karena tidak ada berkas fisik yang dititipkan di kantor.'
+        );
 
         $storedSettings = DB::table('app_settings')
             ->where('settings_key', 'GLOBAL_APP_SETTINGS')

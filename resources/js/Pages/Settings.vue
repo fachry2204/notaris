@@ -83,7 +83,11 @@ const f = useForm({
     branding: {
         logoUrl: p.settings.branding?.logoUrl || "",
         faviconUrl: p.settings.branding?.faviconUrl || "",
-        primaryColor: p.settings.branding?.primaryColor || "#F47EAB",
+        primaryColor:
+            !p.settings.branding?.primaryColor ||
+            p.settings.branding.primaryColor === "#F47EAB"
+                ? "#C99A3D"
+                : p.settings.branding.primaryColor,
     },
     frontend: {
         loginEyebrow: p.settings.frontend?.loginEyebrow || "Notaris Digital",
@@ -95,10 +99,10 @@ const f = useForm({
         trackingTitle: p.settings.frontend?.trackingTitle || "Lacak berkas Anda",
         trackingSubtitle:
             p.settings.frontend?.trackingSubtitle ||
-            "Masukkan nomor berkas untuk melihat status dan pembayaran.",
+            "Masukkan nomor berkas, nomor HP, atau email untuk melihat status dan progres berkas.",
         trackingPlaceholder:
             p.settings.frontend?.trackingPlaceholder ||
-            "Contoh: BHM/24072026/0001",
+            "Nomor berkas / nomor HP / email",
     },
     finance: {
         bankName: p.settings.finance?.bankName || "",
@@ -322,7 +326,7 @@ const save = () =>
                             <div class="mt-4 flex flex-wrap items-center gap-3">
                                 <button
                                     v-for="color in [
-                                        { name: 'Soft Pink', hex: '#F47EAB' },
+                                        { name: 'Notary Gold', hex: '#C99A3D' },
                                         { name: 'Royal Indigo', hex: '#4F46E5' },
                                         { name: 'Ocean Sky', hex: '#0284C7' },
                                         { name: 'Emerald Teal', hex: '#0D9488' },

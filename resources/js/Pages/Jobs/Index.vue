@@ -46,6 +46,52 @@ const date = (x: any) =>
           })
         : "-";
 
+const deadlineInfo = (deadline: any, status: string) => {
+    if (!deadline) {
+        return {
+            label: "Deadline belum ditentukan",
+            color: "text-slate-400",
+        };
+    }
+
+    if (status === "SELESAI") {
+        return { label: "Berkas selesai", color: "text-emerald-600" };
+    }
+
+    if (status === "CANCELLED") {
+        return { label: "Berkas dibatalkan", color: "text-slate-400" };
+    }
+
+    const [year, month, day] = String(deadline)
+        .slice(0, 10)
+        .split("-")
+        .map(Number);
+    const today = new Date();
+    const todayUtc = Date.UTC(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate(),
+    );
+    const deadlineUtc = Date.UTC(year, month - 1, day);
+    const days = Math.round((deadlineUtc - todayUtc) / 86_400_000);
+
+    if (days < 0) {
+        return {
+            label: `Terlambat ${Math.abs(days)} hari`,
+            color: "text-rose-600",
+        };
+    }
+
+    if (days === 0) {
+        return { label: "Jatuh tempo hari ini", color: "text-amber-600" };
+    }
+
+    return {
+        label: `${days} hari lagi`,
+        color: days <= 3 ? "text-amber-600" : "text-slate-500",
+    };
+};
+
 const statusCardStyle = (s: string) => {
     switch (s) {
         case "SELESAI":
@@ -76,6 +122,27 @@ const badgeStyle = (s: string) => {
         default:
             return "bg-amber-100 text-amber-800 border border-amber-300";
     }
+};
+
+const feeStatusInfo = (job: any) => {
+    const totalTasks = Number(job.feeTaskCount || 0);
+    const filledTasks = Number(job.filledFeeTaskCount || 0);
+    const complete = totalTasks > 0 && filledTasks >= totalTasks;
+
+    return complete
+        ? {
+              label: "Fee Lengkap",
+              hint: `${filledTasks} dari ${totalTasks} tugas sudah memiliki fee`,
+              style: "border-emerald-200 bg-emerald-50 text-emerald-700",
+          }
+        : {
+              label: "Fee Belum Terisi",
+              hint:
+                  totalTasks === 0
+                      ? "Belum ada tugas karyawan"
+                      : `${Math.max(0, totalTasks - filledTasks)} tugas belum memiliki fee`,
+              style: "border-rose-200 bg-rose-50 text-rose-700",
+          };
 };
 </script>
 
@@ -162,9 +229,18 @@ const badgeStyle = (s: string) => {
                             </code>
                             <span class="ml-2 text-[11px] font-semibold opacity-75">{{ date(j.createdAt) }}</span>
                         </div>
-                        <span class="rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase" :class="badgeStyle(j.status)">
-                            {{ j.status }}
-                        </span>
+                        <div class="flex flex-col items-end gap-1.5">
+                            <span class="rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase" :class="badgeStyle(j.status)">
+                                {{ j.status }}
+                            </span>
+                            <span
+                                class="rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase"
+                                :class="feeStatusInfo(j).style"
+                                :title="feeStatusInfo(j).hint"
+                            >
+                                {{ feeStatusInfo(j).label }}
+                            </span>
+                        </div>
                     </div>
                     <div class="mt-3">
                         <h3 class="font-bold text-sm leading-snug line-clamp-2">{{ j.title }}</h3>
@@ -180,9 +256,17 @@ const badgeStyle = (s: string) => {
                         </div>
                     </div>
                     <div class="mt-3 flex items-center justify-between pt-2 border-t border-black/5">
-                        <div class="flex items-center gap-1 text-[11px] font-medium opacity-80">
-                            <Calendar class="h-3.5 w-3.5" />
-                            <span>Deadline: {{ date(j.deadline) }}</span>
+                        <div class="text-[11px] font-medium">
+                            <div class="flex items-center gap-1 opacity-80">
+                                <Calendar class="h-3.5 w-3.5" />
+                                <span>Deadline: {{ date(j.deadline) }}</span>
+                            </div>
+                            <p
+                                class="mt-1 font-black"
+                                :class="deadlineInfo(j.deadline, j.status).color"
+                            >
+                                {{ deadlineInfo(j.deadline, j.status).label }}
+                            </p>
                         </div>
                         <Link
                             :href="`/dashboard/jobs/${j.jobType}/${j.id}`"
@@ -234,11 +318,26 @@ const badgeStyle = (s: string) => {
                                         {{ j.category }}
                                     </span>
                                 </td>
-                                <td class="font-medium text-slate-600">{{ date(j.deadline) }}</td>
+                                <td class="font-medium text-slate-600">
+                                    <p>{{ date(j.deadline) }}</p>
+                                    <p
+                                        class="mt-1 text-[11px] font-black"
+                                        :class="deadlineInfo(j.deadline, j.status).color"
+                                    >
+                                        {{ deadlineInfo(j.deadline, j.status).label }}
+                                    </p>
+                                </td>
                                 <td>
                                     <span class="inline-block rounded-full px-3 py-1 text-xs font-black" :class="badgeStyle(j.status)">
                                         {{ j.status }}
                                     </span>
+                                    <p
+                                        class="mt-2 w-fit rounded-full border px-2.5 py-1 text-[9px] font-black uppercase"
+                                        :class="feeStatusInfo(j).style"
+                                        :title="feeStatusInfo(j).hint"
+                                    >
+                                        {{ feeStatusInfo(j).label }}
+                                    </p>
                                 </td>
                                 <td class="pr-6 text-right">
                                     <Link

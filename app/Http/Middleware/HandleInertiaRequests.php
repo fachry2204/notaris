@@ -51,15 +51,19 @@ class HandleInertiaRequests extends Middleware
                         'officeName' => $stored['general']['officeName'] ?? 'Kantor Notaris',
                         'logoUrl' => $stored['branding']['logoUrl'] ?? null,
                         'faviconUrl' => $stored['branding']['faviconUrl'] ?? null,
-                        'primaryColor' => $stored['branding']['primaryColor'] ?? '#F47EAB',
+                        'primaryColor' => in_array(
+                            $stored['branding']['primaryColor'] ?? null,
+                            [null, '#F47EAB'],
+                            true,
+                        ) ? '#C99A3D' : $stored['branding']['primaryColor'],
                         'frontend' => [
                             'loginEyebrow' => $stored['frontend']['loginEyebrow'] ?? 'Notaris Digital',
                             'loginTitle' => $stored['frontend']['loginTitle'] ?? 'Selamat datang',
                             'loginSubtitle' => $stored['frontend']['loginSubtitle'] ?? 'Masuk menggunakan akun Anda.',
                             'trackingEyebrow' => $stored['frontend']['trackingEyebrow'] ?? 'Notaris Digital',
                             'trackingTitle' => $stored['frontend']['trackingTitle'] ?? 'Lacak berkas Anda',
-                            'trackingSubtitle' => $stored['frontend']['trackingSubtitle'] ?? 'Masukkan nomor berkas untuk melihat status dan pembayaran.',
-                            'trackingPlaceholder' => $stored['frontend']['trackingPlaceholder'] ?? 'Contoh: BHM/24072026/0001',
+                            'trackingSubtitle' => $stored['frontend']['trackingSubtitle'] ?? 'Masukkan nomor berkas, nomor HP, atau email untuk melihat status dan progres berkas.',
+                            'trackingPlaceholder' => $stored['frontend']['trackingPlaceholder'] ?? 'Nomor berkas / nomor HP / email',
                         ],
                     ];
                 },

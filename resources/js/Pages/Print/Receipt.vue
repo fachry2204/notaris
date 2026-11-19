@@ -169,10 +169,10 @@ const parseAttachment = (att: any) => {
                 </div>
             </div>
 
-            <!-- TABEL DOKUMEN / BERKAS YANG DIUPLOAD -->
+            <!-- TABEL DOKUMEN FISIK YANG DITITIPKAN -->
             <div class="mt-6 space-y-2">
                 <h3 class="text-xs font-black uppercase tracking-wider text-slate-700 border-b pb-1">
-                    Daftar Dokumen / Lampiran Persyaratan yang Diserahkan
+                    Daftar Berkas Fisik yang Dititipkan di Kantor
                 </h3>
                 <div class="overflow-hidden rounded-xl border border-slate-200">
                     <table class="w-full text-left text-xs">
@@ -187,7 +187,7 @@ const parseAttachment = (att: any) => {
                         <tbody class="divide-y divide-slate-100">
                             <tr v-if="!attachments?.length">
                                 <td colspan="4" class="px-3 py-6 text-center text-slate-400 font-medium">
-                                    Belum ada dokumen lampiran yang diupload/diserahkan.
+                                    Tidak ada berkas fisik yang dititipkan.
                                 </td>
                             </tr>
                             <tr v-for="(att, idx) in attachments" :key="att.id" class="hover:bg-slate-50">

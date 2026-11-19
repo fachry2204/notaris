@@ -19,6 +19,7 @@ import {
     LogOut,
     Search,
     Bell,
+    UserCog,
 } from "@lucide/vue";
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user);
@@ -145,6 +146,12 @@ const sections = [
         title: "Manajemen Sistem",
         items: [
             [
+                "User Login",
+                UserCog,
+                "/dashboard/system/users",
+                ["ADMINISTRATOR", "PIMPINAN"],
+            ],
+            [
                 "Laporan",
                 FileText,
                 "/dashboard/reports",
@@ -168,7 +175,10 @@ const active = (href: string) =>
         page.url.startsWith("/dashboard/jobs") &&
         !page.url.includes("completed"));
 const primaryColor = computed(
-    () => branding.value.primaryColor || "#F47EAB"
+    () =>
+        !branding.value.primaryColor || branding.value.primaryColor === "#F47EAB"
+            ? "#C99A3D"
+            : branding.value.primaryColor,
 );
 
 const applyPrimaryColor = (color: string) => {
@@ -234,7 +244,7 @@ const mobile = computed(() =>
 </script>
 <template>
     <div
-        class="flex h-screen overflow-hidden bg-[var(--sidebar)] pb-16 text-[var(--foreground)] md:pb-0"
+        class="flex h-screen overflow-hidden bg-[var(--background)] pb-16 text-[var(--foreground)] md:pb-0"
     >
         <aside
             class="relative z-50 hidden h-screen w-64 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-sm shadow-xl md:flex"
@@ -245,7 +255,7 @@ const mobile = computed(() =>
                         v-if="logoUrl"
                         :src="logoUrl"
                         :alt="appName"
-                        class="h-12 w-12 shrink-0 rounded-xl bg-white object-contain shadow-sm"
+                        class="h-12 w-12 shrink-0 rounded-xl border border-[var(--sidebar-border)] bg-[#1b1812] object-contain shadow-sm"
                     />
                     <div
                         v-else
@@ -255,7 +265,7 @@ const mobile = computed(() =>
                     </div>
                     <div class="min-w-0">
                         <span
-                            class="block truncate text-base font-black leading-tight"
+                            class="font-display block truncate text-base font-black leading-tight text-[#f2e8d5]"
                             :title="appName"
                         >
                             {{ appName }}
@@ -304,49 +314,32 @@ const mobile = computed(() =>
                     </section>
                 </div>
             </div>
-            <div
-                class="mt-auto border-t border-[var(--sidebar-border)] bg-[var(--muted)]/20 p-4"
-            >
-                <div class="flex items-center gap-3 px-2 py-3">
-                    <div
-                        class="grid h-10 w-10 place-items-center rounded-full bg-[color-mix(in_srgb,var(--primary)_15%,white)] font-bold text-[var(--primary)]"
-                    >
-                        {{ user?.fullName?.slice(0, 2).toUpperCase() }}
-                    </div>
-                    <div class="min-w-0 flex-1">
-                        <span class="block truncate text-sm font-bold">{{
-                            user?.fullName
-                        }}</span
-                        ><span
-                            class="block truncate font-medium uppercase text-[var(--muted-foreground)]"
-                            >{{ role }}</span
-                        >
-                    </div>
-                    <Link
-                        href="/logout"
-                        method="post"
-                        as="button"
-                        class="text-[var(--muted-foreground)] hover:text-red-500"
-                        ><LogOut class="h-4 w-4"
-                    /></Link>
-                </div>
-            </div>
         </aside>
         <div class="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Mobile Top Header Bar -->
-            <header class="flex h-16 items-center justify-between border-b border-[var(--border)] bg-white px-4 shadow-sm md:hidden">
+            <header class="flex h-16 items-center justify-between border-b border-[var(--sidebar-border)] bg-[var(--sidebar)] px-4 shadow-sm md:hidden">
                 <Link href="/dashboard" class="flex items-center gap-2">
                     <img v-if="logoUrl" :src="logoUrl" :alt="appName" class="h-8 w-8 object-contain" />
-                    <span class="truncate text-base font-black text-slate-800">{{ appName }}</span>
+                    <span class="font-display truncate text-base font-black text-[#f2e8d5]">{{ appName }}</span>
                 </Link>
                 <div class="flex items-center gap-2">
                     <div class="grid h-9 w-9 place-items-center rounded-full bg-[color-mix(in_srgb,var(--primary)_15%,white)] text-xs font-black text-[var(--primary)] border border-[var(--primary)]/20">
                         {{ user?.fullName?.slice(0, 2).toUpperCase() }}
                     </div>
+                    <Link
+                        href="/logout"
+                        method="post"
+                        as="button"
+                        aria-label="Logout"
+                        title="Logout"
+                        class="grid h-9 w-9 place-items-center rounded-full border border-[#5b4825] text-[#d8d0c0] transition hover:border-rose-500/60 hover:bg-rose-500/10 hover:text-rose-400"
+                    >
+                        <LogOut class="h-4 w-4" />
+                    </Link>
                 </div>
             </header>
             <header
-                class="hidden h-20 items-center justify-between border-b border-[var(--border)] bg-[var(--background)] px-8 shadow-sm md:flex"
+                class="hidden h-20 items-center justify-between border-b border-[var(--border)] bg-[#fffdf8]/95 px-8 shadow-sm backdrop-blur md:flex"
             >
                 <div class="relative w-full max-w-lg">
                     <Search
@@ -368,16 +361,26 @@ const mobile = computed(() =>
                     >
                         {{ user?.fullName?.slice(0, 2).toUpperCase() }}
                     </div>
+                    <Link
+                        href="/logout"
+                        method="post"
+                        as="button"
+                        aria-label="Logout"
+                        title="Logout"
+                        class="ml-1 grid h-10 w-10 place-items-center rounded-full border border-[var(--border)] bg-[#fffdf8] text-[var(--muted-foreground)] shadow-sm transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600"
+                    >
+                        <LogOut class="h-[18px] w-[18px]" />
+                    </Link>
                 </div>
             </header>
             <main
-                class="flex-1 overflow-y-auto bg-[color-mix(in_srgb,var(--background)_80%,transparent)] p-4 backdrop-blur-sm md:p-8"
+                class="flex-1 overflow-y-auto bg-[var(--background)] p-4 md:p-8"
             >
                 <slot />
             </main>
         </div>
         <nav
-            class="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t bg-white/95 px-2 shadow-[0_-4px_20px_rgba(0,0,0,.06)] backdrop-blur-lg md:hidden"
+            class="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2 shadow-[0_-4px_20px_rgba(0,0,0,.18)] md:hidden"
         >
             <Link
                 v-for="i in mobile"
@@ -392,15 +395,6 @@ const mobile = computed(() =>
                     class="text-[11px]"
                     >{{ i[0] }}</span
                 ></Link
-            ><Link
-                href="/logout"
-                method="post"
-                as="button"
-                class="flex h-full w-full flex-col items-center justify-center gap-1 text-rose-500 hover:text-rose-600"
-                ><img
-                    src="/uploads/checkin.png"
-                    class="h-5 w-5 object-contain"
-                /><span class="text-[11px] font-bold">Keluar</span></Link
             >
         </nav>
     </div>

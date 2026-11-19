@@ -16,32 +16,32 @@ const submit = () => form.post(props.loginAction);
 
 <template>
     <Head :title="adminMode ? 'Login Administrator' : 'Masuk'" />
-    <main class="grid min-h-screen place-items-center bg-gradient-to-br from-slate-950 via-slate-900 to-pink-950 p-6">
-        <form @submit.prevent="submit" class="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+    <main class="relative grid min-h-screen place-items-center overflow-hidden bg-[#0e0d0b] p-6 before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_75%_20%,rgba(201,154,61,.18),transparent_35%)]">
+        <form @submit.prevent="submit" class="relative w-full max-w-md rounded-3xl border border-[#5b4825] bg-[#17140f]/95 p-8 text-[#f5ecdc] shadow-2xl shadow-black/40 backdrop-blur">
             <div class="mb-6 flex items-center gap-3">
                 <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="branding.appName" class="h-12 w-12 rounded-xl object-contain" />
-                <span v-else class="grid h-12 w-12 place-items-center rounded-xl bg-pink-50 text-pink-600">
+                <span v-else class="grid h-12 w-12 place-items-center rounded-xl border border-[#745b2c] bg-[#211b11] text-[#d7aa4d]">
                     <LockKeyhole class="h-6 w-6" />
                 </span>
                 <div>
-                    <p class="text-xs font-black uppercase tracking-[.2em] text-pink-500">
+                    <p class="text-xs font-black uppercase tracking-[.2em] text-[#d7aa4d]">
                         {{ content.loginEyebrow || branding.appName }}
                     </p>
                     <p v-if="adminMode" class="mt-1 text-xs font-bold text-slate-500">BACKEND ADMINISTRATOR</p>
                 </div>
             </div>
-            <h1 class="text-3xl font-black">
+            <h1 class="font-display text-3xl font-black text-[#fff8e9]">
                 {{ adminMode ? "Login Administrator" : content.loginTitle }}
             </h1>
-            <p class="mt-2 text-sm text-slate-500">
+            <p class="mt-2 text-sm text-[#aaa08f]">
                 {{ adminMode ? "Masuk untuk mengatur sistem dan seluruh halaman depan." : content.loginSubtitle }}
             </p>
             <label class="mt-8 block text-sm font-bold">Username</label>
-            <input v-model="form.username" autocomplete="username" autofocus class="mt-2 w-full rounded-xl border-slate-200" />
+            <input v-model="form.username" autocomplete="username" autofocus class="mt-2 w-full rounded-xl border-[#4e422e] bg-[#211d17] text-[#fff8e9]" />
             <p class="mt-1 text-xs text-red-600">{{ form.errors.username }}</p>
             <label class="mt-5 block text-sm font-bold">Password</label>
-            <input v-model="form.password" type="password" autocomplete="current-password" class="mt-2 w-full rounded-xl border-slate-200" />
-            <button :disabled="form.processing" class="mt-8 w-full rounded-xl bg-pink-600 px-4 py-3 font-black text-white hover:bg-pink-700 disabled:opacity-50">
+            <input v-model="form.password" type="password" autocomplete="current-password" class="mt-2 w-full rounded-xl border-[#4e422e] bg-[#211d17] text-[#fff8e9]" />
+            <button :disabled="form.processing" class="mt-8 w-full rounded-xl bg-[#c99a3d] px-4 py-3 font-black text-[#17120a] hover:bg-[#dfb458] disabled:opacity-50">
                 {{ form.processing ? "Memproses…" : "Masuk" }}
             </button>
         </form>

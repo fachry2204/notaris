@@ -200,7 +200,7 @@ const capturePhoto = () => {
     addressLines.forEach((line, index) => {
         context.fillText(line, padding, canvas.height - overlayHeight + padding + dateFontSize + 12 + ((index + 1) * lineHeight));
     });
-    context.fillStyle = "#f9a8d4";
+    context.fillStyle = "#d7aa4d";
     context.font = `700 ${addressFontSize}px sans-serif`;
     context.fillText(`Lokasi Kerja: ${f.workLocationType}`, padding, canvas.height - padding);
     canvas.toBlob((blob) => {
@@ -256,93 +256,118 @@ onMounted(() => {
 <template>
     <Head title="Absenku" />
     <AppLayout>
-        <main class="mx-auto max-w-xl space-y-6 p-4">
-            <div class="flex items-center gap-4">
-                <Link href="/dashboard/pegawai/absensi" class="grid h-11 w-11 place-items-center rounded-full hover:bg-pink-500/10">
-                    <ArrowLeft />
+        <main class="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+            <header class="flex items-start gap-4">
+                <Link
+                    href="/dashboard/pegawai/absensi"
+                    class="mt-1 grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-[#d8c9aa] bg-[#fffdf8] text-[#9a6b16] shadow-sm transition hover:border-[#c99a3d] hover:bg-[#f5ead1]"
+                    aria-label="Kembali ke daftar absensi"
+                >
+                    <ArrowLeft class="h-5 w-5" />
                 </Link>
                 <div>
-                    <h1 class="text-2xl font-black">Absenku</h1>
-                    <p class="text-sm text-slate-500">Catat kehadiran menggunakan lokasi dan foto langsung dari kamera.</p>
+                    <p class="text-[10px] font-black uppercase tracking-[0.22em] text-[#a47118]">Absensi Pegawai</p>
+                    <h1 class="mt-1 text-2xl font-black text-[#17120a] sm:text-3xl">Absenku</h1>
+                    <p class="mt-1 text-sm text-[#766d5d]">Catat kehadiran menggunakan lokasi GPS dan foto langsung dari kamera.</p>
                 </div>
-            </div>
+            </header>
 
-            <div v-if="!hasStaff" class="rounded-2xl bg-rose-500/10 p-6 font-bold text-rose-600">
+            <div v-if="!hasStaff" class="mx-auto max-w-2xl rounded-2xl border border-rose-200 bg-rose-50 p-6 font-bold text-rose-700 shadow-sm">
                 Profil staff tidak ditemukan pada akun ini.
             </div>
 
-            <section v-else class="overflow-hidden rounded-[2.5rem] bg-white shadow-2xl">
-                <header class="bg-gradient-to-br from-pink-500 to-rose-500 p-7 text-white">
-                    <UserCheck class="h-10 w-10" />
-                    <h2 class="mt-4 text-2xl font-black">{{ today?.checkIn && !today?.checkOut ? "Absen Pulang" : "Absen Masuk" }}</h2>
-                    <p class="text-sm text-white/80">
-                        {{ new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) }}
-                    </p>
+            <section v-else class="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-[#d8c9aa] bg-[#fffdf8] shadow-[0_22px_60px_rgba(54,41,16,0.12)]">
+                <header class="relative overflow-hidden bg-[#12110e] p-6 text-[#f8f0df] sm:p-8">
+                    <div class="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border-[32px] border-[#c99a3d]/10" />
+                    <div class="pointer-events-none absolute -bottom-20 right-24 h-36 w-36 rounded-full bg-[#c99a3d]/10 blur-2xl" />
+                    <div class="relative flex items-start justify-between gap-4">
+                        <div>
+                            <span class="grid h-12 w-12 place-items-center rounded-2xl border border-[#6e5729] bg-[#211b11] text-[#d7aa4d]">
+                                <UserCheck class="h-6 w-6" />
+                            </span>
+                            <h2 class="mt-5 text-2xl font-black sm:text-3xl">{{ today?.checkIn && !today?.checkOut ? "Absen Pulang" : "Absen Masuk" }}</h2>
+                            <p class="mt-1 text-sm font-medium text-[#b7aa94]">
+                                {{ new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) }}
+                            </p>
+                        </div>
+                        <span class="rounded-full border border-[#66532d] bg-[#201b12] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#d7aa4d]">
+                            {{ today?.checkIn ? "Pulang" : "Masuk" }}
+                        </span>
+                    </div>
                 </header>
 
-                <div v-if="today?.checkOut" class="p-8 text-center">
-                    <CheckCircle2 class="mx-auto h-16 w-16 text-emerald-500" />
-                    <h3 class="mt-4 text-xl font-black">Absensi Hari Ini Selesai</h3>
-                    <p class="mt-2 text-sm text-slate-500">Masuk dan pulang sudah tercatat.</p>
+                <div v-if="today?.checkOut" class="p-8 text-center sm:p-12">
+                    <span class="mx-auto grid h-20 w-20 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600">
+                        <CheckCircle2 class="h-10 w-10" />
+                    </span>
+                    <h3 class="mt-5 text-xl font-black text-[#17120a]">Absensi Hari Ini Selesai</h3>
+                    <p class="mt-2 text-sm text-[#766d5d]">Waktu masuk dan pulang Anda sudah tercatat.</p>
+                    <Link href="/dashboard/pegawai/absensi" class="mt-6 inline-flex h-11 items-center gap-2 rounded-xl border border-[#d8c9aa] bg-[#f5ead1] px-5 text-sm font-black text-[#8a611c] hover:border-[#c99a3d]">
+                        <ArrowLeft class="h-4 w-4" /> Lihat Riwayat Absensi
+                    </Link>
                 </div>
 
-                <form v-else class="space-y-5 p-7" @submit.prevent="submit">
-                    <label>
-                        <span class="label"><MapPin class="h-4 w-4" />Lokasi Kerja</span>
-                        <select v-model="f.workLocationType" required class="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 font-bold text-slate-800">
-                            <option value="Office">Office</option>
-                            <option value="Dinas Luar">Dinas Luar</option>
-                            <option value="WFC">WFC</option>
-                            <option value="WFH">WFH</option>
-                        </select>
-                    </label>
+                <form v-else class="space-y-6 p-5 sm:p-8" @submit.prevent="submit">
+                    <div class="grid gap-5">
+                        <label>
+                            <span class="label"><MapPin class="h-4 w-4" />Lokasi Kerja</span>
+                            <select v-model="f.workLocationType" required class="h-12 w-full rounded-xl border border-[#d8c9aa] bg-[#fffefb] px-4 font-bold text-[#1d1a15]">
+                                <option value="Office">Office</option>
+                                <option value="Dinas Luar">Dinas Luar</option>
+                                <option value="WFC">WFC</option>
+                                <option value="WFH">WFH</option>
+                            </select>
+                        </label>
 
-                    <label>
-                        <span class="label"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
-                        <textarea
-                            :value="locating ? 'Sedang mendeteksi lokasi GPS dan alamat...' : f.locationLabel"
-                            readonly
-                            rows="3"
-                            placeholder="Alamat akan terisi otomatis dari GPS"
-                            class="w-full resize-none rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm font-semibold leading-relaxed text-slate-700 read-only:cursor-not-allowed"
-                        ></textarea>
-                    </label>
+                        <label>
+                            <span class="label"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
+                            <textarea
+                                :value="locating ? 'Sedang mendeteksi lokasi GPS dan alamat...' : f.locationLabel"
+                                readonly
+                                rows="3"
+                                placeholder="Alamat akan terisi otomatis dari GPS"
+                                class="w-full resize-none rounded-xl border border-[#d8c9aa] bg-[#f4efe5] px-4 py-3 text-sm font-semibold leading-relaxed text-[#514a3e] read-only:cursor-not-allowed"
+                            ></textarea>
+                        </label>
+                    </div>
 
-                    <div v-if="locationResolved" class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-center text-xs font-bold text-emerald-700">
-                        <CheckCircle2 class="mr-1 inline h-4 w-4" />Lokasi berhasil terdeteksi otomatis
+                    <div v-if="locationResolved" class="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">
+                        <CheckCircle2 class="h-4 w-4" />Lokasi berhasil terdeteksi otomatis
                     </div>
                     <div v-if="locationError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                         {{ locationError }}
                     </div>
-                    <button type="button" :disabled="locating" class="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-blue-500/10 font-bold text-blue-600 disabled:opacity-50" @click="locate">
+                    <button type="button" :disabled="locating" class="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#e0c58f] bg-[#f5ead1] font-black text-[#8a611c] transition hover:border-[#c99a3d] hover:bg-[#efe0c0] disabled:opacity-50" @click="locate">
                         <Navigation class="h-4 w-4" :class="locating ? 'animate-pulse' : ''" />
                         {{ locating ? "Mendeteksi Lokasi..." : locationResolved ? "Perbarui Lokasi GPS" : "Coba Deteksi Lokasi" }}
                     </button>
-                    <p class="text-center text-[10px] text-slate-400">
-                        Data alamat © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="font-bold underline">OpenStreetMap contributors</a>
+                    <p class="text-center text-[10px] text-[#8c826f]">
+                        Data alamat © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="font-bold text-[#8a611c] underline">OpenStreetMap contributors</a>
                     </p>
                     <p v-if="f.errors.locationLabel || f.errors.latitude || f.errors.longitude" class="text-sm font-bold text-rose-600">
                         {{ f.errors.locationLabel || f.errors.latitude || f.errors.longitude }}
                     </p>
 
-                    <div class="overflow-hidden rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50">
-                        <div v-if="photoPreview" class="relative bg-slate-950">
+                    <div class="overflow-hidden rounded-2xl border-2 border-dashed border-[#d8c9aa] bg-[#f7f1e5]">
+                        <div v-if="photoPreview" class="relative bg-[#12110e]">
                             <img :src="photoPreview" alt="Hasil foto selfie" class="aspect-[4/3] w-full object-cover" />
-                            <div class="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/70 to-transparent p-4 pt-12">
-                                <button type="button" class="flex h-11 items-center gap-2 rounded-full bg-white px-5 text-sm font-black text-slate-800 shadow-xl" @click="retakePhoto">
-                                    <RefreshCcw class="h-4 w-4" />Ambil Ulang
+                            <div class="absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-black/80 to-transparent p-4 pt-16">
+                                <button type="button" class="flex h-11 items-center gap-2 rounded-full border border-[#d8c9aa] bg-[#fffdf8] px-5 text-sm font-black text-[#1d1a15] shadow-xl" @click="retakePhoto">
+                                    <RefreshCcw class="h-4 w-4 text-[#9a6b16]" />Ambil Ulang
                                 </button>
                             </div>
-                            <div class="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1 text-xs font-bold text-white shadow">
+                            <div class="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1 text-xs font-bold text-white shadow">
                                 <CheckCircle2 class="h-3.5 w-3.5" />Foto siap
                             </div>
                         </div>
 
-                        <div v-else class="p-8 text-center">
-                            <Camera class="mx-auto h-9 w-9 text-pink-500" />
-                            <p class="mt-3 font-black text-slate-800">Ambil Foto Selfie Langsung</p>
-                            <p class="mt-1 text-xs text-slate-500">Foto wajib diambil melalui kamera perangkat dan tidak dapat dipilih dari galeri.</p>
-                            <button type="button" :disabled="cameraLoading" class="mx-auto mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-pink-500 px-5 text-sm font-bold text-white shadow-lg shadow-pink-500/20 disabled:opacity-50" @click="startCamera">
+                        <div v-else class="p-8 text-center sm:p-10">
+                            <span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-[#e0c58f] bg-[#f5ead1] text-[#9a6b16]">
+                                <Camera class="h-7 w-7" />
+                            </span>
+                            <p class="mt-4 font-black text-[#1d1a15]">Ambil Foto Selfie Langsung</p>
+                            <p class="mx-auto mt-1 max-w-md text-xs leading-relaxed text-[#766d5d]">Foto wajib diambil melalui kamera perangkat dan tidak dapat dipilih dari galeri.</p>
+                            <button type="button" :disabled="cameraLoading" class="mx-auto mt-5 flex h-11 items-center justify-center gap-2 rounded-xl bg-[#c99a3d] px-6 text-sm font-black text-[#17120a] shadow-lg shadow-[#c99a3d]/20 transition hover:bg-[#d9ad52] disabled:opacity-50" @click="startCamera">
                                 <CameraOff v-if="cameraLoading" class="h-4 w-4 animate-pulse" />
                                 <Camera v-else class="h-4 w-4" />
                                 {{ cameraLoading ? "Membuka Kamera..." : "Buka Kamera" }}
@@ -356,7 +381,7 @@ onMounted(() => {
                     </div>
                     <p v-if="f.errors.photo" class="text-sm font-bold text-rose-600">{{ f.errors.photo }}</p>
 
-                    <button :disabled="f.processing || !f.photo || !locationResolved" class="h-14 w-full rounded-2xl bg-pink-500 text-lg font-black text-white shadow-xl shadow-pink-500/20 transition disabled:cursor-not-allowed disabled:opacity-50">
+                    <button :disabled="f.processing || !f.photo || !locationResolved" class="h-14 w-full rounded-2xl bg-[#12110e] text-base font-black text-[#f7efdf] shadow-xl shadow-black/15 transition hover:bg-[#292319] disabled:cursor-not-allowed disabled:opacity-40 sm:text-lg">
                         {{ f.processing ? "Mengirim..." : today?.checkIn ? "Kirim Absen Pulang" : "Kirim Absen Masuk" }}
                     </button>
                 </form>
@@ -408,15 +433,15 @@ onMounted(() => {
                         <div class="mx-auto max-w-3xl text-center">
                             <p class="font-mono text-base font-black tracking-wide sm:text-xl">{{ currentDateTime }}</p>
                             <p class="mx-auto mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-white/90 sm:text-sm">
-                                <MapPin class="mr-1 inline h-4 w-4 text-pink-300" />
+                                <MapPin class="mr-1 inline h-4 w-4 text-[#d7aa4d]" />
                                 {{ locationResolved ? f.locationLabel : "Menunggu lokasi GPS dan alamat..." }}
                             </p>
-                            <p class="mt-1 text-xs font-bold text-pink-300">Lokasi Kerja: {{ f.workLocationType }}</p>
+                            <p class="mt-1 text-xs font-bold text-[#d7aa4d]">Lokasi Kerja: {{ f.workLocationType }}</p>
 
                             <button
                                 type="button"
                                 :disabled="!locationResolved"
-                                class="pointer-events-auto mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full border-4 border-white bg-pink-500 text-white shadow-2xl transition hover:bg-pink-600 active:scale-90 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:opacity-60 sm:h-20 sm:w-20"
+                                class="pointer-events-auto mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full border-4 border-[#fff8e9] bg-[#c99a3d] text-[#17120a] shadow-2xl transition hover:bg-[#d9ad52] active:scale-90 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:opacity-60 sm:h-20 sm:w-20"
                                 :title="locationResolved ? 'Ambil foto' : 'Menunggu lokasi GPS'"
                                 @click="capturePhoto"
                             >
@@ -441,6 +466,6 @@ onMounted(() => {
     font-weight: 900;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: #64748b;
+    color: #806d4c;
 }
 </style>

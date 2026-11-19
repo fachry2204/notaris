@@ -97,10 +97,11 @@ const label = computed(() =>
 const initialPicStaffId = p.job?.staffId || p.selectedStaffId || "";
 const initialEmployeeTasks = p.employeeTasks?.length
     ? p.employeeTasks.map((task) => ({
+          id: task.id,
           userId: task.userId,
           taskType: task.taskType,
           customTask: task.customTask || "",
-          fee: task.fee ? Number(task.fee) : 0,
+          fee: task.fee == null ? null : Number(task.fee),
       }))
     : [];
 if (
@@ -108,6 +109,7 @@ if (
     !initialEmployeeTasks.some((task) => task.taskType === "PIC")
 ) {
     initialEmployeeTasks.unshift({
+        id: null,
         userId: initialPicStaffId,
         taskType: "PIC",
         customTask: "",
@@ -116,6 +118,7 @@ if (
 }
 if (!initialEmployeeTasks.length) {
     initialEmployeeTasks.push({
+        id: null,
         userId: "",
         taskType: "",
         customTask: "",
@@ -152,6 +155,13 @@ const f = useForm({
         : [{ name: "", position: "", phone: "", email: "" }],
     attachments: [] as File[],
     attachmentDescriptions: [] as string[],
+    attachmentDeposits: [] as boolean[],
+    savedAttachmentDeposits: Object.fromEntries(
+        (p.attachments || []).map((attachment) => [
+            attachment.id,
+            Number(attachment.isPhysicalDeposited) === 1,
+        ]),
+    ) as Record<string, boolean>,
     employeeTasks: initialEmployeeTasks,
 });
 type AttachmentRow = {
@@ -159,6 +169,7 @@ type AttachmentRow = {
     category: string;
     note: string;
     file: File | null;
+    physicalDeposited: boolean;
 };
 const attachmentCategories = [
     "KTP",
@@ -180,6 +191,7 @@ const addAttachment = () => {
         category: "",
         note: "",
         file: null,
+        physicalDeposited: false,
     });
     attachmentError.value = "";
 };
@@ -200,6 +212,7 @@ const savedAttachmentParts = (value: any) => {
 };
 const addEmployeeTask = () => {
     f.employeeTasks.push({
+        id: null,
         userId: "",
         taskType: "",
         customTask: "",
@@ -209,12 +222,12 @@ const addEmployeeTask = () => {
 const removeEmployeeTask = (index: number) => {
     f.employeeTasks.splice(index, 1);
 };
-const formatNumber = (value: number | string) =>
+const formatNumber = (value: number | string | null) =>
     new Intl.NumberFormat("id-ID", {
         maximumFractionDigits: 0,
     }).format(Number(value || 0));
 
-const updateFee = (task: { fee: number }, event: Event) => {
+const updateFee = (task: { fee: number | null }, event: Event) => {
     const rawValue = (event.target as HTMLInputElement).value.replace(/\D/g, "");
     task.fee = rawValue ? Number(rawValue) : 0;
 };
@@ -271,6 +284,9 @@ const submit = () => {
     f.attachments = completedRows.map((row) => row.file as File);
     f.attachmentDescriptions = completedRows.map((row) =>
         row.note.trim() ? `${row.category} — ${row.note.trim()}` : row.category,
+    );
+    f.attachmentDeposits = completedRows.map(
+        (row) => row.physicalDeposited,
     );
 
     if (p.job) {
@@ -640,7 +656,7 @@ const deleteSavedAttachment = (id: string) => {
                             >
                                 <div class="overflow-x-auto">
                                     <table
-                                        class="w-full min-w-[720px] text-left text-sm"
+                                        class="w-full min-w-[900px] text-left text-sm"
                                     >
                                         <thead class="bg-slate-50">
                                             <tr
@@ -659,6 +675,9 @@ const deleteSavedAttachment = (id: string) => {
                                                 </th>
                                                 <th class="px-4 py-3">
                                                     Keterangan Berkas
+                                                </th>
+                                                <th class="px-4 py-3 text-center">
+                                                    Fisik Dititipkan
                                                 </th>
                                                 <th
                                                     class="w-32 px-4 py-3 text-center"
@@ -707,6 +726,20 @@ const deleteSavedAttachment = (id: string) => {
                                                             attachment.description,
                                                         ).note
                                                     }}
+                                                </td>
+                                                <td class="px-4 py-3 text-center">
+                                                    <select
+                                                        v-model="f.savedAttachmentDeposits[attachment.id]"
+                                                        class="h-9 rounded-xl border-slate-200 bg-white px-3 text-xs font-black"
+                                                        :class="
+                                                            f.savedAttachmentDeposits[attachment.id]
+                                                                ? 'text-emerald-700'
+                                                                : 'text-slate-500'
+                                                        "
+                                                    >
+                                                        <option :value="true">Ya, dititipkan</option>
+                                                        <option :value="false">Tidak</option>
+                                                    </select>
                                                 </td>
                                                 <td
                                                     class="px-4 py-3 text-center"
@@ -775,7 +808,7 @@ const deleteSavedAttachment = (id: string) => {
                             <article
                                 v-for="row in attachmentRows"
                                 :key="row.id"
-                                class="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-[180px_1fr_auto] md:items-start"
+                                class="grid gap-4 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:grid-cols-[180px_1fr_190px_auto] md:items-start"
                             >
                                 <div>
                                     <label
@@ -851,6 +884,40 @@ const deleteSavedAttachment = (id: string) => {
                                             row.file?.name ||
                                             "File Dokumen Belum Di Upload"
                                         }}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black text-slate-600">
+                                        Berkas Fisik Dititipkan?
+                                    </p>
+                                    <div class="mt-2 grid h-11 grid-cols-2 rounded-xl border border-slate-200 bg-white p-1">
+                                        <button
+                                            type="button"
+                                            class="rounded-lg text-xs font-black transition"
+                                            :class="
+                                                row.physicalDeposited
+                                                    ? 'bg-emerald-100 text-emerald-700'
+                                                    : 'text-slate-400 hover:bg-slate-50'
+                                            "
+                                            @click="row.physicalDeposited = true"
+                                        >
+                                            Ya
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="rounded-lg text-xs font-black transition"
+                                            :class="
+                                                !row.physicalDeposited
+                                                    ? 'bg-slate-200 text-slate-700'
+                                                    : 'text-slate-400 hover:bg-slate-50'
+                                            "
+                                            @click="row.physicalDeposited = false"
+                                        >
+                                            Tidak
+                                        </button>
+                                    </div>
+                                    <p class="mt-2 text-[10px] leading-snug text-slate-400">
+                                        Hanya pilihan “Ya” yang masuk tanda terima.
                                     </p>
                                 </div>
                                 <button

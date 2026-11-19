@@ -34,7 +34,43 @@ class JobController extends Controller
             $pageTitle = 'Proses Berkas';
             $pageDescription = 'Pantau pekerjaan yang sedang dalam proses.';
         }
-        $parts = collect(self::TABLES)->map(fn ($category, $table) => DB::table($table.' as j')->leftJoin('client as c', 'c.id', '=', 'j.clientId')->select(['j.id', 'j.trackingCode', 'j.title', 'j.status', 'j.priority', 'j.deadline', 'j.createdAt', 'c.name as clientName'])->selectRaw('? as category, ? as jobType', [$category, $table])->when($search, fn ($q) => $q->where(fn ($q) => $q->where('j.title', 'like', "%{$search}%")->orWhere('j.trackingCode', 'like', "%{$search}%")->orWhere('c.name', 'like', "%{$search}%")))->when($status, fn ($q) => $q->where('j.status', $status)));
+        $parts = collect(self::TABLES)->map(function ($category, $table) use ($search, $status) {
+            $foreignKey = $this->foreignKey($table);
+
+            return DB::table($table.' as j')
+                ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
+                ->select([
+                    'j.id',
+                    'j.trackingCode',
+                    'j.title',
+                    'j.status',
+                    'j.priority',
+                    'j.deadline',
+                    'j.createdAt',
+                    'c.name as clientName',
+                ])
+                ->selectSub(
+                    fn ($query) => $query
+                        ->from('job_employee_task as fee_tasks')
+                        ->selectRaw('COUNT(*)')
+                        ->whereColumn("fee_tasks.{$foreignKey}", 'j.id'),
+                    'feeTaskCount',
+                )
+                ->selectSub(
+                    fn ($query) => $query
+                        ->from('job_employee_task as filled_fee_tasks')
+                        ->selectRaw('COUNT(*)')
+                        ->whereColumn("filled_fee_tasks.{$foreignKey}", 'j.id')
+                        ->where('filled_fee_tasks.fee', '>', 0),
+                    'filledFeeTaskCount',
+                )
+                ->selectRaw('? as category, ? as jobType', [$category, $table])
+                ->when($search, fn ($query) => $query->where(fn ($query) => $query
+                    ->where('j.title', 'like', "%{$search}%")
+                    ->orWhere('j.trackingCode', 'like', "%{$search}%")
+                    ->orWhere('c.name', 'like', "%{$search}%")))
+                ->when($status, fn ($query) => $query->where('j.status', $status));
+        });
         $query = $parts->shift();
         foreach ($parts as $part) {
             $query->unionAll($part);
@@ -119,9 +155,10 @@ class JobController extends Controller
         $data['staffId'] = $this->taskPicStaffId($employeeTasks);
         $attachments = $request->file('attachments', []);
         $attachmentDescriptions = $data['attachmentDescriptions'] ?? [];
+        $attachmentDeposits = $data['attachmentDeposits'] ?? [];
         $attachmentUserId = $attachments ? $this->attachmentUserId($request, $data['staffId'] ?? null) : null;
-        unset($data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions']);
-        DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentUserId, $request, $sourceInvoice) {
+        unset($data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits']);
+        DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice) {
             $trackingCode = $this->numbers->next($table, $data['tanggalMasuk'] ?? now());
             $id = 'job-'.Str::lower(Str::random(12));
             $createdAt = ! empty($data['tanggalMasuk']) ? $data['tanggalMasuk'].' '.now()->format('H:i:s') : now();
@@ -146,7 +183,7 @@ class JobController extends Controller
             $this->insertEmployeeTasks($employeeTasks, $this->foreignKey($table), $id, $this->canManageFee($request));
             foreach ($attachments as $index => $file) {
                 $path = $file->store('uploads/attachments', 'public_root');
-                DB::table('attachment')->insert(['id' => 'ATT-'.Str::random(12), 'userId' => $attachmentUserId, 'fileName' => $file->getClientOriginalName(), 'filePath' => '/'.$path, 'fileType' => $file->getMimeType() ?: 'application/octet-stream', 'description' => $attachmentDescriptions[$index] ?? null, $this->foreignKey($table) => $id, 'createdAt' => now()]);
+                DB::table('attachment')->insert(['id' => 'ATT-'.Str::random(12), 'userId' => $attachmentUserId, 'fileName' => $file->getClientOriginalName(), 'filePath' => '/'.$path, 'fileType' => $file->getMimeType() ?: 'application/octet-stream', 'description' => $attachmentDescriptions[$index] ?? null, 'isPhysicalDeposited' => (bool) ($attachmentDeposits[$index] ?? false), $this->foreignKey($table) => $id, 'createdAt' => now()]);
             }
             DB::table('jobprogress')->insert([
                 'id' => 'PROG-'.Str::random(12),
@@ -163,7 +200,7 @@ class JobController extends Controller
         return redirect()->route('jobs.index')->with('success', 'Berkas berhasil dibuat.');
     }
 
-    public function show(string $type, string $id)
+    public function show(Request $request, string $type, string $id)
     {
         abort_unless(isset(self::TABLES[$type]), 404);
         $fk = $this->foreignKey($type);
@@ -195,7 +232,9 @@ class JobController extends Controller
             return $invoice;
         });
 
-        $employeeTasks = DB::table('job_employee_task as task')
+        $canManageFee = $this->canManageFee($request);
+        $currentUserId = (string) $request->session()->get('auth_user.id', '');
+        $employeeTasksQuery = DB::table('job_employee_task as task')
             ->leftJoin('user as employee', 'employee.id', '=', 'task.userId')
             ->where("task.{$fk}", $id)
             ->select(
@@ -203,10 +242,22 @@ class JobController extends Controller
                 'task.userId',
                 'task.taskType',
                 'task.customTask',
-                'task.fee',
+                'task.isPaid',
                 'employee.fullName as employeeName',
                 'employee.role as employeeRole',
-            )
+            );
+
+        if ($canManageFee) {
+            $employeeTasksQuery->addSelect('task.fee');
+        } else {
+            // Jangan pernah kirim nominal fee pegawai lain ke browser.
+            $employeeTasksQuery->selectRaw(
+                'CASE WHEN task.userId = ? THEN task.fee ELSE NULL END as fee',
+                [$currentUserId],
+            );
+        }
+
+        $employeeTasks = $employeeTasksQuery
             ->orderBy('task.createdAt')
             ->get();
 
@@ -233,6 +284,76 @@ class JobController extends Controller
             'progress' => DB::table('jobprogress')->where($fk, $id)->orderByDesc('createdAt')->get(),
             'invoiceHistory' => $invoiceHistory,
         ]);
+    }
+
+    public function updateEmployeeFees(Request $request, string $type, string $id)
+    {
+        abort_unless(isset(self::TABLES[$type]), 404);
+        abort_unless($this->canManageFee($request), 403, 'Hanya Admin atau Pimpinan yang dapat mengubah fee pegawai.');
+
+        $data = $request->validate([
+            'employeeTasks' => ['required', 'array', 'max:25'],
+            'employeeTasks.*.id' => ['required', 'string'],
+            'employeeTasks.*.fee' => ['required', 'numeric', 'min:0'],
+        ]);
+        $job = DB::table($type)->where('id', $id)->first();
+        abort_unless((bool) $job, 404);
+        $foreignKey = $this->foreignKey($type);
+        $taskIds = collect($data['employeeTasks'])->pluck('id')->unique()->values();
+        $tasks = DB::table('job_employee_task as task')
+            ->leftJoin('user as employee', 'employee.id', '=', 'task.userId')
+            ->where("task.{$foreignKey}", $id)
+            ->whereIn('task.id', $taskIds)
+            ->select('task.id', 'task.taskType', 'task.isPaid', 'employee.fullName as employeeName')
+            ->get()
+            ->keyBy('id');
+
+        if ($tasks->count() !== $taskIds->count()) {
+            throw ValidationException::withMessages([
+                'employeeTasks' => 'Ada data tugas yang tidak terdaftar pada berkas ini.',
+            ]);
+        }
+
+        DB::transaction(function () use ($data, $tasks, $job) {
+            foreach ($data['employeeTasks'] as $employeeTask) {
+                $task = $tasks->get($employeeTask['id']);
+                $fee = max(0, (float) $employeeTask['fee']);
+
+                DB::table('job_employee_task')->where('id', $task->id)->update([
+                    'fee' => $fee,
+                    'updatedAt' => now(),
+                ]);
+
+                if (! $task->isPaid) {
+                    continue;
+                }
+
+                $expenseDescription = 'Pembayaran Fee Pegawai '.($task->employeeName ?? 'Pegawai')
+                    .' (Tugas: '.$task->taskType.') - Berkas: '.($job->title ?? 'Berkas')
+                    .' ['.($job->trackingCode ?? '-').']';
+                $expenseQuery = DB::table('expense')
+                    ->where('category', 'Fee Pegawai')
+                    ->where('description', $expenseDescription);
+
+                if ($fee > 0 && $expenseQuery->exists()) {
+                    $expenseQuery->update(['amount' => $fee]);
+                } elseif ($fee > 0) {
+                    DB::table('expense')->insert([
+                        'id' => 'EXP-'.Str::lower(Str::random(12)),
+                        'category' => 'Fee Pegawai',
+                        'amount' => $fee,
+                        'description' => $expenseDescription,
+                        'expenseDate' => now()->toDateString(),
+                        'createdAt' => now(),
+                    ]);
+                } else {
+                    $expenseQuery->delete();
+                }
+            }
+        });
+        $this->log($request, 'UPDATE_EMPLOYEE_FEES', "Memperbarui fee pegawai pada berkas {$id}");
+
+        return back()->with('success', 'Fee pegawai berhasil diperbarui.');
     }
 
     public function updateProgress(Request $request, string $type, string $id)
@@ -286,7 +407,7 @@ class JobController extends Controller
                 'number' => $job->trackingCode,
                 'title' => $job->title,
                 'status' => $job->status,
-                'url' => url('/tracking'),
+                'url' => url('/cekberkas'),
                 'picName' => $job->picName,
             ]);
             DB::table('jobprogress')->insert([
@@ -328,7 +449,7 @@ class JobController extends Controller
         return redirect()->route('invoices.create', ['job' => $id, 'type' => $type]);
     }
 
-    public function edit(string $type, string $id)
+    public function edit(Request $request, string $type, string $id)
     {
         abort_unless(isset(self::TABLES[$type]), 404);
         $job = DB::table($type)->where('id', $id)->first();
@@ -336,7 +457,19 @@ class JobController extends Controller
 
         $foreignKey = $this->foreignKey($type);
 
-        return Inertia::render('Jobs/Form', ['job' => [...(array) $job, 'jobType' => $type], 'founders' => DB::table('founder')->where($foreignKey, $id)->get(), 'attachments' => DB::table('attachment')->where($foreignKey, $id)->orderBy('createdAt')->get(), 'employeeTasks' => DB::table('job_employee_task')->where($foreignKey, $id)->orderBy('createdAt')->get(), 'clients' => DB::table('client')->select('id', 'name', 'phone')->orderBy('name')->get(), 'staff' => DB::table('user')->select('id', 'fullName', 'role')->where('isActive', true)->orderBy('fullName')->get()]);
+        $employeeTasks = DB::table('job_employee_task')
+            ->where($foreignKey, $id)
+            ->orderBy('createdAt')
+            ->get()
+            ->map(function (object $task) use ($request): object {
+                if (! $this->canManageFee($request) && $task->userId !== $request->session()->get('auth_user.id')) {
+                    $task->fee = null;
+                }
+
+                return $task;
+            });
+
+        return Inertia::render('Jobs/Form', ['job' => [...(array) $job, 'jobType' => $type], 'founders' => DB::table('founder')->where($foreignKey, $id)->get(), 'attachments' => DB::table('attachment')->where($foreignKey, $id)->orderBy('createdAt')->get(), 'employeeTasks' => $employeeTasks, 'clients' => DB::table('client')->select('id', 'name', 'phone')->orderBy('name')->get(), 'staff' => DB::table('user')->select('id', 'fullName', 'role')->where('isActive', true)->orderBy('fullName')->get()]);
     }
 
     public function update(Request $request, string $type, string $id)
@@ -348,24 +481,31 @@ class JobController extends Controller
         $data['staffId'] = $this->taskPicStaffId($employeeTasks);
         $attachments = $request->file('attachments', []);
         $attachmentDescriptions = $data['attachmentDescriptions'] ?? [];
-        unset($data['jobType'],$data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['tanggalMasuk']);
+        $attachmentDeposits = $data['attachmentDeposits'] ?? [];
+        $savedAttachmentDeposits = $data['savedAttachmentDeposits'] ?? [];
+        unset($data['jobType'],$data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits'],$data['tanggalMasuk']);
         $old = DB::table($type)->where('id', $id)->first();
         abort_unless((bool) $old, 404);
         $actorUserId = $this->attachmentUserId($request, $data['staffId'] ?? $old->staffId);
         $fk = $this->foreignKey($type);
-        DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $actorUserId, $request, $type, $id, $old, $fk) {
+        DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $savedAttachmentDeposits, $actorUserId, $request, $type, $id, $old, $fk) {
             DB::table($type)->where('id', $id)->update([...$data, 'updatedAt' => now()]);
             DB::table('founder')->where($fk, $id)->delete();
-            DB::table('job_employee_task')->where($fk, $id)->delete();
             foreach ($founders as $f) {
                 if (! empty($f['name'])) {
                     DB::table('founder')->insert(['id' => 'FND-'.Str::random(12), 'name' => $f['name'], 'position' => $f['position'] ?? null, 'phone' => $f['phone'] ?? null, 'email' => $f['email'] ?? null, $fk => $id, 'createdAt' => now()]);
                 }
             }
-            $this->insertEmployeeTasks($employeeTasks, $fk, $id, $this->canManageFee($request));
+            $this->syncEmployeeTasks($employeeTasks, $fk, $id, $this->canManageFee($request));
+            foreach ($savedAttachmentDeposits as $attachmentId => $isPhysicalDeposited) {
+                DB::table('attachment')
+                    ->where('id', $attachmentId)
+                    ->where($fk, $id)
+                    ->update(['isPhysicalDeposited' => (bool) $isPhysicalDeposited]);
+            }
             foreach ($attachments as $index => $file) {
                 $path = $file->store('uploads/attachments', 'public_root');
-                DB::table('attachment')->insert(['id' => 'ATT-'.Str::random(12), 'userId' => $actorUserId, 'fileName' => $file->getClientOriginalName(), 'filePath' => '/'.$path, 'fileType' => $file->getMimeType() ?: 'application/octet-stream', 'description' => $attachmentDescriptions[$index] ?? null, $fk => $id, 'createdAt' => now()]);
+                DB::table('attachment')->insert(['id' => 'ATT-'.Str::random(12), 'userId' => $actorUserId, 'fileName' => $file->getClientOriginalName(), 'filePath' => '/'.$path, 'fileType' => $file->getMimeType() ?: 'application/octet-stream', 'description' => $attachmentDescriptions[$index] ?? null, 'isPhysicalDeposited' => (bool) ($attachmentDeposits[$index] ?? false), $fk => $id, 'createdAt' => now()]);
             }
             $changes = [];
             if (isset($data['pengurusanUntuk']) && ($old->pengurusanUntuk ?? '') !== $data['pengurusanUntuk']) {
@@ -414,7 +554,7 @@ class JobController extends Controller
 
     private function validated(Request $r, bool $creating = true): array
     {
-        return $r->validate(['jobType' => [$creating ? 'required' : 'nullable', 'in:'.implode(',', array_keys(self::TABLES))], 'sourceInvoiceId' => 'nullable|string|exists:invoice,id', 'clientId' => 'required|string', 'staffId' => 'nullable|string', 'title' => 'required|string|max:255', 'type' => 'required|string|max:255', 'pengurusanUntuk' => 'nullable|string|max:255', 'companyName' => 'nullable|string|max:255', 'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED', 'priority' => 'required|in:LOW,MEDIUM,HIGH,URGENT', 'deadline' => 'nullable|date', 'tanggalMasuk' => 'nullable|date', 'saksi' => 'nullable|string|max:255', 'notes' => 'nullable|string', 'founders' => 'nullable|array', 'founders.*.name' => 'nullable|string', 'founders.*.position' => 'nullable|string|max:255', 'founders.*.phone' => 'nullable|string', 'founders.*.email' => 'nullable|email', 'employeeTasks' => 'nullable|array|max:25', 'employeeTasks.*.userId' => 'required|string|exists:user,id', 'employeeTasks.*.taskType' => 'required|in:PIC,Saksi,NPWP,NIB,PBB,Lainnya', 'employeeTasks.*.customTask' => 'nullable|string|max:255|required_if:employeeTasks.*.taskType,Lainnya', 'employeeTasks.*.fee' => 'nullable|numeric|min:0', 'attachments' => 'nullable|array', 'attachments.*' => 'nullable|file|max:10240', 'attachmentDescriptions' => 'nullable|array', 'attachmentDescriptions.*' => 'nullable|string|max:500']);
+        return $r->validate(['jobType' => [$creating ? 'required' : 'nullable', 'in:'.implode(',', array_keys(self::TABLES))], 'sourceInvoiceId' => 'nullable|string|exists:invoice,id', 'clientId' => 'required|string', 'staffId' => 'nullable|string', 'title' => 'required|string|max:255', 'type' => 'required|string|max:255', 'pengurusanUntuk' => 'nullable|string|max:255', 'companyName' => 'nullable|string|max:255', 'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED', 'priority' => 'required|in:LOW,MEDIUM,HIGH,URGENT', 'deadline' => 'nullable|date', 'tanggalMasuk' => 'nullable|date', 'saksi' => 'nullable|string|max:255', 'notes' => 'nullable|string', 'founders' => 'nullable|array', 'founders.*.name' => 'nullable|string', 'founders.*.position' => 'nullable|string|max:255', 'founders.*.phone' => 'nullable|string', 'founders.*.email' => 'nullable|email', 'employeeTasks' => 'nullable|array|max:25', 'employeeTasks.*.id' => 'nullable|string', 'employeeTasks.*.userId' => 'required|string|exists:user,id', 'employeeTasks.*.taskType' => 'required|in:PIC,Saksi,NPWP,NIB,PBB,Lainnya', 'employeeTasks.*.customTask' => 'nullable|string|max:255|required_if:employeeTasks.*.taskType,Lainnya', 'employeeTasks.*.fee' => 'nullable|numeric|min:0', 'attachments' => 'nullable|array', 'attachments.*' => 'nullable|file|max:10240', 'attachmentDescriptions' => 'nullable|array', 'attachmentDescriptions.*' => 'nullable|string|max:500', 'attachmentDeposits' => 'nullable|array', 'attachmentDeposits.*' => 'boolean', 'savedAttachmentDeposits' => 'nullable|array', 'savedAttachmentDeposits.*' => 'boolean']);
     }
 
     private function taskPicStaffId(array $employeeTasks): ?string
@@ -430,12 +570,7 @@ class JobController extends Controller
 
     private function canManageFee(Request $request): bool
     {
-        $sessionId = $request->session()->get('auth_user.id');
-        if (! $sessionId) {
-            return false;
-        }
-
-        $role = DB::table('user')->where('id', $sessionId)->value('role');
+        $role = strtoupper((string) $request->session()->get('auth_user.role', ''));
 
         return in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true);
     }
@@ -457,6 +592,64 @@ class JobController extends Controller
                 'updatedAt' => now(),
             ]);
         }
+    }
+
+    private function syncEmployeeTasks(array $employeeTasks, string $foreignKey, string $jobId, bool $canManageFee): void
+    {
+        $existingTasks = DB::table('job_employee_task')
+            ->where($foreignKey, $jobId)
+            ->get()
+            ->keyBy('id');
+        $retainedIds = [];
+
+        foreach ($employeeTasks as $employeeTask) {
+            $taskId = (string) ($employeeTask['id'] ?? '');
+            $existingTask = $taskId !== '' ? $existingTasks->get($taskId) : null;
+
+            // Kompatibilitas untuk form lama yang belum mengirim ID tugas.
+            if (! $existingTask) {
+                $existingTask = $existingTasks->first(function (object $task) use ($employeeTask, $retainedIds): bool {
+                    return ! in_array($task->id, $retainedIds, true)
+                        && $task->userId === $employeeTask['userId']
+                        && $task->taskType === $employeeTask['taskType']
+                        && ($task->customTask ?? '') === ($employeeTask['customTask'] ?? '');
+                });
+            }
+
+            if ($existingTask) {
+                $fee = $canManageFee
+                    ? max(0, (float) ($employeeTask['fee'] ?? 0))
+                    : (float) $existingTask->fee;
+                DB::table('job_employee_task')->where('id', $existingTask->id)->update([
+                    'userId' => $employeeTask['userId'],
+                    'taskType' => $employeeTask['taskType'],
+                    'customTask' => $employeeTask['taskType'] === 'Lainnya' ? ($employeeTask['customTask'] ?? null) : null,
+                    'fee' => $fee,
+                    'updatedAt' => now(),
+                ]);
+                $retainedIds[] = $existingTask->id;
+
+                continue;
+            }
+
+            $newTaskId = 'JET-'.Str::random(12);
+            DB::table('job_employee_task')->insert([
+                'id' => $newTaskId,
+                'userId' => $employeeTask['userId'],
+                'taskType' => $employeeTask['taskType'],
+                'customTask' => $employeeTask['taskType'] === 'Lainnya' ? ($employeeTask['customTask'] ?? null) : null,
+                'fee' => $canManageFee ? max(0, (float) ($employeeTask['fee'] ?? 0)) : 0,
+                $foreignKey => $jobId,
+                'createdAt' => now(),
+                'updatedAt' => now(),
+            ]);
+            $retainedIds[] = $newTaskId;
+        }
+
+        DB::table('job_employee_task')
+            ->where($foreignKey, $jobId)
+            ->when($retainedIds, fn ($query) => $query->whereNotIn('id', $retainedIds))
+            ->delete();
     }
 
     private function foreignKey(string $table): string

@@ -61,7 +61,7 @@ const applyFilters = () => {
 const resetFilters = () => {
     form.value = {
         search: "",
-        userId: "",
+        userId: canManagePayment.value ? "" : currentUser.value?.id || "",
         taskType: "",
         paymentStatus: "",
         startDate: "",
@@ -220,18 +220,18 @@ const getRowNumber = (index: number | string) => {
                     </div>
                 </div>
 
-                <div v-if="canManagePayment" class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Fee Pegawai</p>
                         <h3 class="mt-1 text-2xl font-black text-slate-900">{{ formatCurrency(stats.totalFee) }}</h3>
-                        <p class="mt-0.5 text-[11px] text-slate-500">Akumulasi seluruh fee</p>
+                        <p class="mt-0.5 text-[11px] text-slate-500">{{ canManagePayment ? "Akumulasi seluruh fee" : "Akumulasi fee Anda" }}</p>
                     </div>
                     <div class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-700">
                         <DollarSign class="h-6 w-6" />
                     </div>
                 </div>
 
-                <div v-if="canManagePayment" class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm flex items-center justify-between">
+                <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Fee Terbayar</p>
                         <h3 class="mt-1 text-2xl font-black text-emerald-600">{{ formatCurrency(stats.paidFee) }}</h3>
@@ -242,7 +242,7 @@ const getRowNumber = (index: number | string) => {
                     </div>
                 </div>
 
-                <div v-if="canManagePayment" class="rounded-2xl border border-rose-200 bg-rose-50/40 p-5 shadow-sm flex items-center justify-between">
+                <div class="rounded-2xl border border-rose-200 bg-rose-50/40 p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-rose-700">Fee Belum Terbayar</p>
                         <h3 class="mt-1 text-2xl font-black text-rose-600">{{ formatCurrency(stats.unpaidFee) }}</h3>
@@ -286,7 +286,7 @@ const getRowNumber = (index: number | string) => {
                     </div>
 
                     <!-- Staff Filter -->
-                    <div>
+                    <div v-if="canManagePayment">
                         <select
                             v-model="form.userId"
                             class="h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 text-sm font-medium focus:bg-white focus:border-[var(--primary)]"
@@ -379,8 +379,8 @@ const getRowNumber = (index: number | string) => {
                                 <th class="px-5 py-3.5">Pegawai</th>
                                 <th class="px-5 py-3.5">Tugas</th>
                                 <th class="px-5 py-3.5">Berkas & Client</th>
-                                <th v-if="canManagePayment" class="px-5 py-3.5 text-right">Fee Pegawai</th>
-                                <th v-if="canManagePayment" class="px-5 py-3.5 text-center">Status Fee</th>
+                                <th class="px-5 py-3.5 text-right">Fee Pegawai</th>
+                                <th class="px-5 py-3.5 text-center">Status Fee</th>
                                 <th class="px-5 py-3.5">Tanggal</th>
                                 <th class="px-5 py-3.5 text-center">Aksi</th>
                             </tr>
@@ -441,13 +441,14 @@ const getRowNumber = (index: number | string) => {
                                 </td>
 
                                 <!-- Fee Column -->
-                                <td v-if="canManagePayment" class="px-5 py-3.5 text-right font-black text-slate-900 text-sm">
+                                <td class="px-5 py-3.5 text-right font-black text-slate-900 text-sm">
                                     {{ formatCurrency(task.fee) }}
                                 </td>
 
                                 <!-- Status Fee Payment Column -->
-                                <td v-if="canManagePayment" class="px-5 py-3.5 text-center">
+                                <td class="px-5 py-3.5 text-center">
                                     <button
+                                        v-if="canManagePayment"
                                         type="button"
                                         @click="openPaymentModal(task)"
                                         :title="task.isPaid ? 'Klik untuk ubah jadi Belum Terbayar' : 'Klik untuk ubah jadi Terbayar'"
@@ -458,6 +459,15 @@ const getRowNumber = (index: number | string) => {
                                         <Clock v-else class="h-3.5 w-3.5" />
                                         <span>{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</span>
                                     </button>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold"
+                                        :class="task.isPaid ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-rose-50 text-rose-700 border-rose-200'"
+                                    >
+                                        <CheckCircle2 v-if="task.isPaid" class="h-3.5 w-3.5" />
+                                        <Clock v-else class="h-3.5 w-3.5" />
+                                        {{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}
+                                    </span>
                                 </td>
 
                                 <!-- Tanggal Column -->

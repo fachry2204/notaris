@@ -23,6 +23,15 @@ class TaskController extends Controller
         $paymentStatus = trim((string) $request->query('paymentStatus'));
         $startDate = trim((string) $request->query('startDate'));
         $endDate = trim((string) $request->query('endDate'));
+        $currentUserId = (string) $request->session()->get('auth_user.id', '');
+        $canManageFee = $this->canManageFee($request);
+
+        // Pegawai hanya boleh menerima data tugas dan fee miliknya sendiri.
+        // Filter userId dari query string sengaja diabaikan untuk non-pengelola.
+        if (! $canManageFee) {
+            abort_if($currentUserId === '', 403, 'Sesi pengguna tidak valid.');
+            $userId = $currentUserId;
+        }
 
         $query = DB::table('job_employee_task as task')
             ->leftJoin('user as employee', 'employee.id', '=', 'task.userId')
@@ -78,11 +87,16 @@ class TaskController extends Controller
         $paidFee = (float) (clone $clonedQuery)->where('task.isPaid', true)->sum('task.fee');
         $unpaidFee = (float) (clone $clonedQuery)->where('task.isPaid', false)->sum('task.fee');
 
-        $staffList = DB::table('user')
-            ->select('id', 'fullName', 'role')
-            ->where('isActive', true)
-            ->orderBy('fullName')
-            ->get();
+        $staffList = $canManageFee
+            ? DB::table('user')
+                ->select('id', 'fullName', 'role')
+                ->where('isActive', true)
+                ->orderBy('fullName')
+                ->get()
+            : DB::table('user')
+                ->select('id', 'fullName', 'role')
+                ->where('id', $currentUserId)
+                ->get();
 
         $tasks = $query->orderByDesc('task.createdAt')
             ->paginate(20)
@@ -221,15 +235,20 @@ class TaskController extends Controller
             'success',
             $newPaidState
                 ? "Fee tugas {$feeFormatted} berhasil dibayar & dicatat ke Pengeluaran Uang."
-                : "Status fee tugas diubah menjadi BELUM TERBAYAR."
+                : 'Status fee tugas diubah menjadi BELUM TERBAYAR.'
         );
     }
 
     private function authorizePaymentManagement(Request $request): void
     {
-        $sessionId = $request->session()->get('auth_user.id');
-        $userRole = $sessionId ? DB::table('user')->where('id', $sessionId)->value('role') : null;
-        abort_unless(in_array($userRole, ['ADMINISTRATOR', 'PIMPINAN'], true), 403, 'Hanya Admin atau Pimpinan yang dapat merubah status pembayaran fee.');
+        abort_unless($this->canManageFee($request), 403, 'Hanya Admin atau Pimpinan yang dapat merubah status pembayaran fee.');
+    }
+
+    private function canManageFee(Request $request): bool
+    {
+        $role = strtoupper((string) $request->session()->get('auth_user.role', ''));
+
+        return in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true);
     }
 
     private function paymentTask(string $id): ?object

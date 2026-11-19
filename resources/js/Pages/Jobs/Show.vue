@@ -40,6 +40,45 @@ const progressForm = useForm({
 });
 const notificationForm = useForm({ notification: "" });
 const page = usePage<any>();
+const canManageFee = computed(() =>
+    ["ADMINISTRATOR", "PIMPINAN"].includes(
+        String(page.props.auth?.user?.role || "").toUpperCase(),
+    ),
+);
+const physicalAttachments = computed(() =>
+    props.attachments.filter((attachment) =>
+        Number(attachment.isPhysicalDeposited) === 1,
+    ),
+);
+const feeModalOpen = ref(false);
+const feeForm = useForm({
+    employeeTasks: [] as Array<{ id: string; fee: number }>,
+});
+const openFeeEditor = () => {
+    feeForm.clearErrors();
+    feeForm.employeeTasks = props.employeeTasks.map((task) => ({
+        id: task.id,
+        fee: Number(task.fee || 0),
+    }));
+    feeModalOpen.value = true;
+};
+const closeFeeEditor = () => {
+    if (!feeForm.processing) feeModalOpen.value = false;
+};
+const formatFeeInput = (value: number) =>
+    new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(
+        Number(value || 0),
+    );
+const updateFeeInput = (index: number, event: Event) => {
+    const rawValue = (event.target as HTMLInputElement).value.replace(/\D/g, "");
+    feeForm.employeeTasks[index].fee = rawValue ? Number(rawValue) : 0;
+};
+const saveEmployeeFees = () => {
+    feeForm.patch(`/dashboard/jobs/${props.jobType}/${props.job.id}/fees`, {
+        preserveScroll: true,
+        onSuccess: () => closeFeeEditor(),
+    });
+};
 const previewFile = ref<any | null>(null);
 const previewKind = computed<"image" | "pdf" | "unsupported">(() => {
     const file = previewFile.value;
@@ -171,6 +210,7 @@ const address =
                         }}</span>
                     </button>
                     <a
+                        v-if="physicalAttachments.length"
                         :href="`/print/tanda-terima/${jobType}/${job.id}`"
                         target="_blank"
                         class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
@@ -178,6 +218,16 @@ const address =
                         <Printer class="h-4 w-4" />
                         <span>Tanda Terima</span>
                     </a>
+                    <button
+                        v-else
+                        type="button"
+                        disabled
+                        title="Tanda terima tersedia setelah ada berkas fisik yang dititipkan"
+                        class="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 text-xs font-bold text-slate-400"
+                    >
+                        <Printer class="h-4 w-4" />
+                        <span>Tanda Terima</span>
+                    </button>
                     <Link
                         :href="`/dashboard/jobs/${jobType}/${job.id}/edit`"
                         class="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
@@ -375,7 +425,7 @@ const address =
                     class="mt-4 overflow-hidden rounded-xl border border-slate-200"
                 >
                     <div class="overflow-x-auto">
-                        <table class="w-full min-w-[720px] text-left text-sm">
+                        <table class="w-full min-w-[900px] text-left text-sm">
                             <thead class="bg-slate-50">
                                 <tr
                                     class="text-[10px] font-black uppercase tracking-wider text-slate-500"
@@ -386,6 +436,9 @@ const address =
                                     <th class="px-4 py-3">Nama File</th>
                                     <th class="px-4 py-3">Jenis Berkas</th>
                                     <th class="px-4 py-3">Keterangan Berkas</th>
+                                    <th class="w-36 px-4 py-3 text-center">
+                                        Fisik Dititipkan
+                                    </th>
                                     <th class="w-28 px-4 py-3 text-center">
                                         Aksi
                                     </th>
@@ -424,6 +477,22 @@ const address =
                                         }}
                                     </td>
                                     <td class="px-4 py-3 text-center">
+                                        <span
+                                            class="inline-flex rounded-full px-3 py-1 text-xs font-black"
+                                            :class="
+                                                Number(file.isPhysicalDeposited) === 1
+                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                    : 'bg-slate-100 text-slate-500'
+                                            "
+                                        >
+                                            {{
+                                                Number(file.isPhysicalDeposited) === 1
+                                                    ? "Ya"
+                                                    : "Tidak"
+                                            }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-center">
                                         <button
                                             type="button"
                                             class="inline-flex items-center gap-1.5 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-600 transition hover:bg-blue-50"
@@ -436,7 +505,7 @@ const address =
                                 </tr>
                                 <tr v-if="!attachments.length">
                                     <td
-                                        colspan="5"
+                                        colspan="6"
                                         class="px-4 py-8 text-center text-sm text-slate-400"
                                     >
                                         Tidak ada lampiran.
@@ -452,9 +521,20 @@ const address =
                 class="rounded-2xl border border-slate-200 bg-white p-6"
                 aria-label="Tugas karyawan dan catatan berkas"
             >
-                <div class="flex items-center gap-2">
-                    <ClipboardList class="h-5 w-5 text-violet-500" />
-                    <h2 class="font-black">Tugas Karyawan</h2>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                        <ClipboardList class="h-5 w-5 text-violet-500" />
+                        <h2 class="font-black">Tugas Karyawan</h2>
+                    </div>
+                    <button
+                        v-if="canManageFee && employeeTasks.length"
+                        type="button"
+                        class="inline-flex h-9 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-xs font-black text-white shadow-sm transition hover:opacity-90"
+                        @click="openFeeEditor"
+                    >
+                        <Edit3 class="h-4 w-4" />
+                        Edit Fee
+                    </button>
                 </div>
                 <div
                     class="mt-4 overflow-hidden rounded-xl border border-slate-200"
@@ -509,7 +589,7 @@ const address =
                                         </p>
                                     </td>
                                     <td class="px-4 py-3 font-semibold text-slate-700">
-                                        {{ Number(task.fee || 0) > 0 ? money(task.fee) : "Rp 0" }}
+                                        {{ task.fee == null ? "—" : Number(task.fee) > 0 ? money(task.fee) : "Rp 0" }}
                                     </td>
                                 </tr>
                                 <tr v-if="!employeeTasks.length">
@@ -786,6 +866,88 @@ const address =
                 </form>
             </section>
         </main>
+
+        <Teleport to="body">
+            <div
+                v-if="feeModalOpen"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Edit fee pegawai"
+                class="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm"
+                @click.self="closeFeeEditor"
+            >
+                <form
+                    class="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                    @submit.prevent="saveEmployeeFees"
+                >
+                    <header class="flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+                        <div>
+                            <h2 class="font-black text-slate-900">Edit Fee Pegawai</h2>
+                            <p class="mt-1 text-sm text-slate-500">
+                                Atur nominal fee untuk setiap tugas pada berkas ini.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            aria-label="Tutup edit fee"
+                            class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            @click="closeFeeEditor"
+                        >
+                            <X class="h-4 w-4" />
+                        </button>
+                    </header>
+
+                    <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+                        <div
+                            v-for="(task, index) in employeeTasks"
+                            :key="task.id"
+                            class="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center"
+                        >
+                            <div>
+                                <p class="font-black text-slate-900">{{ task.employeeName || "Pegawai" }}</p>
+                                <p class="mt-1 text-xs font-bold text-slate-500">
+                                    {{ task.taskType }}<span v-if="task.customTask"> · {{ task.customTask }}</span>
+                                </p>
+                                <p v-if="task.isPaid" class="mt-1 text-[11px] font-bold text-emerald-600">
+                                    Sudah terbayar — catatan pengeluaran akan ikut disesuaikan.
+                                </p>
+                            </div>
+                            <label class="text-xs font-black text-slate-600">
+                                Fee (Rp)
+                                <input
+                                    :value="formatFeeInput(feeForm.employeeTasks[index]?.fee || 0)"
+                                    type="text"
+                                    inputmode="numeric"
+                                    class="mt-1.5 h-11 w-full rounded-xl border-slate-200 bg-white text-right text-sm font-black"
+                                    @input="updateFeeInput(index, $event)"
+                                    @focus="($event.target as HTMLInputElement).select()"
+                                />
+                            </label>
+                        </div>
+                        <p v-if="feeForm.errors.employeeTasks" class="text-sm font-bold text-rose-600">
+                            {{ feeForm.errors.employeeTasks }}
+                        </p>
+                    </div>
+
+                    <footer class="flex flex-col-reverse gap-2 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            class="h-10 rounded-xl border border-slate-300 px-5 text-sm font-black text-slate-700 hover:bg-white"
+                            @click="closeFeeEditor"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            :disabled="feeForm.processing"
+                            class="h-10 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-sm disabled:opacity-50"
+                        >
+                            {{ feeForm.processing ? "Menyimpan..." : "Simpan Fee" }}
+                        </button>
+                    </footer>
+                </form>
+            </div>
+        </Teleport>
 
         <Teleport to="body">
             <div
