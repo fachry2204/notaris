@@ -95,22 +95,16 @@ const input =
                         ><label
                             ><span class="label">Nomor Handphone</span
                             ><input v-model="f.phone" :class="input" /></label
-                        ><label
-                            ><span class="label"
-                                >Password
-                                {{
-                                    staff ? "(kosongkan jika tetap)" : ""
-                                }}</span
+                        ><label v-if="staff"
+                            ><span class="label">Password (kosongkan jika tetap)</span
                             ><input
                                 v-model="f.password"
                                 type="password"
-                                :required="!staff"
-                                :placeholder="
-                                    staff
-                                        ? 'Tidak diubah'
-                                        : 'Minimal 4 karakter'
-                                "
+                                placeholder="Tidak diubah"
                                 :class="input" /></label
+                        ><div v-else class="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+                            Akun login dibuat otomatis dengan password awal <strong>123456789</strong>.
+                        </div
                         ><label
                             ><span class="label">Hak Akses</span
                             ><select v-model="f.role" :class="input">

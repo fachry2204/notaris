@@ -53,6 +53,50 @@ class ApplicationTest extends TestCase
         $this->assertTrue($routes->hasNamedRoute('user-logins.destroy'));
     }
 
+    public function test_creating_employee_creates_linked_login_with_default_password(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+
+        if (! Schema::hasTable('user')) {
+            Schema::create('user', function ($table) {
+                $table->string('id')->primary();
+                $table->string('username')->unique();
+                $table->string('email')->unique();
+                $table->string('phone')->nullable();
+                $table->string('passwordHash');
+                $table->string('fullName');
+                $table->string('role');
+                $table->boolean('isActive');
+                $table->date('birthday')->nullable();
+                $table->timestamp('createdAt')->nullable();
+                $table->timestamp('updatedAt')->nullable();
+            });
+            Schema::create('staff', function ($table) {
+                $table->string('id')->primary();
+                $table->string('userId');
+                $table->string('photoPath')->nullable();
+                $table->string('ktpPath')->nullable();
+                $table->timestamp('createdAt')->nullable();
+                $table->timestamp('updatedAt')->nullable();
+            });
+        }
+
+        $username = 'test-pegawai-'.\Illuminate\Support\Str::random(10);
+        $this->withSession(['auth_user' => ['id' => 'admin-test', 'role' => 'ADMINISTRATOR']])
+            ->post(route('staff.store'), [
+                'fullName' => 'Pegawai Baru',
+                'username' => $username,
+                'email' => $username.'@example.com',
+                'role' => 'STAFFADMIN',
+            ])->assertRedirect(route('staff.index'))->assertSessionHasNoErrors();
+
+        $user = DB::table('user')->where('username', $username)->first();
+        $this->assertNotNull($user);
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('123456789', $user->passwordHash));
+        $this->assertDatabaseHas('staff', ['userId' => $user->id]);
+    }
+
     public function test_employee_cannot_update_employee_fees(): void
     {
         $request = Request::create('/dashboard/jobs/badan_hukum/job-test/fees', 'PATCH', [
