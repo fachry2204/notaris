@@ -118,6 +118,44 @@ class DashboardController extends Controller
             }
         }
 
+        $attendanceNotifications = null;
+        if ($canViewFinance) {
+            $employees = DB::table('user as u')
+                ->leftJoin('staff as s', 's.userId', '=', 'u.id')
+                ->where('u.isActive', true)
+                ->select('u.id', 'u.fullName', 'u.username', 's.id as staffId')
+                ->orderBy('u.fullName')->get();
+            $records = DB::table('attendance')
+                ->whereIn('staffId', $employees->pluck('staffId')->filter()->values())
+                ->whereDate('date', today())
+                ->select('staffId', 'checkIn', 'notes')
+                ->orderBy('checkIn')->get()->groupBy('staffId');
+            $attendanceNotifications = ['missing' => [], 'wfh' => [], 'wfc' => [], 'dinas' => [], 'noProfile' => []];
+            foreach ($employees as $employee) {
+                $name = $employee->fullName ?: $employee->username;
+                if (! $employee->staffId) {
+                    $attendanceNotifications['noProfile'][] = $name;
+                    continue;
+                }
+                $record = $records->get($employee->staffId, collect())->first(fn ($row) => ! empty($row->checkIn));
+                if (! $record) {
+                    $attendanceNotifications['missing'][] = $name;
+                    continue;
+                }
+                $notes = json_decode($record->notes ?: '{}', true);
+                $locationType = is_array($notes) ? data_get($notes, 'checkIn.workLocationType') : null;
+                $key = match ($locationType) {
+                    'WFH' => 'wfh',
+                    'WFC' => 'wfc',
+                    'Dinas Luar' => 'dinas',
+                    default => null,
+                };
+                if ($key) {
+                    $attendanceNotifications[$key][] = $name;
+                }
+            }
+        }
+
         $attendanceToday = [
             'present' => DB::table('attendance')->whereDate('date', today())->whereNotNull('checkIn')->count(),
             'late' => DB::table('attendance')->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
@@ -171,6 +209,7 @@ class DashboardController extends Controller
             'staffCount' => DB::table('user')->where('isActive', true)->count(),
             'months' => $months->values(),
             'attendanceToday' => $attendanceToday,
+            'attendanceNotifications' => $attendanceNotifications,
             'canViewFinance' => $canViewFinance,
             'invoiceSummary' => $invoiceSummary,
             'recentPayments' => $recentPayments,

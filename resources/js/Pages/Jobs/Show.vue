@@ -15,6 +15,7 @@ import {
     Paperclip,
     Phone,
     Printer,
+    Plus,
     Receipt,
     Send,
     Trash2,
@@ -636,11 +637,25 @@ const address =
                                 </p>
                             </div>
                         </div>
-                        <span
-                            class="w-fit rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-600"
-                        >
-                            {{ invoiceHistory.length }} Invoice
-                        </span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="w-fit rounded-full bg-pink-50 px-3 py-1 text-xs font-black text-pink-600">
+                                {{ invoiceHistory.length }} Invoice
+                            </span>
+                            <template v-if="!invoiceHistory.length">
+                                <Link
+                                    :href="`/dashboard/invoice/new?job=${encodeURIComponent(job.id)}&type=${encodeURIComponent(jobType)}`"
+                                    class="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 text-xs font-black text-white transition hover:bg-pink-700"
+                                >
+                                    <Plus class="h-4 w-4" /> Tambah Invoice
+                                </Link>
+                                <Link
+                                    :href="`/dashboard/jobs/${jobType}/${job.id}/edit`"
+                                    class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                    Pilih Invoice yang Ada
+                                </Link>
+                            </template>
+                        </div>
                     </div>
 
                     <div

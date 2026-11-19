@@ -954,20 +954,23 @@ const deleteSavedAttachment = (id: string) => {
                         Berkas sudah terhubung dengan invoice <Link :href="`/dashboard/invoice/${linkedInvoice.id}`" class="font-black underline">{{ linkedInvoice.invoiceNumber }}</Link> · {{ linkedInvoice.status }}.
                     </div>
                     <div v-else class="mt-4 space-y-3">
-                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="none" /> Belum menambahkan invoice</label>
-                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="new" /> Buat invoice baru setelah menyimpan berkas</label>
-                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="existing" /> Hubungkan invoice yang sudah ada</label>
+                        <div class="flex flex-wrap gap-2">
+                            <button type="button" @click="f.invoiceAction = 'new'; f.sourceInvoiceId = null" :class="f.invoiceAction === 'new' ? 'bg-pink-600 text-white' : 'border border-pink-200 bg-white text-pink-700'" class="rounded-xl px-4 py-2.5 text-sm font-bold">Buat invoice baru</button>
+                            <button type="button" @click="f.invoiceAction = 'existing'" :class="f.invoiceAction === 'existing' ? 'bg-pink-600 text-white' : 'border border-pink-200 bg-white text-pink-700'" class="rounded-xl px-4 py-2.5 text-sm font-bold">Pilih invoice yang ada</button>
+                            <button v-if="f.invoiceAction !== 'none'" type="button" @click="f.invoiceAction = 'none'; f.sourceInvoiceId = null" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-600">Batalkan</button>
+                        </div>
+                        <p v-if="f.invoiceAction === 'new'" class="text-sm text-slate-600">Setelah berkas disimpan, formulir invoice baru akan dibuka.</p>
                         <div v-if="f.invoiceAction === 'existing'" class="pt-1">
                             <label class="block text-sm font-bold">Pilih invoice
                                 <select v-model="f.sourceInvoiceId" required class="mt-2 w-full rounded-xl border-slate-200 bg-white">
-                                    <option :value="null">Pilih invoice yang belum terhubung</option>
+                                    <option :value="null">Pilih invoice</option>
                                     <option v-for="invoice in availableInvoices || []" :key="invoice.id" :value="invoice.id">
                                         {{ invoice.invoiceNumber }} · {{ invoice.clientName || 'Client belum ditentukan' }} · {{ invoice.status }} · {{ new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(invoice.amount)) }}
                                     </option>
                                 </select>
                             </label>
-                            <p v-if="!availableInvoices?.length" class="mt-2 text-xs text-slate-500">Tidak ada invoice yang tersedia untuk dihubungkan.</p>
-                            <p class="mt-2 text-xs text-slate-500">Invoice yang sudah terhubung ke berkas lain tidak ditampilkan. Client invoice harus sesuai dengan client berkas bila tercatat.</p>
+                            <p v-if="!availableInvoices?.length" class="mt-2 text-xs text-slate-500">Belum ada data invoice.</p>
+                            <p class="mt-2 text-xs text-slate-500">Invoice yang dipilih dapat digunakan pada beberapa berkas. Periksa nomor dan client sebelum menyimpan.</p>
                             <p v-if="f.errors.sourceInvoiceId" class="mt-2 text-sm font-bold text-red-600">{{ f.errors.sourceInvoiceId }}</p>
                         </div>
                     </div>

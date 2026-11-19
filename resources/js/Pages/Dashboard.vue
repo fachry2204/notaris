@@ -43,6 +43,7 @@ const props = defineProps<{
     clientCount: number;
     staffCount: number;
     months: Array<{ key: string; label: string; incoming: number; completed: number }>;
+    attendanceNotifications: { missing: string[]; wfh: string[]; wfc: string[]; dinas: string[]; noProfile: string[] } | null;
     attendanceToday: {
         present: number;
         late: number;
@@ -248,6 +249,26 @@ const time = (value: string | null) =>
         </main>
 
         <main v-else class="space-y-5 p-2 sm:p-4">
+            <section v-if="attendanceNotifications" aria-label="Notifikasi absensi hari ini" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div><h2 class="flex items-center gap-2 text-base font-black text-amber-950"><AlertTriangle class="h-5 w-5" /> Notifikasi absensi hari ini</h2><p class="mt-1 text-xs text-amber-800">Berdasarkan check-in hari ini untuk akun pegawai aktif.</p></div>
+                    <Link href="/dashboard/pegawai/absensi" class="inline-flex h-9 items-center rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900">Lihat absensi</Link>
+                </div>
+                <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    <details v-for="group in [
+                        { key: 'missing', label: 'Belum check-in', names: attendanceNotifications.missing },
+                        { key: 'wfh', label: 'WFH', names: attendanceNotifications.wfh },
+                        { key: 'wfc', label: 'WFC', names: attendanceNotifications.wfc },
+                        { key: 'dinas', label: 'Dinas luar', names: attendanceNotifications.dinas },
+                    ]" :key="group.key" class="rounded-xl border border-amber-100 bg-white p-3">
+                        <summary class="flex cursor-pointer items-center justify-between gap-2 text-xs font-bold text-slate-700"><span>{{ group.label }}</span><span class="rounded-lg bg-amber-50 px-2 py-1 text-sm font-black text-amber-800">{{ group.names.length }}</span></summary>
+                        <ul v-if="group.names.length" class="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600"><li v-for="(name, index) in group.names" :key="index">{{ name }}</li></ul>
+                        <p v-else class="mt-2 text-xs text-slate-400">Tidak ada data.</p>
+                    </details>
+                </div>
+                <details v-if="attendanceNotifications.noProfile.length" class="mt-3 text-xs text-amber-900"><summary class="cursor-pointer font-bold">{{ attendanceNotifications.noProfile.length }} akun belum memiliki profil absensi</summary><p class="mt-1">{{ attendanceNotifications.noProfile.join(', ') }}</p></details>
+                <p class="mt-3 text-xs text-amber-800">Belum check-in tidak selalu berarti tidak hadir; periksa izin, cuti, dan jadwal kerja.</p>
+            </section>
             <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[0.18em]" :style="{ color: 'var(--primary)' }">

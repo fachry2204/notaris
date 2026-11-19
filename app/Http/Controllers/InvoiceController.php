@@ -64,7 +64,7 @@ class InvoiceController extends Controller
         }$jobs = collect();
         foreach (self::TABLES as $table) {
             $fk = $this->fk($table);
-            $jobs = $jobs->concat(DB::table($table.' as j')->leftJoin('client as c', 'c.id', '=', 'j.clientId')->leftJoin('invoice as i', 'i.'.$fk, '=', 'j.id')->whereNull('i.id')->select('j.id', 'j.title', 'j.trackingCode', 'c.name as clientName')->selectRaw('? as jobType', [$table])->orderByDesc('j.createdAt')->get());
+            $jobs = $jobs->concat(DB::table($table.' as j')->leftJoin('client as c', 'c.id', '=', 'j.clientId')->leftJoin('invoice as i', 'i.'.$fk, '=', 'j.id')->whereNull('i.id')->whereNull('j.sourceInvoiceId')->select('j.id', 'j.title', 'j.trackingCode', 'c.name as clientName')->selectRaw('? as jobType', [$table])->orderByDesc('j.createdAt')->get());
         }
 
         return Inertia::render('Invoices/Form', ['invoice' => null, 'jobId' => $jobId, 'jobType' => $jobType, 'job' => $job, 'jobs' => $jobs->values(), 'sourceQuotation' => null, 'quotationItems' => [], 'invoiceItems' => []]);
@@ -105,7 +105,7 @@ class InvoiceController extends Controller
                 if (! $job) {
                     throw ValidationException::withMessages(['jobId' => 'Berkas tidak ditemukan.']);
                 }
-                if (DB::table('invoice')->where($this->fk($d['jobType']), $d['jobId'])->exists()) {
+                if (($job->sourceInvoiceId ?? null) || DB::table('invoice')->where($this->fk($d['jobType']), $d['jobId'])->exists()) {
                     throw ValidationException::withMessages(['jobId' => 'Berkas sudah memiliki invoice.']);
                 }
             }
@@ -236,6 +236,9 @@ class InvoiceController extends Controller
         [$type,$jobId] = $this->invoiceJob($invoice);
         DB::transaction(function () use ($id, $type, $jobId, $invoice) {
             DB::table('financerecord')->where('invoiceId', $id)->delete();
+            foreach (self::TABLES as $table) {
+                DB::table($table)->where('sourceInvoiceId', $id)->update(['sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING', 'updatedAt' => now()]);
+            }
             DB::table('invoice')->where('id', $id)->delete();
             if ($type === 'quotation') {
                 DB::table('quotation')->where('id', $jobId)->update(['status' => 'Dikirim', 'updatedAt' => now()]);
@@ -339,12 +342,12 @@ class InvoiceController extends Controller
             'nonBadanHukumId' => 'non_badan_hukum',
             'ppatId' => 'ppat',
         ] as $foreignKey => $table) {
-            if ($invoice->{$foreignKey} ?? null) {
-                DB::table($table)->where('id', $invoice->{$foreignKey})->update([
-                    'invoiceStatus' => $invoiceStatus,
-                    'updatedAt' => now(),
-                ]);
-            }
+            DB::table($table)->where(function ($query) use ($invoice, $foreignKey) {
+                $query->where('sourceInvoiceId', $invoice->id);
+                if ($invoice->{$foreignKey} ?? null) {
+                    $query->orWhere('id', $invoice->{$foreignKey});
+                }
+            })->update(['invoiceStatus' => $invoiceStatus, 'updatedAt' => now()]);
         }
     }
 }

@@ -133,21 +133,6 @@ class JobController extends Controller
                 'sourceInvoiceId' => 'Invoice sumber tidak ditemukan.',
             ]);
         }
-        if ($sourceInvoice && ($sourceInvoice->badanHukumId || $sourceInvoice->nonBadanHukumId || $sourceInvoice->ppatId)) {
-            throw ValidationException::withMessages([
-                'sourceInvoiceId' => 'Invoice ini sudah terhubung dengan berkas lain.',
-            ]);
-        }
-        if ($sourceInvoice?->quotationId) {
-            $invoiceClientId = DB::table('quotation')
-                ->where('id', $sourceInvoice->quotationId)
-                ->value('clientId');
-            if ($invoiceClientId && $invoiceClientId !== $data['clientId']) {
-                throw ValidationException::withMessages([
-                    'clientId' => 'Client berkas harus sama dengan Client pada Invoice.',
-                ]);
-            }
-        }
         $founders = $data['founders'] ?? [];
         $employeeTasks = $data['employeeTasks'] ?? [];
         $sourcePicStaffId = $this->sourceStaffId((string) $sourceInvoiceId);
@@ -166,7 +151,7 @@ class JobController extends Controller
         unset($data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits']);
         $id = DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice) {
             if ($sourceInvoice) {
-                $sourceInvoice = $this->lockAvailableInvoice($sourceInvoice->id, $data['clientId']);
+                $sourceInvoice = $this->lockInvoice($sourceInvoice->id);
             }
             $trackingCode = $this->numbers->next($table, $data['tanggalMasuk'] ?? now());
             $id = 'job-'.Str::lower(Str::random(12));
@@ -178,7 +163,7 @@ class JobController extends Controller
             };
             unset($data['tanggalMasuk']);
             DB::table($table)->insert([...$data, 'id' => $id, 'trackingCode' => $trackingCode, 'invoiceStatus' => $invoiceStatus, 'sourceInvoiceId' => $sourceInvoice?->id, 'createdAt' => $createdAt, 'updatedAt' => now()]);
-            if ($sourceInvoice) {
+            if ($sourceInvoice && ! $sourceInvoice->badanHukumId && ! $sourceInvoice->nonBadanHukumId && ! $sourceInvoice->ppatId) {
                 DB::table('invoice')->where('id', $sourceInvoice->id)->update([
                     $this->foreignKey($table) => $id,
                     'updatedAt' => now(),
@@ -510,16 +495,19 @@ class JobController extends Controller
         $actorUserId = $this->attachmentUserId($request, $data['staffId'] ?? $old->staffId);
         $fk = $this->foreignKey($type);
         DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $savedAttachmentDeposits, $actorUserId, $request, $type, $id, $old, $fk, $invoiceAction, $sourceInvoiceId) {
-            DB::table($type)->where('id', $id)->lockForUpdate()->first();
+            $lockedJob = DB::table($type)->where('id', $id)->lockForUpdate()->first();
+            abort_unless($lockedJob, 404);
             $linked = DB::table('invoice')->where(fn ($query) => $query->where($fk, $id)
-                ->when($old->sourceInvoiceId ?? null, fn ($query, $source) => $query->orWhere('id', $source)))->lockForUpdate()->first();
+                ->when($lockedJob->sourceInvoiceId ?? null, fn ($query, $source) => $query->orWhere('id', $source)))->lockForUpdate()->first();
             if ($invoiceAction !== 'none' && $linked) {
                 throw ValidationException::withMessages(['sourceInvoiceId' => 'Berkas sudah memiliki invoice.']);
             }
             $invoiceFields = [];
             if ($invoiceAction === 'existing') {
-                $invoice = $this->lockAvailableInvoice($sourceInvoiceId, $data['clientId']);
-                DB::table('invoice')->where('id', $invoice->id)->update([$fk => $id, 'updatedAt' => now()]);
+                $invoice = $this->lockInvoice($sourceInvoiceId);
+                if (! $invoice->badanHukumId && ! $invoice->nonBadanHukumId && ! $invoice->ppatId) {
+                    DB::table('invoice')->where('id', $invoice->id)->update([$fk => $id, 'updatedAt' => now()]);
+                }
                 $invoiceFields = ['sourceInvoiceId' => $invoice->id, 'invoiceStatus' => match ($invoice->status) { 'Lunas' => 'LUNAS', 'DP Bayar' => 'DP', default => 'PENDING' }];
             }
             DB::table($type)->where('id', $id)->update([...$data, ...$invoiceFields, 'updatedAt' => now()]);
@@ -710,22 +698,20 @@ class JobController extends Controller
     {
         return DB::table('invoice as i')
             ->leftJoin('quotation as q', 'q.id', '=', 'i.quotationId')
-            ->whereNull('i.badanHukumId')->whereNull('i.nonBadanHukumId')->whereNull('i.ppatId')
-            ->select('i.id', 'i.invoiceNumber', 'i.amount', 'i.status', 'q.clientId', 'q.clientName')
+            ->leftJoin('badan_hukum as bh', 'bh.id', '=', 'i.badanHukumId')
+            ->leftJoin('non_badan_hukum as nb', 'nb.id', '=', 'i.nonBadanHukumId')
+            ->leftJoin('ppat as pp', 'pp.id', '=', 'i.ppatId')
+            ->leftJoin('client as c', 'c.id', '=', DB::raw('COALESCE(q.clientId, bh.clientId, nb.clientId, pp.clientId)'))
+            ->select('i.id', 'i.invoiceNumber', 'i.amount', 'i.status')
+            ->selectRaw('COALESCE(q.clientName, c.name) as clientName')
             ->orderByDesc('i.date')->get();
     }
 
-    private function lockAvailableInvoice(string $invoiceId, string $clientId): object
+    private function lockInvoice(string $invoiceId): object
     {
         $invoice = DB::table('invoice')->where('id', $invoiceId)->lockForUpdate()->first();
-        if (! $invoice || $invoice->badanHukumId || $invoice->nonBadanHukumId || $invoice->ppatId) {
-            throw ValidationException::withMessages(['sourceInvoiceId' => 'Invoice tidak tersedia atau sudah terhubung dengan berkas lain.']);
-        }
-        if ($invoice->quotationId) {
-            $invoiceClientId = DB::table('quotation')->where('id', $invoice->quotationId)->value('clientId');
-            if ($invoiceClientId && $invoiceClientId !== $clientId) {
-                throw ValidationException::withMessages(['sourceInvoiceId' => 'Client berkas harus sama dengan client pada invoice.']);
-            }
+        if (! $invoice) {
+            throw ValidationException::withMessages(['sourceInvoiceId' => 'Invoice tidak ditemukan.']);
         }
         return $invoice;
     }

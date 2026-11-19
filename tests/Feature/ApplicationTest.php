@@ -183,6 +183,36 @@ class ApplicationTest extends TestCase
             ->assertOk()->assertInertia(fn (Assert $page) => $page->has('staff', 1)->where('staff.0.id', $employee->id));
     }
 
+    public function test_admin_dashboard_shows_today_attendance_notifications_without_leaking_to_staff(): void
+    {
+        if (! Schema::hasTable('attendance')) {
+            $this->markTestSkipped('Skema absensi belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $suffix = strtolower(\Illuminate\Support\Str::random(8));
+        foreach (['WFH', 'WFC', 'Dinas Luar', 'Missing', 'NoProfile', 'Inactive'] as $index => $type) {
+            $id = 'qa-'.$suffix.'-'.$index;
+            DB::table('user')->insert(['id' => $id, 'username' => $id, 'email' => $id.'@example.com', 'fullName' => 'QA '.$suffix.' '.$type, 'passwordHash' => 'test', 'role' => 'STAFFADMIN', 'isActive' => $type !== 'Inactive', 'createdAt' => now(), 'updatedAt' => now()]);
+            if ($type === 'NoProfile') continue;
+            $staffId = 'staff-'.$id;
+            DB::table('staff')->insert(['id' => $staffId, 'userId' => $id, 'createdAt' => now(), 'updatedAt' => now()]);
+            if (in_array($type, ['WFH', 'WFC', 'Dinas Luar'], true)) {
+                DB::table('attendance')->insert(['id' => 'att-'.$id, 'staffId' => $staffId, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => ['workLocationType' => $type]]), 'createdAt' => now(), 'updatedAt' => now()]);
+            }
+        }
+        $admin = ['auth_user' => ['id' => 'admin-test', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $response = $this->withSession($admin)->get('/dashboard')->assertOk();
+        $notifications = $response->viewData('page')['props']['attendanceNotifications'];
+        foreach (['wfh' => 'WFH', 'wfc' => 'WFC', 'dinas' => 'Dinas Luar', 'missing' => 'Missing', 'noProfile' => 'NoProfile'] as $key => $label) {
+            $this->assertContains('QA '.$suffix.' '.$label, $notifications[$key]);
+        }
+        $this->assertNotContains('QA '.$suffix.' Inactive', $notifications['missing']);
+        $staff = ['auth_user' => ['id' => 'qa-'.$suffix.'-0', 'role' => 'STAFFADMIN', 'source' => 'user']];
+        $this->withSession($staff)->get('/dashboard?view=overview')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('attendanceNotifications', null));
+    }
+
     public function test_employee_cannot_update_employee_fees(): void
     {
         $request = Request::create('/dashboard/jobs/badan_hukum/job-test/fees', 'PATCH', [
@@ -323,7 +353,30 @@ class ApplicationTest extends TestCase
         $this->assertNotNull($created);
         $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
         $this->assertSame('LUNAS', $created->invoiceStatus);
-        $this->withSession($session)->post('/dashboard/jobs', [...$job, 'title' => 'QA duplicate '.uniqid()])->assertSessionHasErrors('sourceInvoiceId');
+        $form = $this->withSession($session)->get('/dashboard/jobs/new?type=badan_hukum')->assertOk();
+        $this->assertTrue(collect($form->viewData('page')['props']['availableInvoices'])->contains('id', $invoiceId));
+        $secondTitle = 'QA shared '.uniqid();
+        $this->withSession($session)->post('/dashboard/jobs', [...$job, 'title' => $secondTitle])->assertSessionHasNoErrors();
+        $sharedJob = DB::table('badan_hukum')->where('title', $secondTitle)->first();
+        $this->assertNotNull($sharedJob);
+        $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'sourceInvoiceId' => $invoiceId, 'invoiceStatus' => 'LUNAS']);
+        $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
+        $this->withSession($session)->put('/dashboard/invoice/'.$invoiceId, [
+            'status' => 'DP Bayar', 'date' => today()->toDateString(),
+            'items' => [['description' => 'Test', 'quantity' => 1, 'unit' => 'item', 'unitPrice' => 100000]],
+        ])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('badan_hukum', ['id' => $created->id, 'invoiceStatus' => 'DP']);
+        $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'invoiceStatus' => 'DP']);
+        $editTitle = 'QA shared edit '.uniqid();
+        $editJobData = [...$job, 'title' => $editTitle, 'invoiceAction' => 'none', 'sourceInvoiceId' => null];
+        $this->withSession($session)->post('/dashboard/jobs', $editJobData)->assertSessionHasNoErrors();
+        $editJob = DB::table('badan_hukum')->where('title', $editTitle)->first();
+        $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$editJob->id, [...$editJobData, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceId])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('badan_hukum', ['id' => $editJob->id, 'sourceInvoiceId' => $invoiceId, 'invoiceStatus' => 'DP']);
+        $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
+        $this->withSession($session)->delete('/dashboard/invoice/'.$invoiceId)->assertRedirect(route('invoices.index'));
+        $this->assertDatabaseHas('badan_hukum', ['id' => $editJob->id, 'sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING']);
+        $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING']);
         $newJob = [...$job, 'title' => 'QA new invoice '.uniqid(), 'invoiceAction' => 'new', 'sourceInvoiceId' => null];
         $response = $this->withSession($session)->post('/dashboard/jobs', $newJob)->assertSessionHasNoErrors();
         $createdNew = DB::table('badan_hukum')->where('title', $newJob['title'])->first();
