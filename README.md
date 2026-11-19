@@ -11,7 +11,9 @@ npm run build
 php artisan serve
 ```
 
-Isi koneksi database di `.env`. Sistem menggunakan tabel MySQL lama secara langsung, sehingga data client, berkas, akun, invoice, keuangan, dan absensi tetap tersedia.
+Salin `.env.example` menjadi `.env`, lalu atur `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, dan `DB_PASSWORD` sesuai server MySQL. Buat database `notaris` dan impor database aplikasi melalui phpMyAdmin atau MySQL sebelum menjalankan migrasi. Sistem menggunakan tabel MySQL yang ada secara langsung, sehingga data client, berkas, akun, invoice, keuangan, dan absensi tetap tersedia.
+
+Untuk pengujian, buat database MySQL **terpisah** bernama `notaris_test` dan isi dengan skema dan data uji yang aman. Atur kredensialnya melalui variabel lingkungan pengujian jika berbeda. Jangan gunakan database aplikasi atau produksi untuk pengujian.
 
 ## Pemeriksaan
 

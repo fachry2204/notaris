@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\JobDateRange;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -10,12 +11,12 @@ class DashboardController extends Controller
 {
     public function index(Request $request)
     {
+        $range = JobDateRange::fromRequest($request);
         $tables = ['badan_hukum', 'non_badan_hukum', 'ppat'];
         $stats = ['total' => 0, 'pending' => 0, 'processing' => 0, 'completed' => 0];
         $overdueCount = 0;
         $feeIncompleteCount = 0;
-        $months = collect(range(5, 0))->map(function ($offset) {
-            $date = now()->subMonths($offset);
+        $months = collect($range->months())->map(function ($date) {
 
             return ['key' => $date->format('Y-m'), 'label' => $date->translatedFormat('M'), 'incoming' => 0, 'completed' => 0];
         })->keyBy('key');
@@ -24,7 +25,7 @@ class DashboardController extends Controller
             $foreignKey = $table === 'badan_hukum'
                 ? 'badanHukumId'
                 : ($table === 'non_badan_hukum' ? 'nonBadanHukumId' : 'ppatId');
-            $counts = DB::table($table)->selectRaw(
+            $counts = $range->apply(DB::table($table))->selectRaw(
                 "COUNT(*) total,
                 SUM(status='PENDING') pending,
                 SUM(status IN ('PROSES','REVISI','REVISI_PROSES','VERIFIKASI')) processing,
@@ -33,12 +34,12 @@ class DashboardController extends Controller
             foreach ($stats as $key => $value) {
                 $stats[$key] += (int) ($counts->{$key} ?? 0);
             }
-            $overdueCount += DB::table($table)
+            $overdueCount += $range->apply(DB::table($table))
                 ->whereNotNull('deadline')
                 ->whereDate('deadline', '<', today())
                 ->whereNotIn('status', ['SELESAI', 'CANCELLED'])
                 ->count();
-            $feeIncompleteCount += DB::table($table.' as jobs')
+            $feeIncompleteCount += $range->apply(DB::table($table.' as jobs'), 'jobs.createdAt')
                 ->where('jobs.status', '<>', 'CANCELLED')
                 ->where(function ($query) use ($foreignKey) {
                     $query->whereNotExists(fn ($subquery) => $subquery
@@ -53,7 +54,7 @@ class DashboardController extends Controller
                 })
                 ->count();
 
-            foreach (DB::table($table)->where('createdAt', '>=', now()->subMonths(5)->startOfMonth())->select('createdAt', 'updatedAt', 'status')->get() as $job) {
+            foreach ($range->apply(DB::table($table))->select('createdAt', 'updatedAt', 'status')->get() as $job) {
                 $createdKey = substr((string) $job->createdAt, 0, 7);
                 if ($months->has($createdKey)) {
                     $row = $months->get($createdKey);
@@ -74,7 +75,7 @@ class DashboardController extends Controller
             'non_badan_hukum' => 'Non Badan Hukum',
             'ppat' => 'PPAT',
         ];
-        $deadlineParts = collect($categories)->map(fn ($category, $table) => DB::table($table.' as j')
+        $deadlineParts = collect($categories)->map(fn ($category, $table) => $range->apply(DB::table($table.' as j'), 'j.createdAt')
             ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
             ->select(['j.id', 'j.trackingCode', 'j.title', 'j.priority', 'j.deadline', 'j.status', 'c.name as clientName'])
             ->selectRaw('? as category, ? as jobType', [$category, $table])
@@ -85,7 +86,7 @@ class DashboardController extends Controller
             $deadlines->unionAll($part);
         }
 
-        $overdueParts = collect($categories)->map(fn ($category, $table) => DB::table($table.' as j')
+        $overdueParts = collect($categories)->map(fn ($category, $table) => $range->apply(DB::table($table.' as j'), 'j.createdAt')
             ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
             ->select(['j.id', 'j.trackingCode', 'j.title', 'j.priority', 'j.deadline', 'j.status', 'c.name as clientName'])
             ->selectRaw('? as category, ? as jobType', [$category, $table])
@@ -96,7 +97,7 @@ class DashboardController extends Controller
             $overdueJobs->unionAll($part);
         }
 
-        $recentParts = collect($categories)->map(fn ($category, $table) => DB::table($table.' as j')
+        $recentParts = collect($categories)->map(fn ($category, $table) => $range->apply(DB::table($table.' as j'), 'j.createdAt')
             ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
             ->select(['j.id', 'j.trackingCode', 'j.title', 'j.status', 'j.createdAt', 'c.name as clientName'])
             ->selectRaw('? as category, ? as jobType', [$category, $table]));
@@ -157,6 +158,7 @@ class DashboardController extends Controller
         }
 
         return Inertia::render('Dashboard', [
+            'filters' => $range->filters(),
             'stats' => $stats,
             'deadlines' => $deadlines->orderBy('deadline')->limit(8)->get(),
             'overdueJobs' => $overdueJobs->orderBy('deadline')->limit(6)->get(),

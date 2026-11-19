@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\JobDateRange;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +23,9 @@ class ModuleController extends Controller
         ]);
     }
 
-    public function stats()
+    public function stats(Request $request)
     {
+        $range = JobDateRange::fromRequest($request);
         $tables = [
             'badan_hukum' => 'Badan Hukum/Usaha',
             'non_badan_hukum' => 'Non Badan Hukum',
@@ -38,8 +40,7 @@ class ModuleController extends Controller
             'SELESAI' => 0,
             'CANCELLED' => 0,
         ];
-        $months = collect(range(5, 0))
-            ->map(fn ($offset) => now()->subMonths($offset)->startOfMonth())
+        $months = collect($range->months())
             ->map(fn ($date) => [
                 'key' => $date->format('Y-m'),
                 'name' => $date->translatedFormat('M'),
@@ -64,7 +65,7 @@ class ModuleController extends Controller
                 'completed' => 0,
                 'active' => 0,
             ];
-            foreach (DB::table($table)->select('status', DB::raw('COUNT(*) total'))->groupBy('status')->get() as $row) {
+            foreach ($range->apply(DB::table($table))->select('status', DB::raw('COUNT(*) total'))->groupBy('status')->get() as $row) {
                 $count = (int) $row->total;
                 $stats['total'] += $count;
                 $key = in_array($row->status, ['REVISI', 'REVISI_PROSES'], true) ? 'REVISI' : $row->status;
@@ -77,13 +78,13 @@ class ModuleController extends Controller
             }
             $categories->push($category);
 
-            foreach (DB::table($table)->select('priority', DB::raw('COUNT(*) total'))->groupBy('priority')->get() as $row) {
+            foreach ($range->apply(DB::table($table))->select('priority', DB::raw('COUNT(*) total'))->groupBy('priority')->get() as $row) {
                 if ($priorities->has($row->priority)) {
                     $priorities[$row->priority] += (int) $row->total;
                 }
             }
 
-            foreach (DB::table($table)->where('createdAt', '>=', now()->subMonths(5)->startOfMonth())->select('createdAt', 'updatedAt', 'status')->get() as $job) {
+            foreach ($range->apply(DB::table($table))->select('createdAt', 'updatedAt', 'status')->get() as $job) {
                 $created = substr((string) $job->createdAt, 0, 7);
                 if ($months->has($created)) {
                     $row = $months->get($created);
@@ -101,7 +102,7 @@ class ModuleController extends Controller
             $thisMonth += DB::table($table)->whereBetween('createdAt', [now()->startOfMonth(), now()->endOfMonth()])->count();
             $previousMonth += DB::table($table)->whereBetween('createdAt', [now()->subMonthNoOverflow()->startOfMonth(), now()->subMonthNoOverflow()->endOfMonth()])->count();
 
-            $baseJobQuery = fn () => DB::table($table.' as j')
+            $baseJobQuery = fn () => $range->apply(DB::table($table.' as j'), 'j.createdAt')
                 ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
                 ->select('j.id', 'j.trackingCode', 'j.title', 'j.deadline', 'j.status', 'j.priority', 'j.createdAt', 'j.updatedAt', 'c.name as clientName')
                 ->selectRaw('? as category, ? as jobType', [$categoryLabel, $table]);
@@ -126,7 +127,7 @@ class ModuleController extends Controller
                     ->limit(5)
                     ->get()
             );
-            foreach (DB::table($table)->where('status', 'SELESAI')->whereNotNull('createdAt')->whereNotNull('updatedAt')->select('createdAt', 'updatedAt')->get() as $job) {
+            foreach ($range->apply(DB::table($table))->where('status', 'SELESAI')->whereNotNull('createdAt')->whereNotNull('updatedAt')->select('createdAt', 'updatedAt')->get() as $job) {
                 $completionDays->push(max(0, Carbon::parse($job->createdAt)->diffInDays(Carbon::parse($job->updatedAt))));
             }
         }
@@ -138,6 +139,7 @@ class ModuleController extends Controller
             : ($thisMonth > 0 ? 100 : 0);
 
         return Inertia::render('Modules/Stats', [
+            'filters' => $range->filters(),
             'stats' => [...$stats, 'processing' => $processing],
             'summary' => [
                 'active' => $stats['PENDING'] + $processing,
@@ -164,7 +166,18 @@ class ModuleController extends Controller
         ]);
     }
 
-    public function productivity()
+    public function productivity(Request $request)
+    {
+        $data = $this->productivityData();
+        if (! in_array($request->session()->get('auth_user.role'), ['ADMINISTRATOR', 'PIMPINAN'], true)) {
+            $id = $request->session()->get('auth_user.source') === 'user' ? $request->session()->get('auth_user.id') : null;
+            $data['staff'] = $data['staff']->where('id', $id)->values();
+        }
+
+        return Inertia::render('Modules/Productivity', $data);
+    }
+
+    private function productivityData(): array
     {
         $staff = DB::table('user')
             ->select('id', 'fullName', 'username', 'role')
@@ -181,14 +194,19 @@ class ModuleController extends Controller
                 'witnessTasks' => 0,
                 'presentDays' => 0,
                 'lateDays' => 0,
-                'absentDays' => 0,
+                'absentDays' => null,
+                'workingDays' => null,
+                'cancelled' => 0,
+                'overdue' => 0,
             ]);
 
         foreach (['badan_hukum', 'non_badan_hukum', 'ppat'] as $table) {
-            foreach (DB::table($table)->whereNotNull('staffId')->select('staffId', 'status')->get() as $job) {
+            foreach (DB::table($table)->whereNotNull('staffId')->select('staffId', 'status', 'deadline')->get() as $job) {
                 if ($staff->has($job->staffId)) {
                     $row = $staff[$job->staffId];
                     $row['totalJobs']++;
+                    if ($job->status === 'CANCELLED') $row['cancelled']++;
+                    if (! in_array($job->status, ['SELESAI', 'CANCELLED'], true) && $job->deadline && Carbon::parse($job->deadline)->lt(today())) $row['overdue']++;
                     $job->status === 'SELESAI' ? $row['completed']++ : ($job->status !== 'CANCELLED' ? $row['processing']++ : 0);
                     $staff[$job->staffId] = $row;
                 }
@@ -243,6 +261,8 @@ class ModuleController extends Controller
                 ->count();
             $lateDays = $records
                 ->filter(fn ($record) => ! empty($record->checkIn) && Carbon::parse($record->checkIn)->format('H:i:s') > '08:00:00')
+                ->map(fn ($record) => Carbon::parse($record->date)->toDateString())
+                ->unique()
                 ->count();
             $employmentStart = Carbon::parse($profile->createdAt)->startOfDay();
             $periodStart = $employmentStart->greaterThan($monthStart) ? $employmentStart : $monthStart;
@@ -253,17 +273,58 @@ class ModuleController extends Controller
                 }
             }
 
+            $row['workingDays'] = $workingDays;
             $row['presentDays'] = $presentDays;
             $row['lateDays'] = $lateDays;
             $row['absentDays'] = max(0, $workingDays - $presentDays);
             $staff[$userId] = $row;
         }
 
-        return Inertia::render('Modules/Productivity', [
-            'staff' => $staff
-                ->sortByDesc(fn ($row) => [$row['completed'], $row['totalTasks']])
-                ->values(),
+        return [
+            'staff' => $staff->sortBy(fn ($row) => mb_strtolower($row['fullName'] ?: $row['username']))->values(),
             'periodLabel' => $today->translatedFormat('F Y'),
+        ];
+    }
+
+    public function productivityShow(Request $request, string $id)
+    {
+        $role = $request->session()->get('auth_user.role');
+        $own = $request->session()->get('auth_user.id') === $id
+            && $request->session()->get('auth_user.source') === 'user';
+        abort_unless(in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true) || $own, 403);
+
+        $data = $this->productivityData();
+        $employee = $data['staff']->firstWhere('id', $id);
+        abort_unless($employee, 404);
+        $jobs = collect();
+        foreach (['badan_hukum' => 'Badan Hukum/Usaha', 'non_badan_hukum' => 'Non Badan Hukum', 'ppat' => 'PPAT'] as $table => $label) {
+            $jobs = $jobs->concat(DB::table($table)->where('staffId', $id)
+                ->select('id', 'title', 'trackingCode', 'status', 'deadline', 'createdAt', 'updatedAt')
+                ->orderByDesc('createdAt')->limit(10)->get()->map(function ($job) use ($table, $label) {
+                    $job->jobType = $table;
+                    $job->category = $label;
+                    return $job;
+                }));
+        }
+        $tasks = DB::table('job_employee_task as t')
+            ->leftJoin('badan_hukum as bh', 'bh.id', '=', 't.badanHukumId')
+            ->leftJoin('non_badan_hukum as nbh', 'nbh.id', '=', 't.nonBadanHukumId')
+            ->leftJoin('ppat as p', 'p.id', '=', 't.ppatId')
+            ->where('t.userId', $id)
+            ->select('t.id', 't.taskType', 't.customTask', 't.createdAt')
+            ->selectRaw('COALESCE(bh.title, nbh.title, p.title) as jobTitle')
+            ->orderByDesc('t.createdAt')->limit(10)->get();
+        $profile = DB::table('staff')->where('userId', $id)->first();
+        $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
+            ->whereBetween('date', [now()->startOfMonth(), now()->endOfDay()])
+            ->select('date', 'checkIn', 'checkOut')->orderByDesc('date')->get() : collect();
+
+        return Inertia::render('Modules/ProductivityDetail', [
+            'employee' => $employee,
+            'periodLabel' => $data['periodLabel'],
+            'jobs' => $jobs->sortByDesc('createdAt')->take(10)->values(),
+            'tasks' => $tasks,
+            'attendance' => $attendance,
         ]);
     }
 

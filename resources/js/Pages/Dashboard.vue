@@ -19,6 +19,7 @@ import {
     WalletCards,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import JobDateFilter from "@/Components/JobDateFilter.vue";
 
 type DashboardJob = {
     id: string;
@@ -33,6 +34,7 @@ type DashboardJob = {
 };
 
 const props = defineProps<{
+    filters: { start_date: string | null; end_date: string | null };
     stats: Record<string, number>;
     deadlines: DashboardJob[];
     overdueJobs: DashboardJob[];
@@ -249,7 +251,7 @@ const time = (value: string | null) =>
             <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
                     <p class="text-xs font-bold uppercase tracking-[0.18em]" :style="{ color: 'var(--primary)' }">
-                        Ringkasan Hari Ini
+                        Ringkasan Operasional
                     </p>
                     <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Dashboard Overview</h1>
                     <p class="mt-1 text-sm text-slate-500">
@@ -257,10 +259,7 @@ const time = (value: string | null) =>
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2">
-                    <span class="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 shadow-sm">
-                        <CalendarDays class="h-4 w-4 text-slate-400" />
-                        {{ new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" }) }}
-                    </span>
+                    <JobDateFilter :filters="filters" />
                     <Link
                         href="/dashboard/jobs/new"
                         class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:-translate-y-0.5"
@@ -345,7 +344,7 @@ const time = (value: string | null) =>
                     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                         <div>
                             <h2 class="text-lg font-black text-slate-950">Perkembangan Berkas</h2>
-                            <p class="text-xs text-slate-500">Perbandingan berkas masuk dan selesai selama 6 bulan.</p>
+                            <p class="text-xs text-slate-500">Perbandingan berkas masuk dan selesai sesuai periode grafik.</p>
                         </div>
                         <div class="flex items-center gap-4 text-[11px] font-bold text-slate-500">
                             <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-sm bg-amber-500" />Masuk</span>

@@ -121,6 +121,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/reports/export', [ReportController::class, 'export'])->name('reports.export');
     Route::get('/dashboard/stats', [ModuleController::class, 'stats'])->name('stats.index');
     Route::get('/dashboard/productivity', [ModuleController::class, 'productivity'])->name('productivity.index');
+    Route::get('/dashboard/productivity/{id}', [ModuleController::class, 'productivityShow'])->name('productivity.show');
     Route::get('/dashboard/akta', [ModuleController::class, 'deeds'])->name('deeds.index');
     Route::get('/dashboard/saksi', [ModuleController::class, 'witnesses'])->name('witnesses.index');
 });

@@ -17,6 +17,7 @@ import {
     Users,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import JobDateFilter from "@/Components/JobDateFilter.vue";
 
 type JobRow = {
     id: string;
@@ -32,6 +33,7 @@ type JobRow = {
 };
 
 const props = defineProps<{
+    filters: { start_date: string | null; end_date: string | null };
     stats: any;
     summary: {
         active: number;
@@ -176,9 +178,7 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
                     <p class="mt-1 text-sm text-slate-500">Pantau kinerja, progres, dan risiko pekerjaan kantor dalam satu tampilan.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <span class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-600 shadow-sm">
-                        <CalendarClock class="h-4 w-4 text-[var(--primary)]" /> Tren 6 Bulan Terakhir
-                    </span>
+                    <JobDateFilter :filters="filters" />
                     <Link href="/dashboard/reports" class="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-xs font-black text-white shadow-md">
                         <FileBarChart class="h-4 w-4" /> Buka Laporan
                     </Link>

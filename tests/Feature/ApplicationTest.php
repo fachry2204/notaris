@@ -58,28 +58,8 @@ class ApplicationTest extends TestCase
         config(['app.url' => 'http://localhost']);
         url()->forceRootUrl('http://localhost');
 
-        if (! Schema::hasTable('user')) {
-            Schema::create('user', function ($table) {
-                $table->string('id')->primary();
-                $table->string('username')->unique();
-                $table->string('email')->unique();
-                $table->string('phone')->nullable();
-                $table->string('passwordHash');
-                $table->string('fullName');
-                $table->string('role');
-                $table->boolean('isActive');
-                $table->date('birthday')->nullable();
-                $table->timestamp('createdAt')->nullable();
-                $table->timestamp('updatedAt')->nullable();
-            });
-            Schema::create('staff', function ($table) {
-                $table->string('id')->primary();
-                $table->string('userId');
-                $table->string('photoPath')->nullable();
-                $table->string('ktpPath')->nullable();
-                $table->timestamp('createdAt')->nullable();
-                $table->timestamp('updatedAt')->nullable();
-            });
+        if (! Schema::hasTable('user') || ! Schema::hasTable('staff')) {
+            $this->markTestSkipped('Skema pegawai belum tersedia di database pengujian.');
         }
 
         $username = 'test-pegawai-'.\Illuminate\Support\Str::random(10);
@@ -95,6 +75,53 @@ class ApplicationTest extends TestCase
         $this->assertNotNull($user);
         $this->assertTrue(\Illuminate\Support\Facades\Hash::check('123456789', $user->passwordHash));
         $this->assertDatabaseHas('staff', ['userId' => $user->id]);
+    }
+
+    public function test_dashboard_and_statistics_filter_jobs_by_creation_date(): void
+    {
+        if (! Schema::hasTable('badan_hukum')) {
+            $this->markTestSkipped('Skema pekerjaan belum tersedia di database pengujian.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $start = '2020-01-01';
+        $end = '2020-12-31';
+        $expected = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])
+            ->sum(fn ($table) => DB::table($table)->whereBetween('createdAt', [$start.' 00:00:00', $end.' 23:59:59'])->count());
+        $session = ['auth_user' => ['id' => 'test', 'role' => 'ADMINISTRATOR']];
+        foreach (['/dashboard', '/dashboard/stats'] as $path) {
+            $this->withSession($session)->get($path.'?start_date='.$start.'&end_date='.$end)
+                ->assertOk()
+                ->assertInertia(fn (Assert $page) => $page
+                    ->where('filters.start_date', $start)
+                    ->where('filters.end_date', $end)
+                    ->where('stats.total', $expected)
+                    ->has('months', 12));
+            $this->withSession($session)->get($path.'?start_date=2020-12-31&end_date=2020-01-01')
+                ->assertSessionHasErrors('end_date');
+        }
+    }
+
+    public function test_productivity_detail_shows_employee_metrics_and_restricts_other_staff(): void
+    {
+        if (! Schema::hasTable('user') || ! ($employee = DB::table('user')->first())) {
+            $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $admin = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $expected = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])
+            ->sum(fn ($table) => DB::table($table)->where('staffId', $employee->id)->count());
+        $this->withSession($admin)->get('/dashboard/productivity/'.$employee->id)
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->component('Modules/ProductivityDetail')
+                ->where('employee.id', $employee->id)
+                ->where('employee.totalJobs', $expected)
+                ->has('jobs')->has('tasks')->has('attendance'));
+        $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])
+            ->get('/dashboard/productivity/'.$employee->id)->assertForbidden();
+        $this->withSession(['auth_user' => ['id' => $employee->id, 'role' => 'STAFFADMIN', 'source' => 'user']])
+            ->get('/dashboard/productivity/'.$employee->id)->assertOk();
     }
 
     public function test_employee_cannot_update_employee_fees(): void
@@ -144,7 +171,7 @@ class ApplicationTest extends TestCase
         url()->forceRootUrl('http://localhost');
 
         if (! Schema::hasTable('admin') && ! Schema::hasTable('user')) {
-            $this->markTestSkipped('Legacy schema is not installed on the isolated SQLite test database.');
+            $this->markTestSkipped('Legacy schema is not installed on the isolated test database.');
         }
 
         $account = DB::table('admin')->where('isActive', true)->first()
@@ -227,7 +254,7 @@ class ApplicationTest extends TestCase
         url()->forceRootUrl('http://localhost');
 
         if (! Schema::hasTable('attachment')) {
-            $this->markTestSkipped('Legacy schema is not installed on the isolated SQLite test database.');
+            $this->markTestSkipped('Legacy schema is not installed on the isolated test database.');
         }
 
         $account = DB::table('admin')->where('isActive', true)->first();
