@@ -204,10 +204,11 @@ class ApplicationTest extends TestCase
         $admin = ['auth_user' => ['id' => 'admin-test', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
         $response = $this->withSession($admin)->get('/dashboard')->assertOk();
         $notifications = $response->viewData('page')['props']['attendanceNotifications'];
-        foreach (['wfh' => 'WFH', 'wfc' => 'WFC', 'dinas' => 'Dinas Luar', 'missing' => 'Missing', 'noProfile' => 'NoProfile'] as $key => $label) {
+        foreach (['wfh' => 'WFH', 'wfc' => 'WFC', 'dinas' => 'Dinas Luar', 'missing' => 'Missing'] as $key => $label) {
             $this->assertContains('QA '.$suffix.' '.$label, $notifications[$key]);
         }
         $this->assertNotContains('QA '.$suffix.' Inactive', $notifications['missing']);
+        $this->assertNotContains('QA '.$suffix.' NoProfile', $notifications['missing']);
         $staff = ['auth_user' => ['id' => 'qa-'.$suffix.'-0', 'role' => 'STAFFADMIN', 'source' => 'user']];
         $this->withSession($staff)->get('/dashboard?view=overview')->assertOk()
             ->assertInertia(fn (Assert $page) => $page->where('attendanceNotifications', null));
@@ -374,6 +375,16 @@ class ApplicationTest extends TestCase
         $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$editJob->id, [...$editJobData, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceId])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('badan_hukum', ['id' => $editJob->id, 'sourceInvoiceId' => $invoiceId, 'invoiceStatus' => 'DP']);
         $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
+        $directTitle = 'QA direct invoice '.uniqid();
+        $directData = [...$job, 'title' => $directTitle, 'invoiceAction' => 'none', 'sourceInvoiceId' => null];
+        $this->withSession($session)->post('/dashboard/jobs', $directData)->assertSessionHasNoErrors();
+        $directJob = DB::table('badan_hukum')->where('title', $directTitle)->first();
+        $show = $this->withSession($session)->get('/dashboard/jobs/badan_hukum/'.$directJob->id)->assertOk();
+        $this->assertTrue(collect($show->viewData('page')['props']['availableInvoices'])->contains('id', $invoiceId));
+        $this->withSession($session)->post('/dashboard/jobs/badan_hukum/'.$directJob->id.'/invoice', ['invoiceId' => $invoiceId])->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('badan_hukum', ['id' => $directJob->id, 'title' => $directTitle, 'sourceInvoiceId' => $invoiceId, 'invoiceStatus' => 'DP']);
+        $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
+        $this->withSession($session)->post('/dashboard/jobs/badan_hukum/'.$directJob->id.'/invoice', ['invoiceId' => $invoiceId])->assertSessionHasErrors('invoiceId');
         $this->withSession($session)->delete('/dashboard/invoice/'.$invoiceId)->assertRedirect(route('invoices.index'));
         $this->assertDatabaseHas('badan_hukum', ['id' => $editJob->id, 'sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING']);
         $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING']);

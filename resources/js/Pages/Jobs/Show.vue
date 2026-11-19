@@ -34,12 +34,28 @@ const props = defineProps<{
     employeeTasks: any[];
     progress: any[];
     invoiceHistory: any[];
+    availableInvoices: Array<{ id: string; invoiceNumber: string; clientName?: string | null; amount: number | string; status: string }>;
 }>();
 const progressForm = useForm({
     status: props.job.status,
     description: "",
 });
 const notificationForm = useForm({ notification: "" });
+const showInvoicePicker = ref(false);
+const invoiceSearch = ref("");
+const invoiceForm = useForm({ invoiceId: "" });
+const filteredInvoices = computed(() => {
+    const query = invoiceSearch.value.trim().toLocaleLowerCase();
+    return props.availableInvoices.filter((invoice) =>
+        `${invoice.invoiceNumber} ${invoice.clientName || ""}`.toLocaleLowerCase().includes(query),
+    );
+});
+const attachInvoice = () => {
+    invoiceForm.post(`/dashboard/jobs/${props.jobType}/${props.job.id}/invoice`, {
+        preserveScroll: true,
+        onSuccess: () => { showInvoicePicker.value = false; invoiceForm.reset(); },
+    });
+};
 const page = usePage<any>();
 const canManageFee = computed(() =>
     ["ADMINISTRATOR", "PIMPINAN"].includes(
@@ -648,15 +664,21 @@ const address =
                                 >
                                     <Plus class="h-4 w-4" /> Tambah Invoice
                                 </Link>
-                                <Link
-                                    :href="`/dashboard/jobs/${jobType}/${job.id}/edit`"
-                                    class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
-                                >
-                                    Pilih Invoice yang Ada
-                                </Link>
+                                <button type="button" @click="showInvoicePicker = !showInvoicePicker; invoiceForm.clearErrors()" :aria-expanded="showInvoicePicker" aria-controls="invoice-picker" class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 transition hover:bg-slate-50">
+                                    {{ showInvoicePicker ? 'Tutup Daftar Invoice' : 'Pilih Invoice yang Ada' }}
+                                </button>
                             </template>
                         </div>
                     </div>
+
+                    <form v-if="showInvoicePicker && !invoiceHistory.length" id="invoice-picker" @submit.prevent="attachInvoice" class="mt-5 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                        <div><h3 class="text-sm font-black">Pilih invoice</h3><p class="mt-1 text-xs text-slate-500">Cari nomor invoice atau nama client. Invoice yang sudah terhubung tetap tersedia.</p></div>
+                        <label class="block text-xs font-bold text-slate-600">Cari invoice<input v-model="invoiceSearch" type="search" placeholder="Nomor invoice atau nama client" class="mt-1 block h-11 w-full rounded-xl border-slate-200 bg-white text-sm" /></label>
+                        <label class="block text-xs font-bold text-slate-600">Invoice<select v-model="invoiceForm.invoiceId" required class="mt-1 block h-11 w-full rounded-xl border-slate-200 bg-white text-sm"><option value="">Pilih invoice</option><option v-for="invoice in filteredInvoices" :key="invoice.id" :value="invoice.id">{{ invoice.invoiceNumber }} · {{ invoice.clientName || 'Client belum ditentukan' }} · {{ invoice.status }} · {{ money(invoice.amount) }}</option></select></label>
+                        <p v-if="!filteredInvoices.length" class="text-xs text-slate-500">Tidak ada invoice yang sesuai.</p>
+                        <p v-if="invoiceForm.errors.invoiceId" role="alert" class="text-xs font-bold text-red-600">{{ invoiceForm.errors.invoiceId }}</p>
+                        <div class="flex flex-wrap gap-2"><button type="submit" :disabled="invoiceForm.processing || !invoiceForm.invoiceId" class="h-10 rounded-xl bg-pink-600 px-4 text-xs font-black text-white disabled:opacity-50">{{ invoiceForm.processing ? 'Menyimpan...' : 'Hubungkan Invoice' }}</button><button type="button" @click="showInvoicePicker = false; invoiceForm.clearErrors()" class="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700">Batal</button></div>
+                    </form>
 
                     <div
                         v-if="!invoiceHistory.length"

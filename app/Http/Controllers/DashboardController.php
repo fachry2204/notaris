@@ -130,11 +130,10 @@ class DashboardController extends Controller
                 ->whereDate('date', today())
                 ->select('staffId', 'checkIn', 'notes')
                 ->orderBy('checkIn')->get()->groupBy('staffId');
-            $attendanceNotifications = ['missing' => [], 'wfh' => [], 'wfc' => [], 'dinas' => [], 'noProfile' => []];
+            $attendanceNotifications = ['missing' => [], 'wfh' => [], 'wfc' => [], 'dinas' => []];
             foreach ($employees as $employee) {
                 $name = $employee->fullName ?: $employee->username;
                 if (! $employee->staffId) {
-                    $attendanceNotifications['noProfile'][] = $name;
                     continue;
                 }
                 $record = $records->get($employee->staffId, collect())->first(fn ($row) => ! empty($row->checkIn));

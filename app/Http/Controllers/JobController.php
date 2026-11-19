@@ -281,7 +281,35 @@ class JobController extends Controller
             'employeeTasks' => $employeeTasks,
             'progress' => DB::table('jobprogress')->where($fk, $id)->orderByDesc('createdAt')->get(),
             'invoiceHistory' => $invoiceHistory,
+            'availableInvoices' => $invoiceHistory->isEmpty() ? $this->availableInvoices() : collect(),
         ]);
+    }
+
+    public function attachInvoice(Request $request, string $type, string $id)
+    {
+        abort_unless(isset(self::TABLES[$type]), 404);
+        $data = $request->validate(['invoiceId' => ['required', 'string', 'exists:invoice,id']]);
+        $foreignKey = $this->foreignKey($type);
+
+        DB::transaction(function () use ($type, $id, $foreignKey, $data) {
+            $job = DB::table($type)->where('id', $id)->lockForUpdate()->first();
+            abort_unless($job, 404);
+            if (($job->sourceInvoiceId ?? null) || DB::table('invoice')->where($foreignKey, $id)->exists()) {
+                throw ValidationException::withMessages(['invoiceId' => 'Berkas sudah memiliki invoice.']);
+            }
+            $invoice = $this->lockInvoice($data['invoiceId']);
+            if (! $invoice->badanHukumId && ! $invoice->nonBadanHukumId && ! $invoice->ppatId) {
+                DB::table('invoice')->where('id', $invoice->id)->update([$foreignKey => $id, 'updatedAt' => now()]);
+            }
+            DB::table($type)->where('id', $id)->update([
+                'sourceInvoiceId' => $invoice->id,
+                'invoiceStatus' => match ($invoice->status) { 'Lunas' => 'LUNAS', 'DP Bayar' => 'DP', default => 'PENDING' },
+                'updatedAt' => now(),
+            ]);
+        });
+        $this->log($request, 'ATTACH_INVOICE', "Menghubungkan invoice ke berkas {$id}");
+
+        return back()->with('success', 'Invoice berhasil dihubungkan ke berkas.');
     }
 
     public function updateEmployeeFees(Request $request, string $type, string $id)

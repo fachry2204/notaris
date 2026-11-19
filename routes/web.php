@@ -51,6 +51,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::redirect('/dashboard/jobs/new/non-badan-hukum', '/dashboard/jobs/new?type=non_badan_hukum');
     Route::redirect('/dashboard/jobs/new/ppat', '/dashboard/jobs/new?type=ppat');
     Route::post('/dashboard/jobs', [JobController::class, 'store'])->name('jobs.store');
+    Route::post('/dashboard/jobs/{type}/{id}/invoice', [JobController::class, 'attachInvoice'])->name('jobs.invoice.attach');
     Route::post('/dashboard/jobs/{type}/{id}/notify', [JobController::class, 'notify'])->where('type', 'badan-hukum|non-badan-hukum|ppat|badan_hukum|non_badan_hukum')->name('jobs.notify');
     Route::get('/dashboard/jobs/{id}/invoice', [JobController::class, 'legacyInvoice'])->name('jobs.legacy-invoice');
     Route::get('/dashboard/jobs/{id}/edit/{category}', [JobController::class, 'legacyEdit'])->where('category', 'badan-hukum|non-badan-hukum|ppat|umum')->name('jobs.legacy-edit-category');

@@ -43,7 +43,7 @@ const props = defineProps<{
     clientCount: number;
     staffCount: number;
     months: Array<{ key: string; label: string; incoming: number; completed: number }>;
-    attendanceNotifications: { missing: string[]; wfh: string[]; wfc: string[]; dinas: string[]; noProfile: string[] } | null;
+    attendanceNotifications: { missing: string[]; wfh: string[]; wfc: string[]; dinas: string[] } | null;
     attendanceToday: {
         present: number;
         late: number;
@@ -266,8 +266,6 @@ const time = (value: string | null) =>
                         <p v-else class="mt-2 text-xs text-slate-400">Tidak ada data.</p>
                     </details>
                 </div>
-                <details v-if="attendanceNotifications.noProfile.length" class="mt-3 text-xs text-amber-900"><summary class="cursor-pointer font-bold">{{ attendanceNotifications.noProfile.length }} akun belum memiliki profil absensi</summary><p class="mt-1">{{ attendanceNotifications.noProfile.join(', ') }}</p></details>
-                <p class="mt-3 text-xs text-amber-800">Belum check-in tidak selalu berarti tidak hadir; periksa izin, cuti, dan jadwal kerja.</p>
             </section>
             <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
