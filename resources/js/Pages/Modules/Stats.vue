@@ -177,13 +177,20 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
                     <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Statistik Pekerjaan</h1>
                     <p class="mt-1 text-sm text-slate-500">Pantau kinerja, progres, dan risiko pekerjaan kantor dalam satu tampilan.</p>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                    <JobDateFilter :filters="filters" />
-                    <Link href="/dashboard/reports" class="inline-flex h-10 items-center gap-2 rounded-xl bg-[var(--primary)] px-4 text-xs font-black text-white shadow-md">
-                        <FileBarChart class="h-4 w-4" /> Buka Laporan
-                    </Link>
-                </div>
+                <Link href="/dashboard/reports" class="inline-flex h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-xs font-black text-white shadow-md">
+                    <FileBarChart class="h-4 w-4" /> Buka Laporan
+                </Link>
             </header>
+
+            <section aria-label="Filter periode" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+                <div class="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                    <div class="shrink-0">
+                        <h2 class="text-sm font-black text-slate-900">Filter periode</h2>
+                        <p class="mt-1 text-xs text-slate-500">Pilih tanggal mulai dan akhir untuk menyaring pekerjaan.</p>
+                    </div>
+                    <JobDateFilter :filters="filters" />
+                </div>
+            </section>
 
             <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
                 <Link

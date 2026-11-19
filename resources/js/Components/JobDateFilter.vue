@@ -31,18 +31,20 @@ const reset = () => {
 </script>
 
 <template>
-    <div>
-        <form @submit.prevent="submit" class="flex flex-wrap items-end gap-2">
-            <label class="text-xs font-bold text-slate-600">Dari
-                <input v-model="dates.start_date" type="date" required class="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" />
+    <div class="min-w-0">
+        <form @submit.prevent="submit" class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <label class="min-w-0 text-xs font-bold text-slate-600 sm:w-44">Dari
+                <input v-model="dates.start_date" type="date" required class="mt-1.5 block h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900" />
             </label>
-            <label class="text-xs font-bold text-slate-600">Sampai
-                <input v-model="dates.end_date" type="date" required class="mt-1 block rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs" />
+            <label class="min-w-0 text-xs font-bold text-slate-600 sm:w-44">Sampai
+                <input v-model="dates.end_date" type="date" required class="mt-1.5 block h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900" />
             </label>
-            <button type="submit" class="rounded-xl bg-[var(--primary)] px-4 py-2.5 text-xs font-bold text-white">Terapkan</button>
-            <button v-if="filters.start_date" type="button" @click="reset" class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-600">Reset</button>
+            <div class="flex gap-2">
+                <button type="submit" class="h-11 flex-1 rounded-xl bg-[var(--primary)] px-5 text-xs font-bold text-white sm:flex-none">Terapkan</button>
+                <button v-if="filters.start_date" type="button" @click="reset" class="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-5 text-xs font-bold text-slate-600 sm:flex-none">Reset</button>
+            </div>
         </form>
-        <p v-if="error" role="alert" class="mt-1 text-xs text-red-600">{{ error }}</p>
-        <p class="mt-1 text-xs text-slate-500">Filter berdasarkan tanggal berkas dibuat (maks. 24 bulan).</p>
+        <p v-if="error" role="alert" class="mt-2 text-xs text-red-600">{{ error }}</p>
+        <p class="mt-2 text-xs text-slate-500">Berdasarkan tanggal berkas dibuat, maksimal 24 bulan.</p>
     </div>
 </template>

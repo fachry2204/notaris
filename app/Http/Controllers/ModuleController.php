@@ -168,19 +168,32 @@ class ModuleController extends Controller
 
     public function productivity(Request $request)
     {
-        $data = $this->productivityData();
+        $range = JobDateRange::fromRequest($request);
+        $sort = $request->validate(['sort' => ['nullable', 'in:name,newest,oldest']])['sort'] ?? 'name';
+        $data = $this->productivityData($range);
         if (! in_array($request->session()->get('auth_user.role'), ['ADMINISTRATOR', 'PIMPINAN'], true)) {
             $id = $request->session()->get('auth_user.source') === 'user' ? $request->session()->get('auth_user.id') : null;
             $data['staff'] = $data['staff']->where('id', $id)->values();
         }
 
+        if ($sort === 'newest') {
+            $data['staff'] = $data['staff']->sortByDesc('createdAt')->values();
+        } elseif ($sort === 'oldest') {
+            $data['staff'] = $data['staff']->sortBy('createdAt')->values();
+        }
+        $data['filters'] = [...$range->filters(), 'sort' => $sort];
+        if ($range->start) {
+            $data['periodLabel'] = $range->start->translatedFormat('d M Y').' - '.$range->end->translatedFormat('d M Y');
+        }
+
         return Inertia::render('Modules/Productivity', $data);
     }
 
-    private function productivityData(): array
+    private function productivityData(?JobDateRange $range = null, ?string $employeeId = null): array
     {
         $staff = DB::table('user')
-            ->select('id', 'fullName', 'username', 'role')
+            ->select('id', 'fullName', 'username', 'role', 'createdAt')
+            ->when($employeeId, fn ($query) => $query->where('id', $employeeId))
             ->whereIn('role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])
             ->get()
             ->keyBy('id')
@@ -201,7 +214,7 @@ class ModuleController extends Controller
             ]);
 
         foreach (['badan_hukum', 'non_badan_hukum', 'ppat'] as $table) {
-            foreach (DB::table($table)->whereNotNull('staffId')->select('staffId', 'status', 'deadline')->get() as $job) {
+            foreach (($range ? $range->apply(DB::table($table)) : DB::table($table))->whereIn('staffId', $staff->keys())->select('staffId', 'status', 'deadline')->get() as $job) {
                 if ($staff->has($job->staffId)) {
                     $row = $staff[$job->staffId];
                     $row['totalJobs']++;
@@ -213,7 +226,7 @@ class ModuleController extends Controller
             }
         }
 
-        $taskCounts = DB::table('job_employee_task')
+        $taskCounts = ($range ? $range->apply(DB::table('job_employee_task')) : DB::table('job_employee_task'))
             ->whereIn('userId', $staff->keys())
             ->select('userId', 'taskType')
             ->selectRaw('COUNT(*) as total')
@@ -235,7 +248,9 @@ class ModuleController extends Controller
         }
 
         $today = now()->startOfDay();
-        $monthStart = $today->copy()->startOfMonth();
+        $monthStart = $range?->start?->copy()->startOfDay() ?? $today->copy()->startOfMonth();
+        $periodEnd = $range?->end?->copy()->endOfDay() ?? $today->copy()->endOfDay();
+        $attendanceEnd = $periodEnd->min($today->copy()->endOfDay());
         $profiles = DB::table('staff')
             ->whereIn('userId', $staff->keys())
             ->select('id', 'userId', 'createdAt')
@@ -243,7 +258,7 @@ class ModuleController extends Controller
             ->keyBy('userId');
         $attendance = DB::table('attendance')
             ->whereIn('staffId', $profiles->pluck('id'))
-            ->whereBetween('date', [$monthStart, $today->copy()->endOfDay()])
+            ->whereBetween('date', [$monthStart, $attendanceEnd])
             ->get()
             ->groupBy('staffId');
 
@@ -267,16 +282,22 @@ class ModuleController extends Controller
             $employmentStart = Carbon::parse($profile->createdAt)->startOfDay();
             $periodStart = $employmentStart->greaterThan($monthStart) ? $employmentStart : $monthStart;
             $workingDays = 0;
-            for ($day = $periodStart->copy(); $day->lte($today); $day->addDay()) {
+            for ($day = $periodStart->copy(); $day->lte($attendanceEnd); $day->addDay()) {
                 if ($day->isWeekday()) {
                     $workingDays++;
                 }
             }
 
+            $presentWorkdays = $records
+                ->filter(fn ($record) => ! empty($record->checkIn))
+                ->map(fn ($record) => Carbon::parse($record->date)->startOfDay())
+                ->filter(fn ($day) => $day->isWeekday() && $day->betweenIncluded($periodStart, $attendanceEnd))
+                ->map(fn ($day) => $day->toDateString())->unique()->count();
+
             $row['workingDays'] = $workingDays;
             $row['presentDays'] = $presentDays;
             $row['lateDays'] = $lateDays;
-            $row['absentDays'] = max(0, $workingDays - $presentDays);
+            $row['absentDays'] = max(0, $workingDays - $presentWorkdays);
             $staff[$userId] = $row;
         }
 
@@ -293,36 +314,39 @@ class ModuleController extends Controller
             && $request->session()->get('auth_user.source') === 'user';
         abort_unless(in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true) || $own, 403);
 
-        $data = $this->productivityData();
+        $range = JobDateRange::fromRequest($request);
+        $sort = $request->validate(['sort' => ['nullable', 'in:asc,desc']])['sort'] ?? 'desc';
+        $data = $this->productivityData($range, $id);
         $employee = $data['staff']->firstWhere('id', $id);
         abort_unless($employee, 404);
         $jobs = collect();
         foreach (['badan_hukum' => 'Badan Hukum/Usaha', 'non_badan_hukum' => 'Non Badan Hukum', 'ppat' => 'PPAT'] as $table => $label) {
-            $jobs = $jobs->concat(DB::table($table)->where('staffId', $id)
+            $jobs = $jobs->concat($range->apply(DB::table($table))->where('staffId', $id)
                 ->select('id', 'title', 'trackingCode', 'status', 'deadline', 'createdAt', 'updatedAt')
-                ->orderByDesc('createdAt')->limit(10)->get()->map(function ($job) use ($table, $label) {
+                ->orderBy('createdAt', $sort)->limit(10)->get()->map(function ($job) use ($table, $label) {
                     $job->jobType = $table;
                     $job->category = $label;
                     return $job;
                 }));
         }
-        $tasks = DB::table('job_employee_task as t')
+        $tasks = $range->apply(DB::table('job_employee_task as t'), 't.createdAt')
             ->leftJoin('badan_hukum as bh', 'bh.id', '=', 't.badanHukumId')
             ->leftJoin('non_badan_hukum as nbh', 'nbh.id', '=', 't.nonBadanHukumId')
             ->leftJoin('ppat as p', 'p.id', '=', 't.ppatId')
             ->where('t.userId', $id)
             ->select('t.id', 't.taskType', 't.customTask', 't.createdAt')
             ->selectRaw('COALESCE(bh.title, nbh.title, p.title) as jobTitle')
-            ->orderByDesc('t.createdAt')->limit(10)->get();
+            ->orderBy('t.createdAt', $sort)->limit(10)->get();
         $profile = DB::table('staff')->where('userId', $id)->first();
         $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
-            ->whereBetween('date', [now()->startOfMonth(), now()->endOfDay()])
-            ->select('date', 'checkIn', 'checkOut')->orderByDesc('date')->get() : collect();
+            ->whereBetween('date', [$range->start ?? now()->startOfMonth(), ($range->end ?? now()->endOfDay())->min(now()->endOfDay())])
+            ->select('date', 'checkIn', 'checkOut')->orderBy('date', $sort)->get() : collect();
 
         return Inertia::render('Modules/ProductivityDetail', [
             'employee' => $employee,
-            'periodLabel' => $data['periodLabel'],
-            'jobs' => $jobs->sortByDesc('createdAt')->take(10)->values(),
+            'periodLabel' => $range->start ? $range->start->translatedFormat('d M Y').' - '.$range->end->translatedFormat('d M Y') : $data['periodLabel'],
+            'filters' => [...$range->filters(), 'sort' => $sort],
+            'jobs' => ($sort === 'asc' ? $jobs->sortBy('createdAt') : $jobs->sortByDesc('createdAt'))->take(10)->values(),
             'tasks' => $tasks,
             'attendance' => $attendance,
         ]);

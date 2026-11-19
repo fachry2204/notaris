@@ -124,6 +124,65 @@ class ApplicationTest extends TestCase
             ->get('/dashboard/productivity/'.$employee->id)->assertOk();
     }
 
+    public function test_employee_kpis_filter_and_sort_the_selected_period(): void
+    {
+        if (! Schema::hasTable('user') || ! ($employee = DB::table('user')->first())) {
+            $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $start = '2026-01-01';
+        $end = '2026-12-31';
+        $bounds = [$start.' 00:00:00', $end.' 23:59:59'];
+        $expected = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])
+            ->sum(fn ($table) => DB::table($table)->where('staffId', $employee->id)->whereBetween('createdAt', $bounds)->count());
+        $tasks = DB::table('job_employee_task')->where('userId', $employee->id)->whereBetween('createdAt', $bounds)->count();
+        $session = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $path = '/dashboard/productivity/'.$employee->id;
+        $this->withSession($session)->get($path.'?start_date='.$start.'&end_date='.$end.'&sort=asc')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+                ->where('filters.start_date', $start)->where('filters.end_date', $end)
+                ->where('filters.sort', 'asc')->where('employee.totalJobs', $expected)
+                ->where('employee.totalTasks', $tasks));
+        $this->withSession($session)->get($path.'?start_date=2026-11-19&end_date=2026-11-19')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->where('filters.start_date', '2026-11-19')->where('filters.end_date', '2026-11-19'));
+        $this->withSession($session)->get($path.'?start_date=2026-12-31&end_date=2026-01-01')
+            ->assertSessionHasErrors('end_date');
+        $this->withSession($session)->get($path.'?start_date=2026-01-01')
+            ->assertSessionHasErrors('end_date');
+        $this->withSession($session)->get($path.'?sort=invalid')->assertSessionHasErrors('sort');
+    }
+
+    public function test_productivity_team_filters_period_and_sorts_employees(): void
+    {
+        if (! Schema::hasTable('user') || ! ($employee = DB::table('user')->first())) {
+            $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $session = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $start = '2026-01-01';
+        $end = '2026-12-31';
+        $bounds = [$start.' 00:00:00', $end.' 23:59:59'];
+        $expected = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])
+            ->sum(fn ($table) => DB::table($table)->where('staffId', $employee->id)->whereBetween('createdAt', $bounds)->count());
+        $response = $this->withSession($session)->get('/dashboard/productivity?start_date='.$start.'&end_date='.$end.'&sort=oldest');
+        $response->assertOk()->assertInertia(fn (Assert $page) => $page->component('Modules/Productivity')
+            ->where('filters.start_date', $start)->where('filters.end_date', $end)->where('filters.sort', 'oldest')->has('staff'));
+        $staff = collect($response->viewData('page')['props']['staff']);
+        $this->assertSame($expected, $staff->firstWhere('id', $employee->id)['totalJobs']);
+        $dates = $staff->pluck('createdAt')->all();
+        $sorted = $dates;
+        sort($sorted);
+        $this->assertSame($sorted, $dates);
+        $this->withSession($session)->get('/dashboard/productivity?start_date=2026-11-19&end_date=2026-11-19')->assertOk();
+        $this->withSession($session)->get('/dashboard/productivity?start_date=2026-12-31&end_date=2026-01-01')->assertSessionHasErrors('end_date');
+        $this->withSession($session)->get('/dashboard/productivity?sort=invalid')->assertSessionHasErrors('sort');
+        $this->withSession(['auth_user' => ['id' => $employee->id, 'role' => 'STAFFADMIN', 'source' => 'user']])
+            ->get('/dashboard/productivity?start_date='.$start.'&end_date='.$end)
+            ->assertOk()->assertInertia(fn (Assert $page) => $page->has('staff', 1)->where('staff.0.id', $employee->id));
+    }
+
     public function test_employee_cannot_update_employee_fees(): void
     {
         $request = Request::create('/dashboard/jobs/badan_hukum/job-test/fees', 'PATCH', [
