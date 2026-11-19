@@ -100,6 +100,15 @@ class InvoiceController extends Controller
             }
         }
         $id = DB::transaction(function () use ($d, $amount) {
+            if (empty($d['quotationId'])) {
+                $job = DB::table($d['jobType'])->where('id', $d['jobId'])->lockForUpdate()->first();
+                if (! $job) {
+                    throw ValidationException::withMessages(['jobId' => 'Berkas tidak ditemukan.']);
+                }
+                if (DB::table('invoice')->where($this->fk($d['jobType']), $d['jobId'])->exists()) {
+                    throw ValidationException::withMessages(['jobId' => 'Berkas sudah memiliki invoice.']);
+                }
+            }
             $number = $this->numbers->next('invoice', $d['date']);
             $id = 'inv-'.Str::random(12);
             $source = [];

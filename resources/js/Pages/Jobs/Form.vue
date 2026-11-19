@@ -30,6 +30,8 @@ const p = defineProps<{
     selectedClientId?: string;
     selectedStaffId?: string;
     sourceInvoiceId?: string;
+    linkedInvoice?: { id: string; invoiceNumber: string; status: string } | null;
+    availableInvoices?: Array<{ id: string; invoiceNumber: string; status: string; amount: number; clientId?: string | null; clientName?: string | null }>;
 }>();
 const flow = p.job?.jobType || p.flowType || "badan_hukum";
 const types: Record<string, string[]> = {
@@ -127,7 +129,8 @@ if (!initialEmployeeTasks.length) {
 }
 const f = useForm({
     jobType: flow,
-    sourceInvoiceId: p.job?.sourceInvoiceId || p.sourceInvoiceId || null,
+    sourceInvoiceId: p.job ? null : p.sourceInvoiceId || null,
+    invoiceAction: p.sourceInvoiceId && !p.job ? "existing" : "none",
     clientId: p.job?.clientId || p.selectedClientId || "",
     staffId: initialPicStaffId,
     jenisPekerjaan: p.job?.type || "",
@@ -943,6 +946,31 @@ const deleteSavedAttachment = (id: string) => {
                             v-model="f.description"
                             class="mt-2 w-full rounded-xl border-slate-200"
                     /></label>
+                </section>
+                <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+                    <h2 class="text-lg font-black">Invoice</h2>
+                    <p class="mt-1 text-sm text-slate-500">Hubungkan invoice saat menyimpan berkas atau buat invoice baru setelah berkas disimpan.</p>
+                    <div v-if="linkedInvoice" class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        Berkas sudah terhubung dengan invoice <Link :href="`/dashboard/invoice/${linkedInvoice.id}`" class="font-black underline">{{ linkedInvoice.invoiceNumber }}</Link> · {{ linkedInvoice.status }}.
+                    </div>
+                    <div v-else class="mt-4 space-y-3">
+                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="none" /> Belum menambahkan invoice</label>
+                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="new" /> Buat invoice baru setelah menyimpan berkas</label>
+                        <label class="flex items-center gap-2 text-sm font-bold"><input v-model="f.invoiceAction" type="radio" value="existing" /> Hubungkan invoice yang sudah ada</label>
+                        <div v-if="f.invoiceAction === 'existing'" class="pt-1">
+                            <label class="block text-sm font-bold">Pilih invoice
+                                <select v-model="f.sourceInvoiceId" required class="mt-2 w-full rounded-xl border-slate-200 bg-white">
+                                    <option :value="null">Pilih invoice yang belum terhubung</option>
+                                    <option v-for="invoice in availableInvoices || []" :key="invoice.id" :value="invoice.id">
+                                        {{ invoice.invoiceNumber }} · {{ invoice.clientName || 'Client belum ditentukan' }} · {{ invoice.status }} · {{ new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(Number(invoice.amount)) }}
+                                    </option>
+                                </select>
+                            </label>
+                            <p v-if="!availableInvoices?.length" class="mt-2 text-xs text-slate-500">Tidak ada invoice yang tersedia untuk dihubungkan.</p>
+                            <p class="mt-2 text-xs text-slate-500">Invoice yang sudah terhubung ke berkas lain tidak ditampilkan. Client invoice harus sesuai dengan client berkas bila tercatat.</p>
+                            <p v-if="f.errors.sourceInvoiceId" class="mt-2 text-sm font-bold text-red-600">{{ f.errors.sourceInvoiceId }}</p>
+                        </div>
+                    </div>
                 </section>
                 <p
                     v-if="Object.keys(f.errors).length"

@@ -108,6 +108,8 @@ class JobController extends Controller
             'selectedClientId' => $selectedClientId,
             'selectedStaffId' => $selectedStaffId,
             'sourceInvoiceId' => $sourceInvoiceId,
+            'availableInvoices' => $this->availableInvoices(),
+            'linkedInvoice' => null,
             'clients' => DB::table('client')->select('id', 'name', 'phone')->orderBy('name')->get(),
             'staff' => DB::table('user')->select('id', 'fullName', 'role')->where('isActive', true)->orderBy('fullName')->get(),
         ]);
@@ -117,8 +119,12 @@ class JobController extends Controller
     {
         $data = $this->validated($request);
         $table = $data['jobType'];
-        $sourceInvoiceId = $data['sourceInvoiceId'] ?? null;
-        unset($data['jobType'], $data['sourceInvoiceId']);
+        $invoiceAction = $data['invoiceAction'] ?? (! empty($data['sourceInvoiceId']) ? 'existing' : 'none');
+        $sourceInvoiceId = $invoiceAction === 'existing' ? ($data['sourceInvoiceId'] ?? null) : null;
+        if ($invoiceAction === 'existing' && ! $sourceInvoiceId) {
+            throw ValidationException::withMessages(['sourceInvoiceId' => 'Pilih invoice yang akan dihubungkan.']);
+        }
+        unset($data['jobType'], $data['sourceInvoiceId'], $data['invoiceAction']);
         $sourceInvoice = $sourceInvoiceId
             ? DB::table('invoice')->where('id', $sourceInvoiceId)->first()
             : null;
@@ -156,9 +162,12 @@ class JobController extends Controller
         $attachments = $request->file('attachments', []);
         $attachmentDescriptions = $data['attachmentDescriptions'] ?? [];
         $attachmentDeposits = $data['attachmentDeposits'] ?? [];
-        $attachmentUserId = $attachments ? $this->attachmentUserId($request, $data['staffId'] ?? null) : null;
+        $attachmentUserId = $this->attachmentUserId($request, $data['staffId'] ?? null);
         unset($data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits']);
-        DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice) {
+        $id = DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice) {
+            if ($sourceInvoice) {
+                $sourceInvoice = $this->lockAvailableInvoice($sourceInvoice->id, $data['clientId']);
+            }
             $trackingCode = $this->numbers->next($table, $data['tanggalMasuk'] ?? now());
             $id = 'job-'.Str::lower(Str::random(12));
             $createdAt = ! empty($data['tanggalMasuk']) ? $data['tanggalMasuk'].' '.now()->format('H:i:s') : now();
@@ -195,8 +204,12 @@ class JobController extends Controller
                 'createdAt' => now(),
             ]);
             $this->log($request, 'CREATE_JOB', "Membuat berkas {$id}");
+            return $id;
         });
 
+        if ($invoiceAction === 'new') {
+            return redirect()->route('invoices.create', ['job' => $id, 'type' => $table])->with('success', 'Berkas berhasil dibuat. Lengkapi invoice baru.');
+        }
         return redirect()->route('jobs.index')->with('success', 'Berkas berhasil dibuat.');
     }
 
@@ -469,13 +482,21 @@ class JobController extends Controller
                 return $task;
             });
 
-        return Inertia::render('Jobs/Form', ['job' => [...(array) $job, 'jobType' => $type], 'founders' => DB::table('founder')->where($foreignKey, $id)->get(), 'attachments' => DB::table('attachment')->where($foreignKey, $id)->orderBy('createdAt')->get(), 'employeeTasks' => $employeeTasks, 'clients' => DB::table('client')->select('id', 'name', 'phone')->orderBy('name')->get(), 'staff' => DB::table('user')->select('id', 'fullName', 'role')->where('isActive', true)->orderBy('fullName')->get()]);
+        $linkedInvoice = DB::table('invoice')->where(fn ($query) => $query->where($foreignKey, $id)
+            ->when($job->sourceInvoiceId ?? null, fn ($query, $source) => $query->orWhere('id', $source)))->first();
+
+        return Inertia::render('Jobs/Form', ['linkedInvoice' => $linkedInvoice ? (object) ['id' => $linkedInvoice->id, 'invoiceNumber' => $linkedInvoice->invoiceNumber, 'status' => $linkedInvoice->status] : null, 'availableInvoices' => $this->availableInvoices(), 'job' => [...(array) $job, 'jobType' => $type], 'founders' => DB::table('founder')->where($foreignKey, $id)->get(), 'attachments' => DB::table('attachment')->where($foreignKey, $id)->orderBy('createdAt')->get(), 'employeeTasks' => $employeeTasks, 'clients' => DB::table('client')->select('id', 'name', 'phone')->orderBy('name')->get(), 'staff' => DB::table('user')->select('id', 'fullName', 'role')->where('isActive', true)->orderBy('fullName')->get()]);
     }
 
     public function update(Request $request, string $type, string $id)
     {
         abort_unless(isset(self::TABLES[$type]), 404);
         $data = $this->validated($request, false);
+        $invoiceAction = $data['invoiceAction'] ?? 'none';
+        $sourceInvoiceId = $invoiceAction === 'existing' ? ($data['sourceInvoiceId'] ?? null) : null;
+        if ($invoiceAction === 'existing' && ! $sourceInvoiceId) {
+            throw ValidationException::withMessages(['sourceInvoiceId' => 'Pilih invoice yang akan dihubungkan.']);
+        }
         $founders = $data['founders'] ?? [];
         $employeeTasks = $data['employeeTasks'] ?? [];
         $data['staffId'] = $this->taskPicStaffId($employeeTasks);
@@ -483,13 +504,25 @@ class JobController extends Controller
         $attachmentDescriptions = $data['attachmentDescriptions'] ?? [];
         $attachmentDeposits = $data['attachmentDeposits'] ?? [];
         $savedAttachmentDeposits = $data['savedAttachmentDeposits'] ?? [];
-        unset($data['jobType'],$data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits'],$data['tanggalMasuk']);
+        unset($data['jobType'],$data['sourceInvoiceId'],$data['invoiceAction'],$data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits'],$data['tanggalMasuk']);
         $old = DB::table($type)->where('id', $id)->first();
         abort_unless((bool) $old, 404);
         $actorUserId = $this->attachmentUserId($request, $data['staffId'] ?? $old->staffId);
         $fk = $this->foreignKey($type);
-        DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $savedAttachmentDeposits, $actorUserId, $request, $type, $id, $old, $fk) {
-            DB::table($type)->where('id', $id)->update([...$data, 'updatedAt' => now()]);
+        DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $savedAttachmentDeposits, $actorUserId, $request, $type, $id, $old, $fk, $invoiceAction, $sourceInvoiceId) {
+            DB::table($type)->where('id', $id)->lockForUpdate()->first();
+            $linked = DB::table('invoice')->where(fn ($query) => $query->where($fk, $id)
+                ->when($old->sourceInvoiceId ?? null, fn ($query, $source) => $query->orWhere('id', $source)))->lockForUpdate()->first();
+            if ($invoiceAction !== 'none' && $linked) {
+                throw ValidationException::withMessages(['sourceInvoiceId' => 'Berkas sudah memiliki invoice.']);
+            }
+            $invoiceFields = [];
+            if ($invoiceAction === 'existing') {
+                $invoice = $this->lockAvailableInvoice($sourceInvoiceId, $data['clientId']);
+                DB::table('invoice')->where('id', $invoice->id)->update([$fk => $id, 'updatedAt' => now()]);
+                $invoiceFields = ['sourceInvoiceId' => $invoice->id, 'invoiceStatus' => match ($invoice->status) { 'Lunas' => 'LUNAS', 'DP Bayar' => 'DP', default => 'PENDING' }];
+            }
+            DB::table($type)->where('id', $id)->update([...$data, ...$invoiceFields, 'updatedAt' => now()]);
             DB::table('founder')->where($fk, $id)->delete();
             foreach ($founders as $f) {
                 if (! empty($f['name'])) {
@@ -535,6 +568,9 @@ class JobController extends Controller
         });
         $this->log($request, 'UPDATE_JOB', "Memperbarui berkas {$id}");
 
+        if ($invoiceAction === 'new') {
+            return redirect()->route('invoices.create', ['job' => $id, 'type' => $type])->with('success', 'Berkas diperbarui. Lengkapi invoice baru.');
+        }
         return redirect()->route('jobs.show', [$type, $id])->with('success', 'Berkas diperbarui.');
     }
 
@@ -554,7 +590,7 @@ class JobController extends Controller
 
     private function validated(Request $r, bool $creating = true): array
     {
-        return $r->validate(['jobType' => [$creating ? 'required' : 'nullable', 'in:'.implode(',', array_keys(self::TABLES))], 'sourceInvoiceId' => 'nullable|string|exists:invoice,id', 'clientId' => 'required|string', 'staffId' => 'nullable|string', 'title' => 'required|string|max:255', 'type' => 'required|string|max:255', 'pengurusanUntuk' => 'nullable|string|max:255', 'companyName' => 'nullable|string|max:255', 'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED', 'priority' => 'required|in:LOW,MEDIUM,HIGH,URGENT', 'deadline' => 'nullable|date', 'tanggalMasuk' => 'nullable|date', 'saksi' => 'nullable|string|max:255', 'notes' => 'nullable|string', 'founders' => 'nullable|array', 'founders.*.name' => 'nullable|string', 'founders.*.position' => 'nullable|string|max:255', 'founders.*.phone' => 'nullable|string', 'founders.*.email' => 'nullable|email', 'employeeTasks' => 'nullable|array|max:25', 'employeeTasks.*.id' => 'nullable|string', 'employeeTasks.*.userId' => 'required|string|exists:user,id', 'employeeTasks.*.taskType' => 'required|in:PIC,Saksi,NPWP,NIB,PBB,Lainnya', 'employeeTasks.*.customTask' => 'nullable|string|max:255|required_if:employeeTasks.*.taskType,Lainnya', 'employeeTasks.*.fee' => 'nullable|numeric|min:0', 'attachments' => 'nullable|array', 'attachments.*' => 'nullable|file|max:10240', 'attachmentDescriptions' => 'nullable|array', 'attachmentDescriptions.*' => 'nullable|string|max:500', 'attachmentDeposits' => 'nullable|array', 'attachmentDeposits.*' => 'boolean', 'savedAttachmentDeposits' => 'nullable|array', 'savedAttachmentDeposits.*' => 'boolean']);
+        return $r->validate(['jobType' => [$creating ? 'required' : 'nullable', 'in:'.implode(',', array_keys(self::TABLES))], 'sourceInvoiceId' => 'nullable|string|exists:invoice,id', 'invoiceAction' => 'nullable|in:none,existing,new', 'clientId' => 'required|string', 'staffId' => 'nullable|string', 'title' => 'required|string|max:255', 'type' => 'required|string|max:255', 'pengurusanUntuk' => 'nullable|string|max:255', 'companyName' => 'nullable|string|max:255', 'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED', 'priority' => 'required|in:LOW,MEDIUM,HIGH,URGENT', 'deadline' => 'nullable|date', 'tanggalMasuk' => 'nullable|date', 'saksi' => 'nullable|string|max:255', 'notes' => 'nullable|string', 'founders' => 'nullable|array', 'founders.*.name' => 'nullable|string', 'founders.*.position' => 'nullable|string|max:255', 'founders.*.phone' => 'nullable|string', 'founders.*.email' => 'nullable|email', 'employeeTasks' => 'nullable|array|max:25', 'employeeTasks.*.id' => 'nullable|string', 'employeeTasks.*.userId' => 'required|string|exists:user,id', 'employeeTasks.*.taskType' => 'required|in:PIC,Saksi,NPWP,NIB,PBB,Lainnya', 'employeeTasks.*.customTask' => 'nullable|string|max:255|required_if:employeeTasks.*.taskType,Lainnya', 'employeeTasks.*.fee' => 'nullable|numeric|min:0', 'attachments' => 'nullable|array', 'attachments.*' => 'nullable|file|max:10240', 'attachmentDescriptions' => 'nullable|array', 'attachmentDescriptions.*' => 'nullable|string|max:500', 'attachmentDeposits' => 'nullable|array', 'attachmentDeposits.*' => 'boolean', 'savedAttachmentDeposits' => 'nullable|array', 'savedAttachmentDeposits.*' => 'boolean']);
     }
 
     private function taskPicStaffId(array $employeeTasks): ?string
@@ -668,6 +704,30 @@ class JobController extends Controller
         abort_unless($fallback, 422, 'Tidak ada akun pegawai aktif untuk menyimpan lampiran.');
 
         return $fallback;
+    }
+
+    private function availableInvoices()
+    {
+        return DB::table('invoice as i')
+            ->leftJoin('quotation as q', 'q.id', '=', 'i.quotationId')
+            ->whereNull('i.badanHukumId')->whereNull('i.nonBadanHukumId')->whereNull('i.ppatId')
+            ->select('i.id', 'i.invoiceNumber', 'i.amount', 'i.status', 'q.clientId', 'q.clientName')
+            ->orderByDesc('i.date')->get();
+    }
+
+    private function lockAvailableInvoice(string $invoiceId, string $clientId): object
+    {
+        $invoice = DB::table('invoice')->where('id', $invoiceId)->lockForUpdate()->first();
+        if (! $invoice || $invoice->badanHukumId || $invoice->nonBadanHukumId || $invoice->ppatId) {
+            throw ValidationException::withMessages(['sourceInvoiceId' => 'Invoice tidak tersedia atau sudah terhubung dengan berkas lain.']);
+        }
+        if ($invoice->quotationId) {
+            $invoiceClientId = DB::table('quotation')->where('id', $invoice->quotationId)->value('clientId');
+            if ($invoiceClientId && $invoiceClientId !== $clientId) {
+                throw ValidationException::withMessages(['sourceInvoiceId' => 'Client berkas harus sama dengan client pada invoice.']);
+            }
+        }
+        return $invoice;
     }
 
     private function sourceStaffId(string $invoiceId): string

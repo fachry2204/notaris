@@ -307,6 +307,48 @@ class ApplicationTest extends TestCase
         }
     }
 
+    public function test_jobs_can_attach_existing_invoice_and_start_new_invoice(): void
+    {
+        if (! Schema::hasTable('invoice') || ! ($clientId = DB::table('client')->value('id')) || ! ($staffId = DB::table('user')->value('id'))) {
+            $this->markTestSkipped('Skema dan data pengujian belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $session = ['auth_user' => ['id' => $staffId, 'role' => 'ADMINISTRATOR', 'source' => 'user']];
+        $invoiceId = 'inv-qa-'.uniqid();
+        DB::table('invoice')->insert(['id' => $invoiceId, 'invoiceNumber' => 'QA-'.uniqid(), 'amount' => 100000, 'status' => 'Lunas', 'date' => now(), 'createdAt' => now(), 'updatedAt' => now()]);
+        $job = ['jobType' => 'badan_hukum', 'clientId' => $clientId, 'title' => 'QA invoice '.uniqid(), 'type' => 'PT / PMA', 'status' => 'PENDING', 'priority' => 'MEDIUM', 'tanggalMasuk' => today()->toDateString(), 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceId];
+        $this->withSession($session)->post('/dashboard/jobs', $job)->assertRedirect(route('jobs.index'))->assertSessionHasNoErrors();
+        $created = DB::table('badan_hukum')->where('title', $job['title'])->first();
+        $this->assertNotNull($created);
+        $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
+        $this->assertSame('LUNAS', $created->invoiceStatus);
+        $this->withSession($session)->post('/dashboard/jobs', [...$job, 'title' => 'QA duplicate '.uniqid()])->assertSessionHasErrors('sourceInvoiceId');
+        $newJob = [...$job, 'title' => 'QA new invoice '.uniqid(), 'invoiceAction' => 'new', 'sourceInvoiceId' => null];
+        $response = $this->withSession($session)->post('/dashboard/jobs', $newJob)->assertSessionHasNoErrors();
+        $createdNew = DB::table('badan_hukum')->where('title', $newJob['title'])->first();
+        $this->assertNotNull($createdNew);
+        $response->assertRedirect(route('invoices.create', ['job' => $createdNew->id, 'type' => 'badan_hukum']));
+        $anotherJob = [...$newJob, 'title' => 'QA created invoice '.uniqid()];
+        $this->withSession($session)->post('/dashboard/jobs', $anotherJob)->assertSessionHasNoErrors();
+        $invoiceJob = DB::table('badan_hukum')->where('title', $anotherJob['title'])->first();
+        $invoiceResponse = $this->withSession($session)->post('/dashboard/invoice', [
+            'jobId' => $invoiceJob->id, 'jobType' => 'badan_hukum', 'date' => today()->toDateString(),
+            'items' => [['description' => 'Jasa', 'quantity' => 1, 'unit' => 'item', 'unitPrice' => 100000]],
+        ])->assertSessionHasNoErrors();
+        $newInvoice = DB::table('invoice')->where('badanHukumId', $invoiceJob->id)->first();
+        $this->assertNotNull($newInvoice);
+        $invoiceResponse->assertRedirect(route('invoices.show', $newInvoice->id));
+        $invoiceTwo = 'inv-qa-'.uniqid();
+        DB::table('invoice')->insert(['id' => $invoiceTwo, 'invoiceNumber' => 'QA-'.uniqid(), 'amount' => 200000, 'status' => 'DP Bayar', 'date' => now(), 'createdAt' => now(), 'updatedAt' => now()]);
+        $update = [...$newJob, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceTwo];
+        $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$createdNew->id, $update)->assertSessionHasNoErrors()->assertRedirect(route('jobs.show', ['badan_hukum', $createdNew->id]));
+        $this->assertDatabaseHas('invoice', ['id' => $invoiceTwo, 'badanHukumId' => $createdNew->id]);
+        $this->assertDatabaseHas('badan_hukum', ['id' => $createdNew->id, 'sourceInvoiceId' => $invoiceTwo, 'invoiceStatus' => 'DP']);
+        $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$createdNew->id, [...$update, 'invoiceAction' => 'new'])->assertSessionHasErrors('sourceInvoiceId');
+        $this->withSession($session)->post('/dashboard/invoice', ['jobId' => $createdNew->id, 'jobType' => 'badan_hukum', 'date' => today()->toDateString(), 'items' => [['description' => 'Test', 'quantity' => 1, 'unit' => 'item', 'unitPrice' => 100]]])->assertSessionHasErrors('jobId');
+    }
+
     public function test_job_can_store_multiple_attachments_with_descriptions(): void
     {
         config(['app.url' => 'http://localhost']);
