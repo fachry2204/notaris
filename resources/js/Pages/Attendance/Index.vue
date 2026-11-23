@@ -30,9 +30,17 @@ const detailLocations = computed(() => {
         return [
             { label: "Check-in", data: notes?.checkIn },
             { label: "Check-out", data: notes?.checkOut },
-        ].filter((item) => item.data?.locationLabel);
+        ].filter((item) => item.data && typeof item.data === "object");
     } catch { return []; }
 });
+const mapUrl = (data: any) => {
+    if (data.latitude == null || data.longitude == null || data.latitude === "" || data.longitude === "") return null;
+    const lat = Number(data.latitude), lon = Number(data.longitude);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+    const bounds = [lon - 0.003, lat - 0.002, lon + 0.003, lat + 0.002].join(",");
+    return `https://www.openstreetmap.org/export/embed.html?${new URLSearchParams({ bbox: bounds, layer: "mapnik", marker: `${lat},${lon}` })}`;
+};
+const previewPhoto = ref<string | null>(null);
 const editing = ref<any>(null);
 const editForm = useForm({ checkIn: "", checkOut: "" });
 
@@ -361,7 +369,7 @@ const cardStatusStyle = (x: any) => {
                 @click.self="detail = null"
             >
                 <section
-                    class="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl"
+                    role="dialog" aria-modal="true" aria-label="Detail absensi" class="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white shadow-2xl"
                 >
                     <header
                         class="p-6 text-white"
@@ -401,14 +409,14 @@ const cardStatusStyle = (x: any) => {
                                 </p>
                             </div>
                         </div>
-                        <div v-if="detailLocations.length" class="space-y-3">
-                            <div v-for="item in detailLocations" :key="item.label" class="rounded-xl border border-slate-200 p-3 text-sm">
+                        <div v-if="detailLocations.length" class="space-y-4">
+                            <div v-for="item in detailLocations" :key="item.label" class="space-y-3 rounded-xl border border-slate-200 p-3 text-sm">
                                 <p class="font-bold">{{ item.label }} · {{ item.data.workLocationType || 'Lokasi kerja' }}</p>
-                                <p class="mt-1 text-slate-600">{{ item.data.locationLabel }}</p>
-                                <p v-if="item.data.locationAccuracy != null" class="mt-1 text-xs text-slate-500">Perkiraan akurasi GPS: ±{{ Math.ceil(Number(item.data.locationAccuracy)) }} meter</p>
-                                <p class="mt-1 text-xs text-slate-500">{{ item.data.locationSource === 'manual' ? 'Alamat diisi manual; koordinat dari GPS' : item.data.locationSource === 'gps' ? 'Alamat dari pencarian GPS' : 'Sumber alamat tidak tercatat' }}</p>
+                                <div><p class="mb-2 text-xs font-bold uppercase text-slate-500">Foto absensi</p><button v-if="item.data.photoPath" type="button" class="overflow-hidden rounded-xl border border-slate-200" :aria-label="`Perbesar foto ${item.label}`" @click="previewPhoto = item.data.photoPath"><img :src="item.data.photoPath" :alt="`Foto ${item.label}`" class="h-36 w-36 object-cover" /></button><p v-else class="text-xs text-slate-500">Foto tidak tersedia pada catatan ini.</p></div>
+                                <div><p class="mb-2 text-xs font-bold uppercase text-slate-500">Lokasi absensi</p><iframe v-if="mapUrl(item.data)" :src="mapUrl(item.data)!" :title="`Peta lokasi ${item.label}`" loading="lazy" referrerpolicy="no-referrer" class="h-44 w-full rounded-xl border border-slate-200"></iframe><p v-else class="text-xs text-slate-500">Koordinat tidak tersedia pada catatan ini.</p><p v-if="item.data.locationLabel" class="mt-2 text-xs text-slate-600">{{ item.data.locationLabel }}</p><p v-if="item.data.locationAccuracy != null && Number.isFinite(Number(item.data.locationAccuracy))" class="mt-1 text-xs text-slate-500">Perkiraan akurasi GPS: ±{{ Math.ceil(Number(item.data.locationAccuracy)) }} meter</p></div>
                             </div>
                         </div>
+                        <p v-else class="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Foto dan lokasi tidak tersedia pada catatan ini.</p>
                         <button
                             @click="detail = null"
                             class="h-11 w-full rounded-xl bg-slate-100 font-bold text-slate-700 hover:bg-slate-200 transition-colors"
@@ -418,6 +426,8 @@ const cardStatusStyle = (x: any) => {
                     </div>
                 </section>
             </div>
+
+            <div v-if="previewPhoto" role="dialog" aria-modal="true" aria-label="Foto absensi" class="fixed inset-0 z-[110] flex items-center justify-center bg-black/80 p-4" @click.self="previewPhoto = null"><div class="max-h-[90dvh] max-w-3xl overflow-auto rounded-2xl bg-white p-3"><button type="button" class="mb-2 block ml-auto rounded-lg px-3 py-2 text-sm font-bold" @click="previewPhoto = null">Tutup</button><img :src="previewPhoto" alt="Foto absensi" class="max-h-[75dvh] max-w-full object-contain" /></div></div>
 
             <div v-if="pendingDelete && isManager" role="dialog" aria-modal="true" aria-labelledby="delete-attendance-title" class="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4" @click.self="!deleting && (pendingDelete = null)">
                 <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">

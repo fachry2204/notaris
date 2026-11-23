@@ -318,8 +318,10 @@ onMounted(async () => {
     }, 1000);
     if (props.hasStaff && !props.today?.checkOut && !checkInComplete.value) {
         await refreshPermissions();
-        if (gpsPermission.value === 'granted' && cameraPermission.value === 'granted') locate();
-        else permissionDialog.value = true;
+        // iOS and some browsers cannot report camera permission. An unknown
+        // state is not a denial: let the browser request access when needed.
+        if (gpsPermission.value === 'denied' || cameraPermission.value === 'denied') permissionDialog.value = true;
+        else locate();
     }
 });
 </script>

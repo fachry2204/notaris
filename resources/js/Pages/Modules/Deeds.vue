@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { reactive } from "vue";
 import { Head, Link, router } from "@inertiajs/vue3";
-import { FileText, Search } from "@lucide/vue";
+import { FileText, ChevronRight } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 const p = defineProps<{
@@ -15,7 +15,6 @@ const f = reactive({
     from: p.filters.from || "",
     to: p.filters.to || "",
     staff: p.filters.staff || "",
-    witness: p.filters.witness || "",
 });
 
 const load = () =>
@@ -24,12 +23,13 @@ const load = () =>
         replace: true,
     });
 
+const resetFilters = () => { f.from = ""; f.to = ""; f.staff = ""; load(); };
 const date = (value: any) =>
-    new Date(value).toLocaleDateString("id-ID", {
+    value ? new Date(value).toLocaleDateString("id-ID", {
         day: "numeric",
         month: "long",
         year: "numeric",
-    });
+    }) : "—";
 
 const number = (value: number) =>
     new Intl.NumberFormat("id-ID").format(Number(value || 0));
@@ -42,13 +42,13 @@ const number = (value: number) =>
             <div>
                 <h1 class="text-2xl font-black">Daftar Akta</h1>
                 <p class="text-sm text-slate-500">
-                    Daftar seluruh akta berdasarkan client, PIC, dan saksi.
+                    Daftar akta yang telah ditandatangani berdasarkan client dan PIC.
                 </p>
             </div>
 
-            <section
-                class="relative overflow-hidden rounded-3xl border border-amber-200 bg-white p-6 shadow-sm"
-                aria-label="Total jumlah akta"
+            <button type="button" @click="resetFilters"
+                class="relative w-full overflow-hidden rounded-3xl border border-amber-200 bg-white p-6 text-left shadow-sm"
+                aria-label="Tampilkan seluruh akta dan hapus filter"
             >
                 <div
                     class="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-amber-100/60"
@@ -73,47 +73,45 @@ const number = (value: number) =>
                         <FileText class="h-7 w-7" />
                     </div>
                 </div>
-            </section>
+            </button>
 
             <form
-                class="grid gap-3 rounded-3xl border bg-white p-5 md:grid-cols-5"
+                class="grid gap-3 rounded-3xl border bg-white p-5 md:grid-cols-4"
                 @submit.prevent="load"
             >
                 <input
                     v-model="f.from"
                     type="date"
-                    class="rounded-xl border-slate-200"
+                    class="min-w-0 w-full rounded-xl border-slate-200"
                 />
                 <input
                     v-model="f.to"
                     type="date"
-                    class="rounded-xl border-slate-200"
+                    class="min-w-0 w-full rounded-xl border-slate-200"
                 />
                 <select
                     v-model="f.staff"
-                    class="rounded-xl border-slate-200"
+                    class="min-w-0 w-full rounded-xl border-slate-200"
                 >
                     <option value="">Semua Pegawai</option>
                     <option v-for="s in staff" :key="s.id" :value="s.id">
                         {{ s.fullName }}
                     </option>
                 </select>
-                <div class="relative">
-                    <Search
-                        class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                    />
-                    <input
-                        v-model="f.witness"
-                        class="w-full rounded-xl border-slate-200 pl-9"
-                        placeholder="Nama saksi"
-                    />
-                </div>
-                <button class="rounded-xl bg-[var(--primary)] font-bold text-white">
+                <button class="min-h-11 rounded-xl bg-[var(--primary)] font-bold text-white">
                     Terapkan
                 </button>
             </form>
 
-            <section class="overflow-hidden rounded-3xl border bg-white">
+            <section class="space-y-3 md:hidden" aria-label="Daftar akta">
+                <p v-if="!jobs.data.length" class="rounded-2xl border bg-white p-8 text-center text-sm text-slate-500">Data akta tidak ditemukan.</p>
+                <Link v-for="j in jobs.data" :key="`${j.jobType}-${j.id}`" :href="`/dashboard/jobs/${j.jobType}/${j.id}`" class="block rounded-2xl border border-[#e9dfcd] bg-white p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-3"><div class="min-w-0"><p class="text-xs font-bold text-teal-700">{{ j.trackingCode || 'Nomor berkas tidak tersedia' }}</p><h2 class="mt-2 break-words text-base font-black text-slate-900">{{ j.title }}</h2><p class="mt-1 text-xs text-slate-500">{{ j.category }}</p></div><ChevronRight class="h-5 w-5 shrink-0 text-slate-400" /></div>
+                    <dl class="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3 text-xs"><div><dt class="text-slate-500">Nomor akta</dt><dd class="mt-1 break-words font-bold">{{ j.deed_number || '—' }}</dd></div><div><dt class="text-slate-500">Tanggal akta</dt><dd class="mt-1 font-bold">{{ date(j.signed_date) }}</dd></div><div><dt class="text-slate-500">Client</dt><dd class="mt-1 break-words font-bold">{{ j.clientName || '—' }}</dd></div><div><dt class="text-slate-500">PIC</dt><dd class="mt-1 break-words font-bold">{{ j.staffName || '—' }}</dd></div></dl>
+                </Link>
+            </section>
+
+            <section class="hidden overflow-hidden rounded-3xl border bg-white md:block">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50">
@@ -170,6 +168,7 @@ const number = (value: number) =>
                     </table>
                 </div>
             </section>
+            <nav v-if="jobs.links?.length > 3" aria-label="Halaman data akta" class="flex flex-wrap justify-center gap-2"><template v-for="(link, index) in jobs.links" :key="index"><Link v-if="link.url" :href="link.url" :class="link.active ? 'bg-teal-700 text-white' : 'bg-white text-slate-700'" class="rounded-lg border px-3 py-2 text-sm" v-html="link.label" /><span v-else class="rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-400" v-html="link.label" /></template></nav>
         </main>
     </AppLayout>
 </template>

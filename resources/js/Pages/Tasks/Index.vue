@@ -369,8 +369,20 @@ const getRowNumber = (index: number | string) => {
                 <p class="mt-1 text-xs text-slate-500">Tidak ada penugasan karyawan yang cocok dengan kriteria filter.</p>
             </div>
 
-            <!-- Tasks Table -->
-            <div v-else class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <!-- Kartu tugas untuk layar ponsel -->
+            <div v-if="tasks.data.length" class="space-y-3 md:hidden">
+                <article v-for="task in tasks.data" :key="task.id" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-3"><div class="min-w-0"><p class="break-all text-xs font-black text-teal-700">{{ task.trackingCode || 'Nomor berkas tidak tersedia' }}</p><h2 class="mt-2 break-words text-sm font-black text-slate-900">{{ task.jobTitle || 'Berkas Tanpa Judul' }}</h2><p class="mt-1 text-xs text-slate-500">{{ task.jobCategory || '—' }}</p></div><span class="shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold" :class="taskTypeColor(task.taskType)">{{ task.taskType }}</span></div>
+                    <dl class="mt-3 grid grid-cols-2 gap-3 text-xs"><div><dt class="text-slate-500">Pegawai</dt><dd class="mt-1 break-words font-bold">{{ task.employeeName || 'Pegawai' }}</dd></div><div><dt class="text-slate-500">Client</dt><dd class="mt-1 break-words font-bold">{{ task.clientName || '—' }}</dd></div><div><dt class="text-slate-500">Tanggal tugas</dt><dd class="mt-1 font-semibold">{{ formatDate(task.createdAt) }}</dd></div><div><dt class="text-slate-500">Fee pegawai</dt><dd class="mt-1 font-black">{{ formatCurrency(task.fee) }}</dd></div></dl>
+                    <p v-if="task.customTask" class="mt-3 text-xs text-slate-600">{{ task.customTask }}</p>
+                    <p class="mt-3 inline-flex rounded-full px-2 py-1 text-[10px] font-bold" :class="task.deedSignedDate ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">{{ task.deedSignedDate ? 'Akta Sudah Ditandatangani' : 'Akta Belum Ditandatangani' }}</p>
+                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><button v-if="canManagePayment" type="button" @click="openPaymentModal(task)" class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</button><span v-else class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</span><Link v-if="task.jobId && task.jobType" :href="`/dashboard/jobs/${task.jobType}/${task.jobId}`" class="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700"><Eye class="h-4 w-4" /> Detail berkas</Link></div>
+                </article>
+                <nav v-if="tasks.links && tasks.links.length > 3" aria-label="Halaman data tugas" class="flex flex-wrap justify-center gap-1"><Component :is="link.url ? Link : 'span'" v-for="(link, i) in tasks.links" :key="i" :href="link.url || undefined" v-html="link.label" class="rounded-lg border px-3 py-2 text-xs font-bold" :class="link.active ? 'bg-[var(--primary)] text-white' : !link.url ? 'bg-slate-50 text-slate-400' : 'bg-white text-slate-700'" /></nav>
+            </div>
+
+            <!-- Tabel tugas untuk desktop -->
+            <div v-if="tasks.data.length" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-50/80 border-b border-slate-200">

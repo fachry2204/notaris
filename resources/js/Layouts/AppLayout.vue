@@ -20,12 +20,11 @@ import {
     Search,
     Bell,
     UserCog,
-    FolderOpen,
-    Fingerprint,
 } from "@lucide/vue";
 defineProps<{ hideMobileHeader?: boolean }>();
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user);
+const profilePhoto = computed(() => (page.props.auth as any)?.photoUrl || "");
 const branding = computed(
     () =>
         (page.props.branding as any) || {
@@ -232,11 +231,11 @@ onMounted(() => {
 watch([() => page.url, appName, faviconUrl], queueBrowserBrandingSync);
 watch(primaryColor, (newColor) => applyPrimaryColor(newColor));
 const mobile = computed(() => [
-    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: FolderOpen },
-    { label: "Data Akta", href: "/dashboard/akta", icon: FileText },
-    { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: Fingerprint },
-    { label: "Data Akta", href: "/dashboard/akta", icon: ClipboardList },
-    { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: Clock },
+    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: "/icons/mobile/folder.png" },
+    { label: "Data Akta", href: "/dashboard/akta", icon: "/icons/mobile/contract.png" },
+    { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: "/icons/mobile/fingerprint.png" },
+    { label: "Data Tugas", href: "/dashboard/tasks", icon: "/icons/mobile/contract.png" },
+    { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: "/icons/mobile/attendance.png" },
 ]);
 
 </script>
@@ -317,12 +316,13 @@ const mobile = computed(() => [
             <!-- Mobile Top Header Bar -->
             <header v-if="!hideMobileHeader" class="flex h-16 items-center justify-between border-b border-[var(--sidebar-border)] bg-[var(--sidebar)] px-4 shadow-sm md:hidden">
                 <Link href="/dashboard" class="flex items-center gap-2">
-                    <img v-if="logoUrl" :src="logoUrl" :alt="appName" class="h-8 w-8 object-contain" />
+                    <img v-if="logoUrl" :src="logoUrl" :alt="appName" class="h-8 w-8 rounded-full bg-white object-contain" />
                     <span class="font-display truncate text-base font-black text-[#f2e8d5]">{{ appName }}</span>
                 </Link>
                 <div class="flex items-center gap-2">
-                    <div class="grid h-9 w-9 place-items-center rounded-full bg-[color-mix(in_srgb,var(--primary)_15%,white)] text-xs font-black text-[var(--primary)] border border-[var(--primary)]/20">
-                        {{ user?.fullName?.slice(0, 2).toUpperCase() }}
+                    <div class="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--primary)_15%,white)] text-xs font-black text-[var(--primary)] border border-[var(--primary)]/20">
+                        <img v-if="profilePhoto" :src="profilePhoto" alt="Foto profil" class="h-full w-full object-cover" />
+                        <span v-else>{{ user?.fullName?.slice(0, 2).toUpperCase() }}</span>
                     </div>
                     <Link
                         href="/logout"
@@ -375,11 +375,12 @@ const mobile = computed(() => [
                 class="flex-1 overflow-y-auto bg-[var(--background)] p-4 md:p-8"
             >
                 <slot />
+                <details class="mb-6 mt-5 text-center text-[10px] text-slate-500 md:hidden"><summary class="cursor-pointer">Kredit ikon</summary><p class="mt-2 leading-relaxed">Ikon oleh <a href="https://www.flaticon.com/free-icon/folder_4723004" class="underline">Berkahicon</a>, <a href="https://www.flaticon.com/free-icon/contract_7607632" class="underline">manshagraphics</a>, <a href="https://www.flaticon.com/free-icon/fingerprint_6772347" class="underline">nawicon</a>, dan <a href="https://www.flaticon.com/free-icon/attendance_9928186" class="underline">VectorPortal</a> dari <a href="https://www.flaticon.com/" class="underline">Flaticon</a>.</p></details>
             </main>
         </div>
         <nav aria-label="Navigasi mobile" class="fixed inset-x-0 bottom-0 z-50 flex items-end justify-around rounded-t-3xl border-t border-[#e7e2da] bg-[#fffefa] px-1 pt-2 shadow-[0_-4px_20px_rgba(0,0,0,.08)] md:hidden" style="padding-bottom:max(.5rem,env(safe-area-inset-bottom))">
             <Link v-for="(item, index) in mobile" :key="index" :href="item.href" class="flex min-h-14 w-1/5 flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold leading-tight text-slate-700" :class="active(item.href) ? 'text-emerald-700' : ''">
-                <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><component :is="item.icon" :class="index === 2 ? 'h-7 w-7' : 'h-6 w-6'" /></span><span>{{ item.label }}</span>
+                <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><img :src="item.icon" alt="" aria-hidden="true" :class="index === 2 ? 'h-8 w-8 object-contain' : 'h-7 w-7 object-contain'" /></span><span>{{ item.label }}</span>
             </Link>
         </nav>
     </div>

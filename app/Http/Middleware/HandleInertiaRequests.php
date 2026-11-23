@@ -71,6 +71,11 @@ class HandleInertiaRequests extends Middleware
             ),
             'auth' => [
                 'user' => $request->session()->get('auth_user'),
+                'photoUrl' => function () use ($request) {
+                    $user = $request->session()->get('auth_user');
+                    if (! $user || ($user['source'] ?? null) !== 'user' || empty($user['id'])) return null;
+                    return DB::table('staff')->where('userId', $user['id'])->value('photoPath');
+                },
             ],
             'flash' => ['success' => fn () => $request->session()->get('success')],
         ];
