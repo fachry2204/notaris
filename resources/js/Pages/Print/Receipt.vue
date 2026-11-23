@@ -109,8 +109,8 @@ const parseAttachment = (att: any) => {
 
 <template>
     <Head title="Tanda Terima Berkas" />
-    <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:bg-white print:p-0">
-        <main class="mx-auto max-w-4xl bg-white p-8 sm:p-12 shadow-sm rounded-xl print:shadow-none print:rounded-none">
+    <div class="min-h-screen bg-slate-100 p-4 sm:p-8 print:min-h-0 print:bg-white print:p-0">
+        <main class="receipt-print mx-auto max-w-4xl bg-white p-8 sm:p-12 shadow-sm rounded-xl print:p-0 print:shadow-none print:rounded-none">
             <!-- KOP SURAT NOTARIS -->
             <div class="border-b-4 border-double border-slate-900 pb-4 text-center space-y-0.5 font-serif text-slate-900 leading-tight">
                 <h1 class="text-xl sm:text-2xl font-bold uppercase tracking-wide">
@@ -135,7 +135,7 @@ const parseAttachment = (att: any) => {
             </div>
 
             <!-- JUDUL DOKUMEN -->
-            <div class="mt-6 text-center">
+            <div class="mt-6 text-center print:mt-3">
                 <h2 class="text-lg font-black uppercase tracking-wider text-slate-900 font-serif underline decoration-2 underline-offset-4">
                     TANDA TERIMA BERKAS DARI CLIENT
                 </h2>
@@ -145,7 +145,7 @@ const parseAttachment = (att: any) => {
             </div>
 
             <!-- STATEMENT PENYERAHAN -->
-            <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs leading-relaxed space-y-2 text-slate-800">
+            <div class="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs leading-relaxed space-y-2 text-slate-800 print:mt-3 print:p-2">
                 <p class="font-medium">
                     Telah diterima dokumen dan berkas persyaratan dari:
                 </p>
@@ -168,11 +168,11 @@ const parseAttachment = (att: any) => {
             </div>
 
             <!-- TABEL DOKUMEN FISIK YANG DITITIPKAN -->
-            <div class="mt-6 space-y-2">
+            <div class="mt-6 space-y-2 print:mt-3">
                 <h3 class="text-xs font-black uppercase tracking-wider text-slate-700 border-b pb-1">
                     Daftar Berkas Fisik yang Dititipkan di Kantor
                 </h3>
-                <div class="overflow-hidden rounded-xl border border-slate-200">
+                <div class="overflow-hidden rounded-xl border border-slate-200 print:overflow-visible">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-100/80 border-b border-slate-200">
                             <tr class="font-bold uppercase text-[10px] text-slate-600">
@@ -208,19 +208,19 @@ const parseAttachment = (att: any) => {
             </div>
 
             <!-- TANDA TANGAN -->
-            <div class="mt-12 grid grid-cols-2 gap-12 text-center text-xs font-medium">
+            <div class="receipt-signatures mt-12 grid grid-cols-2 gap-12 text-center text-xs font-medium print:mt-5">
                 <div>
                     <p class="font-bold text-slate-700">Penerima,</p>
                     <p class="text-[10px] text-slate-400">Petugas Kantor Notaris</p>
-                    <div class="h-20"></div>
+                    <div class="h-20 print:h-12"></div>
                     <p class="border-t border-slate-300 pt-1 font-bold text-slate-900">
-                        {{ job.picName || 'Petugas Kantor' }}
+                        {{ job.createdByName || 'Nama penginput tidak tercatat' }}
                     </p>
                 </div>
                 <div>
                     <p class="font-bold text-slate-700">Penyerah,</p>
                     <p class="text-[10px] text-slate-400">Client / Pemohon</p>
-                    <div class="h-20"></div>
+                    <div class="h-20 print:h-12"></div>
                     <p class="border-t border-slate-300 pt-1 font-bold text-slate-900">
                         {{ job.clientName || 'Client' }}
                     </p>
@@ -228,7 +228,7 @@ const parseAttachment = (att: any) => {
             </div>
 
             <!-- FOOTER SYSTEM INFORMASI NOTARIS -->
-            <div class="mt-10 pt-3 border-t border-slate-300 flex flex-wrap items-center justify-between text-[10px] text-slate-500 font-serif gap-2">
+            <div class="mt-10 pt-3 border-t border-slate-300 flex flex-wrap items-center justify-between text-[10px] text-slate-500 font-serif gap-2 print:mt-4 print:pt-1">
                 <span>Tanggal Cetak : {{ printedAtDate }}</span>
             </div>
             <PrintFooter :verification-url="verificationUrl" />
@@ -257,6 +257,17 @@ const parseAttachment = (att: any) => {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
         background-color: white !important;
+    }
+    .receipt-print tr, .receipt-signatures, .receipt-print footer {
+        break-inside: avoid;
+    }
+    .receipt-print footer {
+        margin-top: 0.5rem;
+        padding-top: 0.25rem;
+    }
+    .receipt-print footer img {
+        width: 70px;
+        height: 70px;
     }
 }
 </style>

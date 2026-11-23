@@ -104,7 +104,7 @@ class InvoiceController extends Controller
                 return back()->withErrors(['quotationId' => 'Quotation ini sudah memiliki Invoice.']);
             }
         }
-        $id = DB::transaction(function () use ($d, $amount) {
+        $id = DB::transaction(function () use ($d, $amount, $r) {
             if (empty($d['quotationId'])) {
                 $job = DB::table($d['jobType'])->where('id', $d['jobId'])->lockForUpdate()->first();
                 if (! $job) {
@@ -124,12 +124,16 @@ class InvoiceController extends Controller
             }
             DB::table('invoice')->insert(['id' => $id, 'invoiceNumber' => $number, 'amount' => $amount, 'status' => ($d['dpAmount'] ?? 0) > 0 ? 'DP Bayar' : 'Belum Bayar', 'description' => $d['description'] ?? null, 'date' => $d['date'], 'dueDate' => $d['dueDate'] ?? null, ...$source, 'createdAt' => now(), 'updatedAt' => now()]);
             $this->storeItems($id, $d['items']);
+            $history = app(\App\Services\DocumentEditHistory::class);
+            $history->activity($r, 'invoice', $id, 'Invoice dibuat.', [['field' => 'invoiceNumber', 'before' => null, 'after' => $number], ['field' => 'amount', 'before' => null, 'after' => $amount]]);
             if (($d['dpAmount'] ?? 0) > 0) {
                 $paymentSource = empty($d['quotationId']) ? [$this->fk($d['jobType']) => $d['jobId']] : [];
                 DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['dpAmount'], 'paymentMethod' => $d['paymentMethod'], 'description' => 'Pembayaran DP', 'date' => $d['date'], 'createdAt' => now()]);
+                $history->activity($r, 'invoice', $id, 'Pembayaran DP dicatat.', [['field' => 'paymentAmount', 'before' => null, 'after' => $d['dpAmount']], ['field' => 'paymentMethod', 'before' => null, 'after' => $d['paymentMethod']], ['field' => 'paymentDate', 'before' => null, 'after' => $d['date']]]);
             }
             if (! empty($d['quotationId'])) {
                 DB::table('quotation')->where('id', $d['quotationId'])->update(['status' => 'Invoice Terbuat', 'updatedAt' => now()]);
+                $history->activity($r, 'quotation', $d['quotationId'], 'Invoice '.$number.' dibuat dari quotation.');
             } else {
                 DB::table($d['jobType'])->where('id', $d['jobId'])->update(['invoiceStatus' => ($d['dpAmount'] ?? 0) > 0 ? 'DP' : 'PENDING']);
             }
@@ -151,7 +155,7 @@ class InvoiceController extends Controller
             ? DB::table('client')->where('id', $job->clientId)->first()
             : null;
 
-        $payments = DB::table('financerecord')->where('invoiceId', $id)->orderByDesc('date')->get();
+        $payments = DB::table('financerecord')->where('invoiceId', $id)->orderByDesc('date')->orderByDesc('createdAt')->orderByDesc('id')->get();
         $proofs = DB::table('payment_proofs')->whereIn('payment_id', $payments->pluck('id'))->get()->groupBy('payment_id');
         $payments->each(function ($payment) use ($proofs, $id) {
             $payment->proofs = ($proofs[$payment->id] ?? collect())->map(fn ($proof) => ['id' => $proof->id, 'name' => $proof->original_name, 'url' => route('invoices.payment-proof', [$id, $proof->id])])->values();
@@ -226,7 +230,7 @@ class InvoiceController extends Controller
         [$type,$jobId] = $this->invoiceJob($inv);
         $paths = [];
         try {
-        DB::transaction(function () use ($d, $id, $inv, $alreadyPaid, $type, $jobId, &$paths) {
+        DB::transaction(function () use ($d, $id, $inv, $alreadyPaid, $type, $jobId, &$paths, $r) {
             $paymentSource = $type === 'quotation' ? [] : [$this->fk($type) => $jobId];
             $paymentId = 'FIN-'.Str::random(10);
             DB::table('financerecord')->insert(['id' => $paymentId, 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['amount'], 'paymentMethod' => $d['paymentMethod'], 'description' => $d['description'] ?? 'Pembayaran invoice', 'date' => $d['date'], 'createdAt' => now()]);
@@ -237,6 +241,14 @@ class InvoiceController extends Controller
                 DB::table('payment_proofs')->insert(['payment_id' => $paymentId, 'path' => $path, 'original_name' => Str::limit($file->getClientOriginalName(), 240, ''), 'created_at' => now()]);
             }
             $isPaid = $alreadyPaid + (float) $d['amount'] >= (float) $inv->amount;
+            app(\App\Services\DocumentEditHistory::class)->activity($r, 'invoice', $id, 'Pembayaran dicatat.', [
+                ['field' => 'paymentAmount', 'before' => null, 'after' => $d['amount']],
+                ['field' => 'paymentMethod', 'before' => null, 'after' => $d['paymentMethod']],
+                ['field' => 'paymentDate', 'before' => null, 'after' => $d['date']],
+                ['field' => 'description', 'before' => null, 'after' => $d['description'] ?? null],
+                ['field' => 'proofCount', 'before' => null, 'after' => count($d['proofs'] ?? [])],
+                ['field' => 'status', 'before' => $inv->status, 'after' => $isPaid ? 'Lunas' : 'DP Bayar'],
+            ]);
             DB::table('invoice')->where('id', $id)->update(['status' => $isPaid ? 'Lunas' : 'DP Bayar', 'updatedAt' => now()]);
             $this->syncLinkedJobInvoiceStatus($inv, $isPaid ? 'Lunas' : 'DP Bayar');
         });
@@ -256,7 +268,7 @@ class InvoiceController extends Controller
         return Storage::disk('local')->response($file->path, null, ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
-    public function notify(string $id, NotificationGateway $notifications)
+    public function notify(Request $request, string $id, NotificationGateway $notifications)
     {
         [$invoice, $job] = $this->notificationData($id);
 
@@ -278,6 +290,7 @@ class InvoiceController extends Controller
             return back()->withErrors(['notification' => $exception->getMessage()]);
         }
 
+        app(\App\Services\DocumentEditHistory::class)->activity($request, 'invoice', $id, 'Invoice dikirim melalui '.implode(' dan ', $sent).'.');
         return back()->with('success', 'Invoice berhasil dikirim melalui '.implode(' dan ', $sent).'.');
     }
 

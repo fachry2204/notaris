@@ -17,6 +17,7 @@ use App\Http\Controllers\SettingsController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserLoginController;
+use App\Http\Controllers\UploadedReceiptController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -54,6 +55,8 @@ Route::middleware('legacy.auth')->group(function () {
     Route::redirect('/dashboard/jobs/new/ppat', '/dashboard/jobs/new?type=ppat');
     Route::post('/dashboard/jobs', [JobController::class, 'store'])->name('jobs.store');
     Route::post('/dashboard/jobs/{type}/{id}/invoice', [JobController::class, 'attachInvoice'])->name('jobs.invoice.attach');
+    Route::post('/dashboard/jobs/{type}/{id}/receipts', [UploadedReceiptController::class, 'store'])->name('jobs.receipts.store');
+    Route::get('/dashboard/jobs/{type}/{id}/receipts/{receipt}', [UploadedReceiptController::class, 'show'])->name('jobs.receipts.show');
     Route::post('/dashboard/jobs/{type}/{id}/notify', [JobController::class, 'notify'])->where('type', 'badan-hukum|non-badan-hukum|ppat|badan_hukum|non_badan_hukum')->name('jobs.notify');
     Route::get('/dashboard/jobs/{id}/invoice', [JobController::class, 'legacyInvoice'])->name('jobs.legacy-invoice');
     Route::get('/dashboard/jobs/{id}/edit/{category}', [JobController::class, 'legacyEdit'])->where('category', 'badan-hukum|non-badan-hukum|ppat|umum')->name('jobs.legacy-edit-category');

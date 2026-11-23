@@ -200,6 +200,7 @@ const deadlineLabel = (value?: string | null) => {
                                         <div class="min-w-0 pt-1">
                                             <p class="text-sm font-black text-slate-800">{{ status(progress.statusAfter).label }}</p>
                                             <p class="mt-1 text-[11px] text-slate-400">{{ formatDate(progress.createdAt, true) }}</p>
+                                            <p v-if="progress.description" class="mt-2 whitespace-pre-line break-words text-sm text-slate-600">{{ progress.description }}</p>
                                         </div>
                                     </div>
                                 </div>

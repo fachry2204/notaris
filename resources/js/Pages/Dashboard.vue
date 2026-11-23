@@ -39,7 +39,7 @@ const props = defineProps<{
     deadlines: DashboardJob[];
     overdueJobs: DashboardJob[];
     recentJobs: DashboardJob[];
-    alerts: { overdueJobs: number; incompleteFees: number };
+    alerts: { overdueJobs: number; incompleteFees?: number };
     clientCount: number;
     staffCount: number;
     months: Array<{ key: string; label: string; incoming: number; completed: number }>;
@@ -324,7 +324,7 @@ const time = (value: string | null) =>
                     </div>
                     <p class="mt-2 text-xs text-red-700">Berkas aktif melewati batas waktu</p>
                 </Link>
-                <Link href="/dashboard/jobs" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 transition hover:shadow-md">
+                <Link v-if="canViewFinance" href="/dashboard/jobs" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 transition hover:shadow-md">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Fee Belum Lengkap</p>

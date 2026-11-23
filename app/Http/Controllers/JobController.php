@@ -34,7 +34,8 @@ class JobController extends Controller
             $pageTitle = 'Proses Berkas';
             $pageDescription = 'Pantau pekerjaan yang sedang dalam proses.';
         }
-        $parts = collect(self::TABLES)->map(function ($category, $table) use ($search, $status) {
+        $canViewFee = $this->canManageFee($request);
+        $parts = collect(self::TABLES)->map(function ($category, $table) use ($search, $status, $canViewFee) {
             $foreignKey = $this->foreignKey($table);
 
             return DB::table($table.' as j')
@@ -49,7 +50,7 @@ class JobController extends Controller
                     'j.createdAt',
                     'c.name as clientName',
                 ])
-                ->selectSub(
+                ->when($canViewFee, fn ($builder) => $builder->selectSub(
                     fn ($query) => $query
                         ->from('job_employee_task as fee_tasks')
                         ->selectRaw('COUNT(*)')
@@ -63,7 +64,7 @@ class JobController extends Controller
                         ->whereColumn("filled_fee_tasks.{$foreignKey}", 'j.id')
                         ->where('filled_fee_tasks.fee', '>', 0),
                     'filledFeeTaskCount',
-                )
+                ))
                 ->selectRaw('? as category, ? as jobType', [$category, $table])
                 ->when($search, fn ($query) => $query->where(fn ($query) => $query
                     ->where('j.title', 'like', "%{$search}%")
@@ -83,7 +84,7 @@ class JobController extends Controller
             }
         }
 
-        return Inertia::render('Jobs/Index', ['jobs' => $query->orderByDesc('createdAt')->paginate(20)->withQueryString(), 'search' => $search, 'status' => $status, 'stats' => $stats, 'pageTitle' => $pageTitle, 'pageDescription' => $pageDescription, 'lockedStatus' => $request->routeIs('jobs.completed', 'jobs.processing')]);
+        return Inertia::render('Jobs/Index', ['canViewFee' => $canViewFee, 'jobs' => $query->orderByDesc('createdAt')->paginate(20)->withQueryString(), 'search' => $search, 'status' => $status, 'stats' => $stats, 'pageTitle' => $pageTitle, 'pageDescription' => $pageDescription, 'lockedStatus' => $request->routeIs('jobs.completed', 'jobs.processing')]);
     }
 
     public function create(Request $request)
@@ -169,7 +170,8 @@ class JobController extends Controller
                 default => 'PENDING',
             };
             unset($data['tanggalMasuk']);
-            DB::table($table)->insert([...$data, 'id' => $id, 'trackingCode' => $trackingCode, 'invoiceStatus' => $invoiceStatus, 'sourceInvoiceId' => $sourceInvoice?->id, 'createdAt' => $createdAt, 'updatedAt' => now()]);
+            $creatorName = $request->session()->get('auth_user.fullName') ?: $request->session()->get('auth_user.username');
+            DB::table($table)->insert([...$data, 'id' => $id, 'trackingCode' => $trackingCode, 'invoiceStatus' => $invoiceStatus, 'sourceInvoiceId' => $sourceInvoice?->id, 'createdByName' => $creatorName, 'createdAt' => $createdAt, 'updatedAt' => now()]);
             if ($sourceInvoice && ! $sourceInvoice->badanHukumId && ! $sourceInvoice->nonBadanHukumId && ! $sourceInvoice->ppatId) {
                 DB::table('invoice')->where('id', $sourceInvoice->id)->update([
                     $this->foreignKey($table) => $id,
@@ -238,7 +240,6 @@ class JobController extends Controller
         });
 
         $canManageFee = $this->canManageFee($request);
-        $currentUserId = (string) $request->session()->get('auth_user.id', '');
         $employeeTasksQuery = DB::table('job_employee_task as task')
             ->leftJoin('user as employee', 'employee.id', '=', 'task.userId')
             ->where("task.{$fk}", $id)
@@ -254,12 +255,6 @@ class JobController extends Controller
 
         if ($canManageFee) {
             $employeeTasksQuery->addSelect('task.fee');
-        } else {
-            // Jangan pernah kirim nominal fee pegawai lain ke browser.
-            $employeeTasksQuery->selectRaw(
-                'CASE WHEN task.userId = ? THEN task.fee ELSE NULL END as fee',
-                [$currentUserId],
-            );
         }
 
         $employeeTasks = $employeeTasksQuery
@@ -281,6 +276,9 @@ class JobController extends Controller
         }
 
         return Inertia::render('Jobs/Show', [
+            'uploadedReceipts' => DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->orderByDesc('created_at')->get()->map(function ($receipt) use ($type, $id) {
+                return ['id' => $receipt->id, 'fileName' => $receipt->file_name, 'documentDate' => $receipt->document_date, 'receiver' => $receipt->receiver, 'submitter' => $receipt->submitter, 'uploadedBy' => $receipt->uploaded_by, 'url' => route('jobs.receipts.show', [$type, $id, $receipt->id])];
+            }),
             'job' => $job,
             'jobType' => $type,
             'founders' => DB::table('founder')->where($fk, $id)->get(),
@@ -394,7 +392,7 @@ class JobController extends Controller
         abort_unless(isset(self::TABLES[$type]), 404);
         $data = $request->validate([
             'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED',
-            'description' => 'nullable|string|max:1000',
+            'description' => 'required|string|max:1000',
         ]);
         $job = DB::table($type)->where('id', $id)->first();
         abort_unless((bool) $job, 404);
@@ -495,8 +493,8 @@ class JobController extends Controller
             ->orderBy('createdAt')
             ->get()
             ->map(function (object $task) use ($request): object {
-                if (! $this->canManageFee($request) && $task->userId !== $request->session()->get('auth_user.id')) {
-                    $task->fee = null;
+                if (! $this->canManageFee($request)) {
+                    unset($task->fee);
                 }
 
                 return $task;
@@ -605,12 +603,15 @@ class JobController extends Controller
     {
         abort_unless(isset(self::TABLES[$type]), 404);
         $fk = $this->foreignKey($type);
+        $receiptPaths = DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->pluck('file_path')->all();
         DB::transaction(function () use ($type, $id, $fk, $request) {
+            DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->delete();
             foreach (['founder', 'attachment', 'jobprogress', 'job_employee_task'] as $table) {
                 DB::table($table)->where($fk, $id)->delete();
             }DB::table($type)->where('id', $id)->delete();
             $this->log($request, 'DELETE_JOB', "Menghapus berkas {$id}");
         });
+        \Illuminate\Support\Facades\Storage::disk('local')->delete($receiptPaths);
 
         return redirect()->route('jobs.index')->with('success', 'Berkas dihapus.');
     }

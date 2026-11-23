@@ -72,6 +72,10 @@ const paymentDate = (value: any) => {
 
     return match ? `${match[3]}-${match[2]}-${match[1]}` : "-";
 };
+const recordedAt = (value: any) => {
+    const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+    return match ? `${match[3]}-${match[2]}-${match[1]} ${match[4]}:${match[5]}:${match[6] || "00"}` : "Waktu tidak tersedia";
+};
 const paid = () =>
     props.payments
         .filter((x) => x.type === "INCOME")
@@ -298,9 +302,9 @@ const remove = () =>
                     </table>
                 </div>
             </section>
-            <div class="grid gap-6 lg:grid-cols-2">
+            <div class="flex flex-col gap-6">
                 <section
-                    class="rounded-3xl border border-slate-200 bg-white p-6"
+                    class="order-2 rounded-3xl border border-slate-200 bg-white p-6"
                 >
                     <h2 class="font-black">Riwayat Pembayaran</h2>
                     <p
@@ -320,6 +324,7 @@ const remove = () =>
                                 {{ paymentDate(item.date) }}
                                 · {{ item.paymentMethod || "Cara pembayaran tidak tercatat" }}
                             </p>
+                            <p class="mt-1 text-xs text-slate-500">Dicatat: {{ recordedAt(item.createdAt) }}</p>
                             <div v-if="item.proofs?.length" class="mt-3 flex flex-wrap gap-2">
                                 <button v-for="proof in item.proofs" :key="proof.id" type="button" @click="previewProof = proof" :aria-label="`Lihat ${proof.name}`" class="overflow-hidden rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600">
                                     <img :src="proof.url" :alt="proof.name" loading="lazy" class="h-20 w-20 object-cover" />
@@ -341,7 +346,7 @@ const remove = () =>
                             },
                         })
                     "
-                    class="rounded-3xl border border-slate-200 bg-white p-6"
+                    class="order-1 rounded-3xl border border-slate-200 bg-white p-6"
                 >
                     <h2 class="font-black">Catat Pembayaran</h2>
                     <p class="mt-1 text-sm text-slate-500">
@@ -396,7 +401,7 @@ const remove = () =>
                 </form>
                 <section
                     v-else
-                    class="grid place-items-center rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center"
+                    class="order-1 grid place-items-center rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center"
                 >
                     <div>
                         <p class="text-2xl font-black text-emerald-700">

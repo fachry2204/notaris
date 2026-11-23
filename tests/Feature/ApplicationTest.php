@@ -548,7 +548,7 @@ class ApplicationTest extends TestCase
         $response->assertRedirect(route('jobs.index'));
         $job = DB::table('badan_hukum')->where('title', 'QA Multi Lampiran')->orderByDesc('createdAt')->first();
         $this->assertNotNull($job);
-        $this->assertMatchesRegularExpression('/^[A-Z]+\/\d{8}\/\d{4}$/', $job->trackingCode);
+        $this->assertMatchesRegularExpression('/^\d{4}\/[A-Z]+\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/\d{4}$/', $job->trackingCode);
         $this->assertDatabaseHas('attachment', ['fileName' => $firstName, 'description' => 'KTP — KTP Direktur Utama', 'isPhysicalDeposited' => true]);
         $this->assertDatabaseHas('attachment', ['fileName' => $secondName, 'description' => 'NPWP — NPWP Perusahaan', 'isPhysicalDeposited' => false]);
     }
@@ -703,9 +703,9 @@ class ApplicationTest extends TestCase
 
         $this->assertMatchesRegularExpression('/^\d{4}\/PEN\/II\/2037$/', $generated[0]);
         $this->assertMatchesRegularExpression('/^\d{4}\/TAG\/II\/2037$/', $generated[1]);
-        $this->assertMatchesRegularExpression('/^BH\/03022037\/\d{4}$/', $generated[2]);
-        $this->assertMatchesRegularExpression('/^NBH\/03022037\/\d{4}$/', $generated[3]);
-        $this->assertMatchesRegularExpression('/^PAT\/03022037\/\d{4}$/', $generated[4]);
+        $this->assertMatchesRegularExpression('/^\d{4}\/BH\/II\/2037$/', $generated[2]);
+        $this->assertMatchesRegularExpression('/^\d{4}\/NBH\/II\/2037$/', $generated[3]);
+        $this->assertMatchesRegularExpression('/^\d{4}\/PAT\/II\/2037$/', $generated[4]);
     }
 
     public function test_quotation_publish_sends_email_and_whatsapp_once(): void

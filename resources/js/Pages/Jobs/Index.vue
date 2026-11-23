@@ -23,6 +23,7 @@ const p = defineProps<{
     pageTitle: string;
     pageDescription: string;
     lockedStatus: boolean;
+    canViewFee: boolean;
 }>();
 
 const q = ref(p.search);
@@ -234,6 +235,7 @@ const feeStatusInfo = (job: any) => {
                                 {{ j.status }}
                             </span>
                             <span
+                                v-if="canViewFee"
                                 class="rounded-full border px-2.5 py-0.5 text-[9px] font-black uppercase"
                                 :class="feeStatusInfo(j).style"
                                 :title="feeStatusInfo(j).hint"
@@ -332,6 +334,7 @@ const feeStatusInfo = (job: any) => {
                                         {{ j.status }}
                                     </span>
                                     <p
+                                        v-if="canViewFee"
                                         class="mt-2 w-fit rounded-full border px-2.5 py-1 text-[9px] font-black uppercase"
                                         :class="feeStatusInfo(j).style"
                                         :title="feeStatusInfo(j).hint"

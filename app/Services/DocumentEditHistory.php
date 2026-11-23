@@ -7,6 +7,17 @@ use Illuminate\Support\Facades\DB;
 
 class DocumentEditHistory
 {
+    public function activity(Request $request, string $type, string $id, string $description, array $details = []): void
+    {
+        $actor = $request->session()->get('auth_user', []);
+        DB::table('document_edit_history')->insert([
+            'document_type' => $type, 'document_id' => $id,
+            'actor_id' => $actor['id'] ?? null,
+            'actor_name' => $actor['fullName'] ?? $actor['username'] ?? 'Pengguna tidak diketahui',
+            'reason' => $description,
+            'changes' => json_encode($details, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), 'created_at' => now(),
+        ]);
+    }
     public function record(Request $request, string $type, string $id, object $before, array $after, $oldItems, array $newItems, string $reason): void
     {
         $changes = [];

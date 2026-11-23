@@ -60,7 +60,7 @@ class PublicTrackingController extends Controller
             foreach ($jobs as $job) {
                 $progress = DB::table('jobprogress')
                     ->where($foreignKey, $job->id)
-                    ->select('statusBefore', 'statusAfter', 'createdAt')
+                    ->select('statusBefore', 'statusAfter', 'description', 'createdAt')
                     ->orderBy('createdAt')
                     ->get();
                 if ($progress->isEmpty()) {

@@ -55,7 +55,7 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $data = $this->validated($request);
-        $id = DB::transaction(function () use ($data) {
+        $id = DB::transaction(function () use ($data, $request) {
             $id = 'quo-'.Str::lower(Str::random(16));
             $number = $this->numbers->next('quotation', $data['quotationDate']);
             $totals = $this->totals($data);
@@ -67,6 +67,7 @@ class QuotationController extends Controller
                 'updatedAt' => now(),
             ]);
             $this->storeItems($id, $data['items']);
+            app(\App\Services\DocumentEditHistory::class)->activity($request, 'quotation', $id, 'Quotation dibuat.', [['field' => 'quotationNumber', 'before' => null, 'after' => $number]]);
 
             return $id;
         });
@@ -167,6 +168,8 @@ class QuotationController extends Controller
             return back()->withErrors(['publish' => $exception->getMessage()]);
         }
 
+        app(\App\Services\DocumentEditHistory::class)->activity($request, 'quotation', $id, 'Quotation diterbitkan. '.$message);
+
         return back()->with('success', $message);
     }
 
@@ -193,12 +196,15 @@ class QuotationController extends Controller
             ]);
         }
 
+        DB::transaction(function () use ($id, $data, $request, $quotation) {
         DB::table('quotation')->where('id', $id)->update([
             'status' => 'Dibatalkan',
             'cancellationReason' => trim($data['cancellationReason']),
             'cancelledAt' => now(),
             'updatedAt' => now(),
         ]);
+        app(\App\Services\DocumentEditHistory::class)->activity($request, 'quotation', $id, 'Quotation dibatalkan. Alasan: '.trim($data['cancellationReason']), [['field' => 'status', 'before' => $quotation->status, 'after' => 'Dibatalkan']]);
+        });
 
         return back()->with('success', 'Quotation berhasil dibatalkan.');
     }

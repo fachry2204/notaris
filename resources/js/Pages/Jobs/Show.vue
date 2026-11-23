@@ -34,6 +34,7 @@ const props = defineProps<{
     employeeTasks: any[];
     progress: any[];
     invoiceHistory: any[];
+    uploadedReceipts: Array<{ id: number; fileName: string; documentDate: string; receiver: string; submitter: string; uploadedBy: string | null; url: string }>;
     availableInvoices: Array<{ id: string; invoiceNumber: string; clientName?: string | null; amount: number | string; status: string }>;
 }>();
 const progressForm = useForm({
@@ -41,6 +42,19 @@ const progressForm = useForm({
     description: "",
 });
 const notificationForm = useForm({ notification: "" });
+const receiptDialog = ref(false);
+const receiptMode = ref<'choose' | 'upload'>('choose');
+const receiptForm = useForm({ file: null as File | null, document_date: '', receiver: '', submitter: '' });
+const saveReceipt = () => receiptForm.post(`/dashboard/jobs/${props.jobType}/${props.job.id}/receipts`, {
+    forceFormData: true, preserveScroll: true,
+    onSuccess: () => { receiptDialog.value = false; receiptMode.value = 'choose'; receiptForm.reset(); },
+});
+const progressDialog = ref(false);
+const openProgressDialog = () => { progressForm.status = props.job.status; progressForm.reset('description'); progressForm.clearErrors(); progressDialog.value = true; };
+const saveProgress = () => progressForm.put(`/dashboard/jobs/${props.jobType}/${props.job.id}/progress`, {
+    preserveScroll: true,
+    onSuccess: () => { progressForm.reset('description'); progressDialog.value = false; },
+});
 const showInvoicePicker = ref(false);
 const invoiceSearch = ref("");
 const invoiceForm = useForm({ invoiceId: "" });
@@ -116,6 +130,11 @@ const previewKind = computed<"image" | "pdf" | "unsupported">(() => {
 const openPreview = (file: any) => {
     previewFile.value = file;
 };
+const previewReceipt = (receipt: { url: string; fileName: string }) => {
+    const isPdf = receipt.fileName.toLowerCase().endsWith('.pdf');
+    receiptDialog.value = false;
+    openPreview({ fileName: receipt.fileName, filePath: receipt.url, fileType: isPdf ? 'application/pdf' : 'image/jpeg', description: 'Tanda terima dibuat manual dan diunggah.' });
+};
 const closePreview = () => {
     previewFile.value = null;
 };
@@ -149,6 +168,10 @@ const date = (value: any) =>
               year: "numeric",
           })
         : "-";
+const activityDate = (value: any) => {
+    const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+    return match ? `${match[3]}-${match[2]}-${match[1]} ${match[4]}:${match[5]}` : date(value);
+};
 const shortDate = (value: any) => {
     if (!value) return "-";
     const parsed = new Date(value);
@@ -226,25 +249,15 @@ const address =
                                 : "Kirim Notifikasi"
                         }}</span>
                     </button>
-                    <a
-                        v-if="physicalAttachments.length"
-                        :href="`/print/tanda-terima/${jobType}/${job.id}`"
-                        target="_blank"
+                    <button
+                        type="button"
+                        @click="receiptMode = 'choose'; receiptDialog = true"
                         class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
                     >
                         <Printer class="h-4 w-4" />
                         <span>Tanda Terima</span>
-                    </a>
-                    <button
-                        v-else
-                        type="button"
-                        disabled
-                        title="Tanda terima tersedia setelah ada berkas fisik yang dititipkan"
-                        class="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-4 text-xs font-bold text-slate-400"
-                    >
-                        <Printer class="h-4 w-4" />
-                        <span>Tanda Terima</span>
                     </button>
+                    <button type="button" @click="openProgressDialog" class="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-700 px-4 text-xs font-bold text-white hover:bg-blue-800"><History class="h-4 w-4" /> Update Status Berkas</button>
                     <Link
                         :href="`/dashboard/jobs/${jobType}/${job.id}/edit`"
                         class="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
@@ -567,7 +580,7 @@ const address =
                                     </th>
                                     <th class="px-4 py-3">Nama Pegawai</th>
                                     <th class="px-4 py-3">Tugas Pegawai</th>
-                                    <th class="px-4 py-3">Fee Pegawai</th>
+                                    <th v-if="canManageFee" class="px-4 py-3">Fee Pegawai</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -605,13 +618,13 @@ const address =
                                             {{ task.customTask }}
                                         </p>
                                     </td>
-                                    <td class="px-4 py-3 font-semibold text-slate-700">
+                                    <td v-if="canManageFee" class="px-4 py-3 font-semibold text-slate-700">
                                         {{ task.fee == null ? "—" : Number(task.fee) > 0 ? money(task.fee) : "Rp 0" }}
                                     </td>
                                 </tr>
                                 <tr v-if="!employeeTasks.length">
                                     <td
-                                        colspan="4"
+                                        :colspan="canManageFee ? 4 : 3"
                                         class="px-4 py-8 text-center text-sm font-bold text-slate-400"
                                     >
                                         Belum ada tugas karyawan.
@@ -810,7 +823,7 @@ const address =
             </section>
 
             <section
-                class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.65fr)]"
+                class="grid items-start gap-6"
                 aria-label="Aktivitas dan pembaruan status berkas"
             >
                 <article
@@ -838,7 +851,7 @@ const address =
                                     </template>
                                 </span>
                                 <span class="text-[11px] font-semibold text-slate-400">
-                                    {{ date(item.createdAt) }}
+                                    {{ activityDate(item.createdAt) }}
                                 </span>
                             </div>
                             <p class="mt-2 text-sm font-semibold text-slate-700">
@@ -854,55 +867,53 @@ const address =
                     </div>
                 </article>
 
-                <form
-                    @submit.prevent="
-                        progressForm.put(
-                            `/dashboard/jobs/${jobType}/${job.id}/progress`,
-                            {
-                                onSuccess: () =>
-                                    progressForm.reset('description'),
-                            },
-                        )
-                    "
-                    class="rounded-2xl border border-slate-200 bg-white p-6 lg:sticky lg:top-24"
-                >
-                    <div class="flex items-center gap-2">
-                        <History class="h-5 w-5 text-emerald-500" />
-                        <h2 class="font-black">Update Status Berkas</h2>
-                    </div>
-                    <label class="mt-4 block text-xs font-bold text-slate-500"
-                        >Status Berkas</label
-                    ><select
-                        v-model="progressForm.status"
-                        class="mt-2 w-full rounded-xl border-slate-200"
-                    >
-                        <option
-                            v-for="status in [
-                                'PENDING',
-                                'PROSES',
-                                'REVISI',
-                                'REVISI_PROSES',
-                                'VERIFIKASI',
-                                'SELESAI',
-                                'CANCELLED',
-                            ]"
-                        >
-                            {{ status }}
-                        </option></select
-                    ><textarea
-                        v-model="progressForm.description"
-                        rows="2"
-                        placeholder="Keterangan progress"
-                        class="mt-4 w-full rounded-xl border-slate-200"
-                    /><button
-                        :disabled="progressForm.processing"
-                        class="mt-4 w-full rounded-xl bg-emerald-600 p-3 font-bold text-white"
-                    >
-                        Simpan Progress
-                    </button>
-                </form>
+            </section>
+            <section v-if="uploadedReceipts.length" class="rounded-3xl border border-slate-200 bg-white p-6">
+                <h2 class="text-lg font-black">Tanda Terima yang Diunggah</h2>
+                <div v-for="receipt in uploadedReceipts" :key="receipt.id" class="mt-3 rounded-xl bg-slate-50 p-4 text-sm">
+                    <button type="button" @click="previewReceipt(receipt)" class="break-all text-left font-bold text-teal-700 underline">{{ receipt.fileName }} · Lihat</button>
+                    <p class="mt-1 text-slate-600">Tanggal dokumen: {{ receipt.documentDate }} · Penerima: {{ receipt.receiver }} · Penyerah: {{ receipt.submitter }}</p>
+                    <p v-if="receipt.uploadedBy" class="mt-1 text-xs text-slate-500">Diunggah oleh {{ receipt.uploadedBy }}</p>
+                </div>
             </section>
         </main>
+        <Teleport to="body">
+            <div v-if="progressDialog" role="dialog" aria-modal="true" aria-label="Update Status Berkas" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" @click.self="!progressForm.processing && (progressDialog = false)">
+                <form @submit.prevent="saveProgress" class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+                    <div class="flex items-center justify-between"><h2 class="text-lg font-black">Update Status Berkas</h2><button type="button" @click="progressDialog = false" :disabled="progressForm.processing" aria-label="Tutup"><X class="h-5 w-5" /></button></div>
+                    <label class="mt-5 block text-sm font-bold">Status Berkas<select v-model="progressForm.status" required class="mt-2 w-full rounded-xl border-slate-200"><option v-for="option in [{value:'PENDING',label:'Menunggu Diproses'},{value:'PROSES',label:'Sedang Diproses'},{value:'REVISI',label:'Revisi'},{value:'REVISI_PROSES',label:'Revisi Diproses'},{value:'VERIFIKASI',label:'Verifikasi'},{value:'SELESAI',label:'Selesai'},{value:'CANCELLED',label:'Dibatalkan'}]" :key="option.value" :value="option.value">{{ option.label }}</option></select><span v-if="progressForm.errors.status" class="text-xs text-red-600">{{ progressForm.errors.status }}</span></label>
+                    <label class="mt-4 block text-sm font-bold">Keterangan progres<textarea v-model="progressForm.description" required maxlength="1000" rows="4" placeholder="Jelaskan perkembangan berkas" class="mt-2 w-full rounded-xl border-slate-200"></textarea><span class="mt-1 block text-xs font-normal text-slate-500">Keterangan ini dapat dilihat pada halaman cek status berkas.</span><span v-if="progressForm.errors.description" class="text-xs text-red-600">{{ progressForm.errors.description }}</span></label>
+                    <button :disabled="progressForm.processing" class="mt-5 w-full rounded-xl bg-emerald-700 p-3 font-bold text-white disabled:opacity-50">{{ progressForm.processing ? 'Menyimpan...' : 'Simpan Progres' }}</button>
+                </form>
+            </div>
+        </Teleport>
+        <Teleport to="body">
+            <div v-if="receiptDialog" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="Tanda terima" @click.self="receiptDialog = false">
+                <div class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl">
+                    <div class="flex items-center justify-between"><h2 class="text-lg font-black">Tanda Terima</h2><button type="button" aria-label="Tutup" @click="receiptDialog = false"><X class="h-5 w-5" /></button></div>
+                    <div v-if="receiptMode === 'choose'" class="mt-5 space-y-3">
+                        <div v-if="uploadedReceipts.length" class="rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm">
+                            <p class="font-bold text-teal-800">Tanda terima sudah dibuat manual dan diunggah.</p>
+                            <div v-for="receipt in uploadedReceipts" :key="receipt.id" class="mt-3 border-t border-teal-200 pt-3">
+                                <p class="break-all font-semibold">{{ receipt.fileName }}</p>
+                                <p class="mt-1 text-xs text-slate-600">Tanggal: {{ receipt.documentDate }} · Penerima: {{ receipt.receiver }} · Penyerah: {{ receipt.submitter }}</p>
+                                <button type="button" @click="previewReceipt(receipt)" class="mt-2 font-bold text-teal-700 underline">Lihat tanda terima</button>
+                            </div>
+                        </div>
+                        <a v-if="physicalAttachments.length" :href="`/print/tanda-terima/${jobType}/${job.id}`" target="_blank" rel="noopener noreferrer" class="block rounded-xl border p-4 font-bold text-teal-700">Print tanda terima</a>
+                        <p v-else class="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">Print tersedia setelah ada berkas fisik yang dititipkan.</p>
+                        <button type="button" @click="receiptMode = 'upload'" class="w-full rounded-xl border p-4 text-left font-bold text-teal-700">Upload tanda terima</button>
+                    </div>
+                    <form v-else @submit.prevent="saveReceipt" class="mt-5 space-y-4 text-sm">
+                        <label class="block font-bold">Dokumen atau gambar <input type="file" required accept="application/pdf,image/jpeg,image/png,image/webp" @change="receiptForm.file = ($event.target as HTMLInputElement).files?.[0] || null" class="mt-2 block w-full text-sm" /><span class="mt-1 block text-xs font-normal text-slate-500">PDF, JPG, PNG, atau WebP, maksimal 10 MB.</span><span v-if="receiptForm.errors.file" class="text-rose-600">{{ receiptForm.errors.file }}</span></label>
+                        <label class="block font-bold">Tanggal dokumen<input v-model="receiptForm.document_date" type="date" required class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.document_date" class="text-rose-600">{{ receiptForm.errors.document_date }}</span></label>
+                        <label class="block font-bold">Yang menerima<input v-model="receiptForm.receiver" required maxlength="191" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.receiver" class="text-rose-600">{{ receiptForm.errors.receiver }}</span></label>
+                        <label class="block font-bold">Yang menyerahkan<input v-model="receiptForm.submitter" required maxlength="191" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.submitter" class="text-rose-600">{{ receiptForm.errors.submitter }}</span></label>
+                        <div class="flex gap-3"><button type="button" @click="receiptMode = 'choose'" class="rounded-xl border px-4 py-2 font-bold">Kembali</button><button :disabled="receiptForm.processing" class="rounded-xl bg-teal-700 px-4 py-2 font-bold text-white disabled:opacity-50">{{ receiptForm.processing ? 'Mengunggah...' : 'Simpan tanda terima' }}</button></div>
+                    </form>
+                </div>
+            </div>
+        </Teleport>
 
         <Teleport to="body">
             <div

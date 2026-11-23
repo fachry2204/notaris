@@ -16,6 +16,7 @@ class DashboardController extends Controller
         $stats = ['total' => 0, 'pending' => 0, 'processing' => 0, 'completed' => 0];
         $overdueCount = 0;
         $feeIncompleteCount = 0;
+        $canViewFee = in_array(strtoupper((string) $request->session()->get('auth_user.role', '')), ['ADMINISTRATOR', 'PIMPINAN'], true);
         $months = collect($range->months())->map(function ($date) {
 
             return ['key' => $date->format('Y-m'), 'label' => $date->translatedFormat('M'), 'incoming' => 0, 'completed' => 0];
@@ -39,6 +40,7 @@ class DashboardController extends Controller
                 ->whereDate('deadline', '<', today())
                 ->whereNotIn('status', ['SELESAI', 'CANCELLED'])
                 ->count();
+            if ($canViewFee) {
             $feeIncompleteCount += $range->apply(DB::table($table.' as jobs'), 'jobs.createdAt')
                 ->where('jobs.status', '<>', 'CANCELLED')
                 ->where(function ($query) use ($foreignKey) {
@@ -53,6 +55,7 @@ class DashboardController extends Controller
                             ->where('empty_fee_tasks.fee', '<=', 0));
                 })
                 ->count();
+            }
 
             foreach ($range->apply(DB::table($table))->select('createdAt', 'updatedAt', 'status')->get() as $job) {
                 $createdKey = substr((string) $job->createdAt, 0, 7);
@@ -203,7 +206,7 @@ class DashboardController extends Controller
             'recentJobs' => $recentJobs->orderByDesc('createdAt')->limit(6)->get(),
             'alerts' => [
                 'overdueJobs' => $overdueCount,
-                'incompleteFees' => $feeIncompleteCount,
+                ...($canViewFee ? ['incompleteFees' => $feeIncompleteCount] : []),
             ],
             'clientCount' => DB::table('client')->count(),
             'staffCount' => DB::table('user')->where('isActive', true)->count(),
