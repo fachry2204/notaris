@@ -702,7 +702,7 @@ class ApplicationTest extends TestCase
         ];
 
         $this->assertMatchesRegularExpression('/^PEN\/03022037\/\d{4}$/', $generated[0]);
-        $this->assertMatchesRegularExpression('/^TAG\/03022037\/\d{4}$/', $generated[1]);
+        $this->assertMatchesRegularExpression('/^\d{4}\/TAG\/II\/2037$/', $generated[1]);
         $this->assertMatchesRegularExpression('/^BH\/03022037\/\d{4}$/', $generated[2]);
         $this->assertMatchesRegularExpression('/^NBH\/03022037\/\d{4}$/', $generated[3]);
         $this->assertMatchesRegularExpression('/^PAT\/03022037\/\d{4}$/', $generated[4]);

@@ -71,6 +71,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/invoice/{id}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
     Route::put('/dashboard/invoice/{id}', [InvoiceController::class, 'update'])->name('invoices.update');
     Route::post('/dashboard/invoice/{id}/payment', [InvoiceController::class, 'payment'])->name('invoices.payment');
+    Route::get('/dashboard/invoice/{id}/kwitansi', [InvoiceController::class, 'receipt'])->name('invoices.receipt');
     Route::post('/dashboard/invoice/{id}/notify', [InvoiceController::class, 'notify'])->name('invoices.notify');
     Route::delete('/dashboard/invoice/{id}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');
     Route::get('/dashboard/quotation', [QuotationController::class, 'index'])->name('quotations.index');

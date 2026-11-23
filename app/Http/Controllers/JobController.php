@@ -118,6 +118,7 @@ class JobController extends Controller
     public function store(Request $request)
     {
         $data = $this->validated($request);
+        $manualNumber = $this->validateTrackingCode($request);
         $table = $data['jobType'];
         $invoiceAction = $data['invoiceAction'] ?? (! empty($data['sourceInvoiceId']) ? 'existing' : 'none');
         $sourceInvoiceId = $invoiceAction === 'existing' ? ($data['sourceInvoiceId'] ?? null) : null;
@@ -149,11 +150,17 @@ class JobController extends Controller
         $attachmentDeposits = $data['attachmentDeposits'] ?? [];
         $attachmentUserId = $this->attachmentUserId($request, $data['staffId'] ?? null);
         unset($data['founders'],$data['employeeTasks'],$data['attachments'],$data['attachmentDescriptions'],$data['attachmentDeposits'],$data['savedAttachmentDeposits']);
-        $id = DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice) {
+        $id = DB::transaction(function () use ($data, $table, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $attachmentUserId, $request, $sourceInvoice, $manualNumber) {
             if ($sourceInvoice) {
                 $sourceInvoice = $this->lockInvoice($sourceInvoice->id);
             }
-            $trackingCode = $this->numbers->next($table, $data['tanggalMasuk'] ?? now());
+            if ($manualNumber) {
+                $trackingCode = $manualNumber;
+            } else {
+                do {
+                    $trackingCode = $this->numbers->next($table, $data['tanggalMasuk'] ?? now());
+                } while ($this->trackingCodeExists($trackingCode));
+            }
             $id = 'job-'.Str::lower(Str::random(12));
             $createdAt = ! empty($data['tanggalMasuk']) ? $data['tanggalMasuk'].' '.now()->format('H:i:s') : now();
             $invoiceStatus = match ($sourceInvoice?->status) {
@@ -505,6 +512,10 @@ class JobController extends Controller
     {
         abort_unless(isset(self::TABLES[$type]), 404);
         $data = $this->validated($request, false);
+        $manualNumber = $this->validateTrackingCode($request, $type, $id);
+        if ($manualNumber !== null) {
+            $data['trackingCode'] = $manualNumber;
+        }
         $invoiceAction = $data['invoiceAction'] ?? 'none';
         $sourceInvoiceId = $invoiceAction === 'existing' ? ($data['sourceInvoiceId'] ?? null) : null;
         if ($invoiceAction === 'existing' && ! $sourceInvoiceId) {
@@ -602,6 +613,32 @@ class JobController extends Controller
         });
 
         return redirect()->route('jobs.index')->with('success', 'Berkas dihapus.');
+    }
+
+    private function validateTrackingCode(Request $request, ?string $type = null, ?string $id = null): ?string
+    {
+        $validated = $request->validate(['trackingCode' => 'nullable|string|max:191']);
+        $number = trim($validated['trackingCode'] ?? '');
+        if ($number !== '' && $this->trackingCodeExists($number, $type, $id)) {
+            throw ValidationException::withMessages(['trackingCode' => 'Nomor berkas sudah digunakan.']);
+        }
+
+        return $number !== '' ? $number : null;
+    }
+
+    private function trackingCodeExists(string $number, ?string $type = null, ?string $id = null): bool
+    {
+        foreach (array_keys(self::TABLES) as $table) {
+            $query = DB::table($table)->where('trackingCode', $number);
+            if ($table === $type && $id !== null) {
+                $query->where('id', '!=', $id);
+            }
+            if ($query->exists()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function validated(Request $r, bool $creating = true): array

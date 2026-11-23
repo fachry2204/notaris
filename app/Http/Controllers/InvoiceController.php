@@ -149,6 +149,20 @@ class InvoiceController extends Controller
         return Inertia::render('Invoices/Show', ['invoice' => $invoice, 'items' => DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get(), 'payments' => DB::table('financerecord')->where('invoiceId', $id)->orderByDesc('date')->get(), 'job' => $job, 'jobType' => $type, 'masterClient' => $masterClient]);
     }
 
+    public function receipt(string $id)
+    {
+        $invoice = DB::table('invoice')->where('id', $id)->first();
+        abort_unless($invoice, 404);
+        abort_unless($invoice->status === 'Lunas', 403, 'Kwitansi tersedia setelah invoice lunas.');
+        [$type, $jobId] = $this->invoiceJob($invoice);
+
+        return Inertia::render('Print/PaymentReceipt', [
+            'invoice' => $invoice,
+            'job' => $this->sourceDocument($type, $jobId),
+            'payments' => DB::table('financerecord')->where('invoiceId', $id)->where('type', 'INCOME')->orderBy('date')->orderBy('createdAt')->orderBy('id')->get(),
+        ]);
+    }
+
     public function edit(string $id)
     {
         $invoice = DB::table('invoice')->where('id', $id)->first();

@@ -49,6 +49,12 @@ class DocumentNumberService
             ]);
         }
 
+        if ($type === 'invoice') {
+            $months = [1 => 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
+
+            return sprintf('%04d/%s/%s/%s', $number, $this->prefixes()[$type], $months[(int) $date->format('n')], $date->format('Y'));
+        }
+
         return sprintf(
             '%s/%s/%04d',
             $this->prefixes()[$type],

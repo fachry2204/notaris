@@ -82,7 +82,7 @@ const remove = () =>
                         </p>
                     </div>
                 </div>
-                <div class="flex gap-2">
+                <div class="flex flex-wrap gap-2">
                     <button
                         :disabled="notificationForm.processing"
                         @click="sendNotification"
@@ -99,6 +99,13 @@ const remove = () =>
                         target="_blank"
                         class="flex h-10 items-center gap-2 rounded-xl border bg-white px-4 font-bold"
                         ><Printer class="h-4 w-4" />Cetak</a
+                    ><a
+                        v-if="invoice.status === 'Lunas'"
+                        :href="`/dashboard/invoice/${invoice.id}/kwitansi`"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex h-10 items-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white hover:bg-teal-800"
+                        ><Receipt class="h-4 w-4" />Print Kwitansi</a
                     ><Link
                         :href="`/dashboard/invoice/${invoice.id}/edit`"
                         class="flex h-10 items-center gap-2 rounded-xl bg-pink-500 px-4 text-sm font-bold text-white"

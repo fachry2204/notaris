@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { Head } from "@inertiajs/vue3";
+import { Head, usePage } from "@inertiajs/vue3";
+import { computed } from "vue";
+
+const page = usePage();
+const branding = computed(() => (page.props.branding || {}) as {
+    appName?: string;
+    officeAddress?: string;
+});
 
 const props = defineProps<{
     invoice: any;
@@ -39,7 +46,10 @@ const paid = props.payments.reduce(
                 <p
                     class="text-xs font-black uppercase tracking-[.2em] text-pink-600"
                 >
-                    Notaris Digital
+                    {{ branding.appName || "Notaris Digital" }}
+                </p>
+                <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">
+                    {{ branding.officeAddress }}
                 </p>
                 <h1 class="mt-2 text-3xl font-black">INVOICE</h1>
             </div>
@@ -130,11 +140,11 @@ const paid = props.payments.reduce(
                         {{ money(invoice.amount) }}
                     </dd>
                 </div>
-                <div class="flex justify-between">
+                <div v-if="paid > 0" class="flex justify-between">
                     <dt>Telah dibayar</dt>
                     <dd class="font-bold">{{ money(paid) }}</dd>
                 </div>
-                <div class="flex justify-between border-t pt-3">
+                <div v-if="paid > 0" class="flex justify-between border-t pt-3">
                     <dt>Sisa</dt>
                     <dd class="font-bold">
                         {{ money(Number(invoice.amount) - paid) }}
@@ -146,7 +156,7 @@ const paid = props.payments.reduce(
             <div class="w-56 text-center">
                 <p>Hormat kami,</p>
                 <div class="h-20"></div>
-                <p class="border-t pt-2 font-bold">Kantor Notaris</p>
+                <p class="border-t pt-2 font-bold">Salfa Novia Roza, S.H., M.Kn.</p>
             </div>
         </div>
         <button

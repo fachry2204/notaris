@@ -129,6 +129,7 @@ if (!initialEmployeeTasks.length) {
 }
 const f = useForm({
     jobType: flow,
+    trackingCode: p.job?.trackingCode || "",
     sourceInvoiceId: p.job ? null : p.sourceInvoiceId || null,
     invoiceAction: p.sourceInvoiceId && !p.job ? "existing" : "none",
     clientId: p.job?.clientId || p.selectedClientId || "",
@@ -355,6 +356,11 @@ const deleteSavedAttachment = (id: string) => {
                 <section>
                     <h2 class="text-lg font-black">Informasi Registrasi</h2>
                     <div class="mt-5 grid gap-5 md:grid-cols-2">
+                        <label class="text-sm font-bold md:col-span-2">Nomor Berkas
+                            <input v-model="f.trackingCode" type="text" maxlength="191" class="mt-2 w-full rounded-xl border-slate-200" placeholder="Kosongkan untuk membuat nomor otomatis" />
+                            <span class="mt-1 block text-xs font-normal text-slate-500">Isi nomor secara manual atau kosongkan untuk nomor otomatis.</span>
+                            <span v-if="f.errors.trackingCode" class="mt-1 block text-xs text-red-600">{{ f.errors.trackingCode }}</span>
+                        </label>
                         <label class="text-sm font-bold"
                             >Tanggal Berkas Masuk<input
                                 v-model="f.tanggalMasuk"
