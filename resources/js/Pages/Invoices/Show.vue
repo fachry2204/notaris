@@ -27,6 +27,7 @@ const form = useForm({
     amount: 0,
     date: new Date().toISOString().slice(0, 10),
     description: "",
+    paymentMethod: "",
 });
 const notificationForm = useForm({ notification: "" });
 const page = usePage<any>();
@@ -293,6 +294,7 @@ const remove = () =>
                             <p class="font-bold">{{ item.description }}</p>
                             <p class="text-xs text-slate-500">
                                 {{ paymentDate(item.date) }}
+                                · {{ item.paymentMethod || "Cara pembayaran tidak tercatat" }}
                             </p>
                         </div>
                         <b class="text-emerald-600">{{ money(item.amount) }}</b>
@@ -303,7 +305,7 @@ const remove = () =>
                     @submit.prevent="
                         form.post(`/dashboard/invoice/${invoice.id}/payment`, {
                             onSuccess: () =>
-                                form.reset('amount', 'description'),
+                                form.reset('amount', 'description', 'paymentMethod'),
                         })
                     "
                     class="rounded-3xl border border-slate-200 bg-white p-6"
@@ -320,7 +322,14 @@ const remove = () =>
                         required
                         placeholder="Nominal"
                         class="mt-4 w-full rounded-xl border-slate-200"
-                    /><input
+                    /><label class="mt-3 block text-sm font-bold">Cara Pembayaran
+                        <select v-model="form.paymentMethod" required class="mt-1 w-full rounded-xl border-slate-200">
+                            <option value="">Pilih cara pembayaran</option>
+                            <option value="Transfer">Transfer</option>
+                            <option value="Cash">Cash</option>
+                        </select>
+                        <span v-if="form.errors.paymentMethod" class="text-xs text-red-600">{{ form.errors.paymentMethod }}</span>
+                    </label><input
                         v-model="form.date"
                         type="date"
                         required

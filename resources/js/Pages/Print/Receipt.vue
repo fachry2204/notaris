@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { Head } from "@inertiajs/vue3";
+import { Head, usePage } from "@inertiajs/vue3";
 
 const props = defineProps<{
     job: any;
@@ -8,6 +8,8 @@ const props = defineProps<{
     attachments?: any[];
     settings?: any;
 }>();
+const page = usePage();
+const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string });
 
 const notarisName = computed(
     () => props.settings?.officeName || "SALFA NOVIA ROZA, S.H., M.Kn",
@@ -22,8 +24,7 @@ const notarisSk = computed(
 );
 const officeAddress = computed(
     () =>
-        props.settings?.officeAddress ||
-        "Jl. KH. Ahmad Dahlan Kebayoran No. 10 , RT 001, RW 001, Kramat Pela, Kec. Kebayoran Baru, Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta 12130",
+        branding.value.officeAddress || "",
 );
 const officePhone = computed(
     () => props.settings?.officePhone || "0822-4114-5758",
@@ -111,7 +112,7 @@ const parseAttachment = (att: any) => {
             <!-- KOP SURAT NOTARIS -->
             <div class="border-b-4 border-double border-slate-900 pb-4 text-center space-y-0.5 font-serif text-slate-900 leading-tight">
                 <h1 class="text-xl sm:text-2xl font-bold uppercase tracking-wide">
-                    {{ notarisName }}
+                    {{ branding.officeName || "Kantor Notaris" }}
                 </h1>
                 <p class="text-sm font-bold pt-0.5">
                     {{ notarisRole }}
@@ -122,12 +123,7 @@ const parseAttachment = (att: any) => {
                 <p class="text-[11px] font-bold tracking-tight uppercase max-w-2xl mx-auto">
                     TAHUN 2024 TANGGAL 30 Oktober 2024
                 </p>
-                <p class="text-xs pt-1">
-                    Jl. KH. Ahmad Dahlan Kebayoran No. 10 , RT 001, RW 001, Kramat Pela, Kec. Kebayoran Baru
-                </p>
-                <p class="text-xs">
-                   Kota Jakarta Selatan, Daerah Khusus Ibukota Jakarta 12130
-                </p>
+                <p v-if="officeAddress" class="whitespace-pre-line text-xs pt-1">{{ officeAddress }}</p>
                 <p class="text-xs font-medium pt-0.5">
                     Telp. {{ officePhone }} Email : {{ officeEmail }}
                 </p>

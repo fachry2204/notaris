@@ -36,6 +36,7 @@ const form = useForm({
     jobId: props.jobId || "",
     jobType: props.jobType || "",
     dpAmount: 0,
+    paymentMethod: "",
     status: props.invoice?.status || "Belum Bayar",
     description:
         props.invoice?.description || props.sourceQuotation?.terms || "",
@@ -414,6 +415,15 @@ const backUrl = computed(() => {
                             <p v-if="form.errors.dpAmount" class="error mt-2">
                                 {{ form.errors.dpAmount }}
                             </p>
+                            <label v-if="form.dpAmount > 0" class="mt-4 block">
+                                <span class="label">Cara Pembayaran DP</span>
+                                <select v-model="form.paymentMethod" required class="field">
+                                    <option value="">Pilih cara pembayaran</option>
+                                    <option value="Transfer">Transfer</option>
+                                    <option value="Cash">Cash</option>
+                                </select>
+                                <span v-if="form.errors.paymentMethod" class="error">{{ form.errors.paymentMethod }}</span>
+                            </label>
                             <div class="mt-5 border-t border-slate-200 pt-5">
                                 <p class="text-sm text-slate-500">
                                     Sisa Pembayaran

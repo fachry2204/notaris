@@ -3,7 +3,7 @@ import { Head, usePage } from "@inertiajs/vue3";
 import { computed } from "vue";
 
 defineProps<{ quotation: any; items: any[] }>();
-const branding = computed(() => (usePage().props.branding || {}) as { appName?: string; officeAddress?: string });
+const branding = computed(() => (usePage().props.branding || {}) as { officeName?: string; officeAddress?: string });
 const money = (value: any) =>
     new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -25,7 +25,7 @@ const date = (value: any) =>
                 <p
                     class="text-xs font-black uppercase tracking-[0.2em] text-pink-600"
                 >
-                    {{ branding.appName || "Notaris Digital" }}
+                    {{ branding.officeName || "Kantor Notaris" }}
                 </p>
                 <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">{{ branding.officeAddress }}</p>
                 <h1 class="mt-2 text-3xl font-black">QUOTATION</h1>

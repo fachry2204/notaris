@@ -4,11 +4,11 @@ import { computed } from "vue";
 
 const page = usePage();
 const branding = computed(() => (page.props.branding || {}) as {
-    appName?: string;
+    officeName?: string;
     officeAddress?: string;
 });
 
-const props = defineProps<{
+defineProps<{
     invoice: any;
     job: any;
     terms: string;
@@ -31,11 +31,6 @@ const date = (value: any) => {
 
     return match ? `${match[3]}-${match[2]}-${match[1]}` : "-";
 };
-const paid = props.payments.reduce(
-    (total, payment) =>
-        total + (payment.type === "INCOME" ? Number(payment.amount) : 0),
-    0,
-);
 </script>
 
 <template>
@@ -46,7 +41,7 @@ const paid = props.payments.reduce(
                 <p
                     class="text-xs font-black uppercase tracking-[.2em] text-pink-600"
                 >
-                    {{ branding.appName || "Notaris Digital" }}
+                    {{ branding.officeName || "Kantor Notaris" }}
                 </p>
                 <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">
                     {{ branding.officeAddress }}
@@ -138,16 +133,6 @@ const paid = props.payments.reduce(
                     <dt>Total tagihan</dt>
                     <dd class="text-xl font-bold">
                         {{ money(invoice.amount) }}
-                    </dd>
-                </div>
-                <div v-if="paid > 0" class="flex justify-between">
-                    <dt>Telah dibayar</dt>
-                    <dd class="font-bold">{{ money(paid) }}</dd>
-                </div>
-                <div v-if="paid > 0" class="flex justify-between border-t pt-3">
-                    <dt>Sisa</dt>
-                    <dd class="font-bold">
-                        {{ money(Number(invoice.amount) - paid) }}
                     </dd>
                 </div>
             </dl>

@@ -4,7 +4,7 @@ import { Head, usePage } from "@inertiajs/vue3";
 
 const props = defineProps<{ invoice: any; job: any; payments: any[] }>();
 const page = usePage();
-const branding = computed(() => (page.props.branding || {}) as { appName?: string; officeAddress?: string });
+const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string });
 const money = (value: any) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
 const date = (value: any) => {
     const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -26,7 +26,7 @@ const rows = computed(() => {
     <main class="mx-auto min-h-screen max-w-4xl bg-white p-6 text-slate-900 sm:p-10">
         <header class="flex flex-wrap justify-between gap-5 border-b-2 border-teal-700 pb-6">
             <div>
-                <p class="text-lg font-black">{{ branding.appName || "Notaris Digital" }}</p>
+                <p class="text-lg font-black">{{ branding.officeName || "Kantor Notaris" }}</p>
                 <p v-if="branding.officeAddress" class="mt-1 max-w-md whitespace-pre-line text-sm text-slate-600">{{ branding.officeAddress }}</p>
             </div>
             <div class="text-right">
@@ -44,8 +44,8 @@ const rows = computed(() => {
         <section class="mt-8">
             <h2 class="text-lg font-black">Riwayat Pembayaran</h2>
             <table class="mt-3 w-full text-left text-sm">
-                <thead class="bg-slate-100"><tr><th class="p-3">Tanggal</th><th class="p-3">Pembayaran</th><th class="p-3">Keterangan</th><th class="p-3 text-right">Jumlah</th></tr></thead>
-                <tbody><tr v-for="payment in rows" :key="payment.id" class="border-b"><td class="p-3">{{ date(payment.date) }}</td><td class="p-3 font-semibold">{{ payment.label }}</td><td class="p-3">{{ payment.description || "-" }}</td><td class="p-3 text-right">{{ money(payment.amount) }}</td></tr></tbody>
+                <thead class="bg-slate-100"><tr><th class="p-3">Tanggal</th><th class="p-3">Pembayaran</th><th class="p-3">Cara</th><th class="p-3">Keterangan</th><th class="p-3 text-right">Jumlah</th></tr></thead>
+                <tbody><tr v-for="payment in rows" :key="payment.id" class="border-b"><td class="p-3">{{ date(payment.date) }}</td><td class="p-3 font-semibold">{{ payment.label }}</td><td class="p-3">{{ payment.paymentMethod || "Tidak tercatat" }}</td><td class="p-3">{{ payment.description || "-" }}</td><td class="p-3 text-right">{{ money(payment.amount) }}</td></tr></tbody>
             </table>
             <p v-if="!rows.length" class="py-4 text-sm text-slate-500">Belum ada pembayaran yang tercatat.</p>
         </section>

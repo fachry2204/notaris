@@ -77,6 +77,7 @@ class InvoiceController extends Controller
             'jobId' => 'required_without:quotationId|nullable|string',
             'jobType' => 'required_without:quotationId|nullable|in:badan_hukum,non_badan_hukum,ppat',
             'dpAmount' => 'nullable|numeric|min:0',
+            'paymentMethod' => 'nullable|in:Transfer,Cash',
             'description' => 'nullable|string',
             'date' => 'required|date',
             'dueDate' => 'nullable|date',
@@ -87,6 +88,9 @@ class InvoiceController extends Controller
             'items.*.unitPrice' => 'required|numeric|min:0',
         ]);
         $amount = $this->itemsTotal($d['items']);
+        if ((float) ($d['dpAmount'] ?? 0) > 0 && empty($d['paymentMethod'])) {
+            throw ValidationException::withMessages(['paymentMethod' => 'Pilih cara pembayaran DP.']);
+        }
         if ((float) ($d['dpAmount'] ?? 0) > $amount) {
             throw ValidationException::withMessages(['dpAmount' => 'Pembayaran DP tidak boleh melebihi total Invoice.']);
         }
@@ -121,7 +125,7 @@ class InvoiceController extends Controller
             $this->storeItems($id, $d['items']);
             if (($d['dpAmount'] ?? 0) > 0) {
                 $paymentSource = empty($d['quotationId']) ? [$this->fk($d['jobType']) => $d['jobId']] : [];
-                DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['dpAmount'], 'description' => 'Pembayaran DP', 'date' => $d['date'], 'createdAt' => now()]);
+                DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['dpAmount'], 'paymentMethod' => $d['paymentMethod'], 'description' => 'Pembayaran DP', 'date' => $d['date'], 'createdAt' => now()]);
             }
             if (! empty($d['quotationId'])) {
                 DB::table('quotation')->where('id', $d['quotationId'])->update(['status' => 'Invoice Terbuat', 'updatedAt' => now()]);
@@ -201,7 +205,7 @@ class InvoiceController extends Controller
 
     public function payment(Request $r, string $id)
     {
-        $d = $r->validate(['amount' => 'required|numeric|min:1', 'date' => 'required|date', 'description' => 'nullable|string']);
+        $d = $r->validate(['amount' => 'required|numeric|min:1', 'date' => 'required|date', 'description' => 'nullable|string', 'paymentMethod' => 'required|in:Transfer,Cash']);
         $inv = DB::table('invoice')->where('id', $id)->first();
         abort_unless($inv, 404);
         $alreadyPaid = (float) DB::table('financerecord')->where('invoiceId', $id)->where('type', 'INCOME')->sum('amount');
@@ -209,7 +213,7 @@ class InvoiceController extends Controller
         [$type,$jobId] = $this->invoiceJob($inv);
         DB::transaction(function () use ($d, $id, $inv, $alreadyPaid, $type, $jobId) {
             $paymentSource = $type === 'quotation' ? [] : [$this->fk($type) => $jobId];
-            DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['amount'], 'description' => $d['description'] ?? 'Pembayaran invoice', 'date' => $d['date'], 'createdAt' => now()]);
+            DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['amount'], 'paymentMethod' => $d['paymentMethod'], 'description' => $d['description'] ?? 'Pembayaran invoice', 'date' => $d['date'], 'createdAt' => now()]);
             $isPaid = $alreadyPaid + (float) $d['amount'] >= (float) $inv->amount;
             DB::table('invoice')->where('id', $id)->update(['status' => $isPaid ? 'Lunas' : 'DP Bayar', 'updatedAt' => now()]);
             $this->syncLinkedJobInvoiceStatus($inv, $isPaid ? 'Lunas' : 'DP Bayar');
