@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Head, usePage } from "@inertiajs/vue3";
+import PrintFooter from "@/Components/PrintFooter.vue";
 
 const props = defineProps<{
     job: any;
     jobType?: string;
     attachments?: any[];
     settings?: any;
+    verificationUrl: string;
 }>();
 const page = usePage();
 const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string });
@@ -228,8 +230,8 @@ const parseAttachment = (att: any) => {
             <!-- FOOTER SYSTEM INFORMASI NOTARIS -->
             <div class="mt-10 pt-3 border-t border-slate-300 flex flex-wrap items-center justify-between text-[10px] text-slate-500 font-serif gap-2">
                 <span>Tanggal Cetak : {{ printedAtDate }}</span>
-                <span>Di cetak melalui System Informasi Notaris {{ notarisName }}</span>
             </div>
+            <PrintFooter :verification-url="verificationUrl" />
 
             <!-- FLOATING PRINT BUTTON -->
             <button

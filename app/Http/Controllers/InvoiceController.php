@@ -6,6 +6,7 @@ use App\Services\DocumentNumberService;
 use App\Services\NotificationGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -150,7 +151,12 @@ class InvoiceController extends Controller
             ? DB::table('client')->where('id', $job->clientId)->first()
             : null;
 
-        return Inertia::render('Invoices/Show', ['invoice' => $invoice, 'items' => DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get(), 'payments' => DB::table('financerecord')->where('invoiceId', $id)->orderByDesc('date')->get(), 'job' => $job, 'jobType' => $type, 'masterClient' => $masterClient]);
+        $payments = DB::table('financerecord')->where('invoiceId', $id)->orderByDesc('date')->get();
+        $proofs = DB::table('payment_proofs')->whereIn('payment_id', $payments->pluck('id'))->get()->groupBy('payment_id');
+        $payments->each(function ($payment) use ($proofs, $id) {
+            $payment->proofs = ($proofs[$payment->id] ?? collect())->map(fn ($proof) => ['id' => $proof->id, 'name' => $proof->original_name, 'url' => route('invoices.payment-proof', [$id, $proof->id])])->values();
+        });
+        return Inertia::render('Invoices/Show', ['invoice' => $invoice, 'items' => DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get(), 'payments' => $payments, 'job' => $job, 'jobType' => $type, 'masterClient' => $masterClient]);
     }
 
     public function receipt(string $id)
@@ -161,6 +167,7 @@ class InvoiceController extends Controller
         [$type, $jobId] = $this->invoiceJob($invoice);
 
         return Inertia::render('Print/PaymentReceipt', [
+            'verificationUrl' => DocumentVerificationController::url('kwitansi', $id),
             'invoice' => $invoice,
             'job' => $this->sourceDocument($type, $jobId),
             'payments' => DB::table('financerecord')->where('invoiceId', $id)->where('type', 'INCOME')->orderBy('date')->orderBy('createdAt')->orderBy('id')->get(),
@@ -205,21 +212,42 @@ class InvoiceController extends Controller
 
     public function payment(Request $r, string $id)
     {
-        $d = $r->validate(['amount' => 'required|numeric|min:1', 'date' => 'required|date', 'description' => 'nullable|string', 'paymentMethod' => 'required|in:Transfer,Cash']);
+        $d = $r->validate(['amount' => 'required|numeric|min:1', 'date' => 'required|date', 'description' => 'nullable|string', 'paymentMethod' => 'required|in:Transfer,Cash', 'proofs' => 'nullable|array|max:10', 'proofs.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120']);
         $inv = DB::table('invoice')->where('id', $id)->first();
         abort_unless($inv, 404);
         $alreadyPaid = (float) DB::table('financerecord')->where('invoiceId', $id)->where('type', 'INCOME')->sum('amount');
         abort_if($alreadyPaid + (float) $d['amount'] > (float) $inv->amount, 422, 'Nominal pembayaran melebihi sisa tagihan.');
         [$type,$jobId] = $this->invoiceJob($inv);
-        DB::transaction(function () use ($d, $id, $inv, $alreadyPaid, $type, $jobId) {
+        $paths = [];
+        try {
+        DB::transaction(function () use ($d, $id, $inv, $alreadyPaid, $type, $jobId, &$paths) {
             $paymentSource = $type === 'quotation' ? [] : [$this->fk($type) => $jobId];
-            DB::table('financerecord')->insert(['id' => 'FIN-'.Str::random(10), 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['amount'], 'paymentMethod' => $d['paymentMethod'], 'description' => $d['description'] ?? 'Pembayaran invoice', 'date' => $d['date'], 'createdAt' => now()]);
+            $paymentId = 'FIN-'.Str::random(10);
+            DB::table('financerecord')->insert(['id' => $paymentId, 'invoiceId' => $id, ...$paymentSource, 'type' => 'INCOME', 'amount' => $d['amount'], 'paymentMethod' => $d['paymentMethod'], 'description' => $d['description'] ?? 'Pembayaran invoice', 'date' => $d['date'], 'createdAt' => now()]);
+            foreach ($d['proofs'] ?? [] as $file) {
+                $path = $file->store('payment-proofs', 'local');
+                if (! $path) { throw new \RuntimeException('Gagal menyimpan bukti pembayaran.'); }
+                $paths[] = $path;
+                DB::table('payment_proofs')->insert(['payment_id' => $paymentId, 'path' => $path, 'original_name' => Str::limit($file->getClientOriginalName(), 240, ''), 'created_at' => now()]);
+            }
             $isPaid = $alreadyPaid + (float) $d['amount'] >= (float) $inv->amount;
             DB::table('invoice')->where('id', $id)->update(['status' => $isPaid ? 'Lunas' : 'DP Bayar', 'updatedAt' => now()]);
             $this->syncLinkedJobInvoiceStatus($inv, $isPaid ? 'Lunas' : 'DP Bayar');
         });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($paths);
+            throw $exception;
+        }
 
         return back()->with('success', 'Pembayaran dicatat.');
+    }
+
+    public function paymentProof(string $id, int $proof)
+    {
+        $file = DB::table('payment_proofs as p')->join('financerecord as f', 'f.id', '=', 'p.payment_id')->where('f.invoiceId', $id)->where('p.id', $proof)->select('p.path')->first();
+        abort_unless($file && Storage::disk('local')->exists($file->path), 404);
+
+        return Storage::disk('local')->response($file->path, null, ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     public function notify(string $id, NotificationGateway $notifications)
@@ -252,7 +280,9 @@ class InvoiceController extends Controller
         $invoice = DB::table('invoice')->where('id', $id)->first();
         abort_unless($invoice, 404);
         [$type,$jobId] = $this->invoiceJob($invoice);
+        $proofPaths = DB::table('payment_proofs')->whereIn('payment_id', DB::table('financerecord')->where('invoiceId', $id)->select('id'))->pluck('path')->all();
         DB::transaction(function () use ($id, $type, $jobId, $invoice) {
+            DB::table('payment_proofs')->whereIn('payment_id', DB::table('financerecord')->where('invoiceId', $id)->select('id'))->delete();
             DB::table('financerecord')->where('invoiceId', $id)->delete();
             foreach (self::TABLES as $table) {
                 DB::table($table)->where('sourceInvoiceId', $id)->update(['sourceInvoiceId' => null, 'invoiceStatus' => 'PENDING', 'updatedAt' => now()]);
@@ -265,6 +295,7 @@ class InvoiceController extends Controller
             }
             $this->syncLinkedJobInvoiceStatus($invoice, 'Belum Bayar');
         });
+        Storage::disk('local')->delete($proofPaths);
 
         return redirect()->route('invoices.index')->with('success', 'Invoice dihapus.');
     }

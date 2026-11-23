@@ -20,6 +20,7 @@ import {
 import AppLayout from "@/Layouts/AppLayout.vue";
 
 const props = defineProps<{
+    verificationUrl: string;
     quotation: any;
     items: any[];
     publication?: any;
@@ -54,7 +55,7 @@ const downloadPdf = async () => {
         ]);
         const pdf = new jsPDF();
         const q = props.quotation;
-        const branding = (page.props.branding || {}) as { officeName?: string; officeAddress?: string };
+        const branding = (page.props.branding || {}) as { appName?: string; officeName?: string; officeAddress?: string };
         pdf.setFontSize(15);
         pdf.setFont("helvetica", "bold");
         const nameLines: string[] = pdf.splitTextToSize(branding.officeName || "Kantor Notaris", 180);
@@ -78,6 +79,7 @@ const downloadPdf = async () => {
         pdf.text(`PIC: ${q.picName || "-"}`, 130, headerEnd + 24);
         autoTable(pdf, {
             startY: headerEnd + Math.max(37, 36 + addressLines.length * 4),
+            margin: { bottom: 20 },
             head: [["No.", "Deskripsi", "Qty", "Harga", "Jumlah"]],
             body: props.items.map((item, index) => [
                 String(index + 1), item.description, `${Number(item.quantity)} ${item.unit || ""}`,
@@ -89,7 +91,7 @@ const downloadPdf = async () => {
         const line = (text: string, bold = false) => {
             const lines = pdf.splitTextToSize(text, 180);
             for (const part of lines) {
-                if (y > 280) { pdf.addPage(); y = 20; }
+                if (y > 270) { pdf.addPage(); y = 20; }
                 pdf.setFont("helvetica", bold ? "bold" : "normal");
                 pdf.text(part, 14, y);
                 y += 6;
@@ -102,6 +104,20 @@ const downloadPdf = async () => {
         line(`Total Penawaran: ${money(q.grandTotal)}`, true);
         if (q.terms) { y += 4; line("Syarat dan Ketentuan", true); line(q.terms); }
         if (q.notes) { y += 4; line("Catatan", true); line(q.notes); }
+        const footer = `Dicetak Melalui : ${branding.appName || "Notaris Digital"} | ${branding.officeName || "Kantor Notaris"}`;
+        if (y > 238) { pdf.addPage(); y = 20; }
+        const QRCode = await import("qrcode");
+        const qr = await QRCode.toDataURL(props.verificationUrl, { margin: 2, width: 240, errorCorrectionLevel: "M" });
+        pdf.addImage(qr, "PNG", 90, y + 2, 30, 30);
+        pdf.setFontSize(8);
+        pdf.text("Pindai untuk verifikasi dokumen", 105, y + 35, { align: "center" });
+        for (let pageNumber = 1; pageNumber <= pdf.getNumberOfPages(); pageNumber++) {
+            pdf.setPage(pageNumber);
+            pdf.setFont("helvetica", "normal");
+            pdf.setFontSize(8);
+            pdf.setTextColor(100);
+            pdf.text(pdf.splitTextToSize(footer, 180), 105, 285, { align: "center" });
+        }
         pdf.save(`Quotation-${String(q.quotationNumber).replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`);
     } catch (error) {
         console.error("Gagal membuat PDF quotation", error);

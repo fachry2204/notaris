@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DocumentVerificationController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JobController;
@@ -28,6 +29,7 @@ Route::get('/cekberkas', [PublicTrackingController::class, 'index'])->name('trac
 Route::post('/cekberkas', [PublicTrackingController::class, 'search'])->middleware('throttle:30,1')->name('tracking.search');
 Route::redirect('/tracking', '/cekberkas');
 Route::redirect('/cek-berkas', '/cekberkas');
+Route::get('/verifikasi-dokumen/{type}/{id}', [DocumentVerificationController::class, 'show'])->middleware(['signed', 'throttle:60,1'])->name('document.verify');
 Route::get('/print/invoice/{id}', [PrintController::class, 'invoice'])->name('print.invoice');
 Route::get('/print/quotation/{id}', [QuotationController::class, 'print'])->name('print.quotation');
 Route::get('/print/tanda-terima/{id}', [PrintController::class, 'legacyReceipt'])->name('print.receipt.legacy');
@@ -71,6 +73,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/invoice/{id}/edit', [InvoiceController::class, 'edit'])->name('invoices.edit');
     Route::put('/dashboard/invoice/{id}', [InvoiceController::class, 'update'])->name('invoices.update');
     Route::post('/dashboard/invoice/{id}/payment', [InvoiceController::class, 'payment'])->name('invoices.payment');
+    Route::get('/dashboard/invoice/{id}/payment-proof/{proof}', [InvoiceController::class, 'paymentProof'])->name('invoices.payment-proof');
     Route::get('/dashboard/invoice/{id}/kwitansi', [InvoiceController::class, 'receipt'])->name('invoices.receipt');
     Route::post('/dashboard/invoice/{id}/notify', [InvoiceController::class, 'notify'])->name('invoices.notify');
     Route::delete('/dashboard/invoice/{id}', [InvoiceController::class, 'destroy'])->name('invoices.destroy');

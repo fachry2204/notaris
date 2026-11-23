@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router, useForm, usePage } from "@inertiajs/vue3";
+import { ref } from "vue";
 import {
     ArrowLeft,
     Edit3,
@@ -28,7 +29,12 @@ const form = useForm({
     date: new Date().toISOString().slice(0, 10),
     description: "",
     paymentMethod: "",
+    proofs: [] as File[],
 });
+const proofInput = ref<HTMLInputElement | null>(null);
+const selectProofs = (event: Event) => {
+    form.proofs = Array.from((event.target as HTMLInputElement).files || []);
+};
 const notificationForm = useForm({ notification: "" });
 const page = usePage<any>();
 const sendNotification = () => {
@@ -296,6 +302,9 @@ const remove = () =>
                                 {{ paymentDate(item.date) }}
                                 · {{ item.paymentMethod || "Cara pembayaran tidak tercatat" }}
                             </p>
+                            <div v-if="item.proofs?.length" class="mt-2 flex flex-wrap gap-2">
+                                <a v-for="proof in item.proofs" :key="proof.id" :href="proof.url" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-teal-700 underline">{{ proof.name }}</a>
+                            </div>
                         </div>
                         <b class="text-emerald-600">{{ money(item.amount) }}</b>
                     </div>
@@ -304,8 +313,11 @@ const remove = () =>
                     v-if="invoice.status !== 'Lunas'"
                     @submit.prevent="
                         form.post(`/dashboard/invoice/${invoice.id}/payment`, {
-                            onSuccess: () =>
-                                form.reset('amount', 'description', 'paymentMethod'),
+                            forceFormData: true,
+                            onSuccess: () => {
+                                form.reset('amount', 'description', 'paymentMethod', 'proofs');
+                                if (proofInput) proofInput.value = '';
+                            },
                         })
                     "
                     class="rounded-3xl border border-slate-200 bg-white p-6"
@@ -338,7 +350,13 @@ const remove = () =>
                         v-model="form.description"
                         placeholder="Keterangan"
                         class="mt-3 w-full rounded-xl border-slate-200"
-                    /><button
+                    /><label class="mt-3 block text-sm font-bold">Bukti Pembayaran (opsional)
+                        <input ref="proofInput" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectProofs" class="mt-2 block w-full text-sm" />
+                        <span class="mt-1 block text-xs font-normal text-slate-500">Maksimal 10 gambar JPG, PNG, atau WebP, masing-masing 5 MB.</span>
+                        <span v-if="form.proofs.length" class="mt-1 block text-xs font-normal">{{ form.proofs.length }} gambar dipilih</span>
+                        <span v-if="form.errors.proofs" class="text-xs text-red-600">{{ form.errors.proofs }}</span>
+                        <span v-for="(message, field) in form.errors" :key="field" class="block text-xs text-red-600">{{ String(field).startsWith('proofs.') ? message : '' }}</span>
+                    </label><button
                         :disabled="form.processing"
                         class="mt-4 rounded-xl bg-pink-500 px-5 py-3 font-bold text-white"
                     >

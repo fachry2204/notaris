@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed } from "vue";
+import PrintFooter from "@/Components/PrintFooter.vue";
 
 const page = usePage();
 const branding = computed(() => (page.props.branding || {}) as {
     officeName?: string;
     officeAddress?: string;
+    logoUrl?: string | null;
 });
 
 defineProps<{
+    verificationUrl: string;
     invoice: any;
     job: any;
     terms: string;
@@ -36,16 +39,19 @@ const date = (value: any) => {
 <template>
     <Head :title="invoice.invoiceNumber" />
     <main class="mx-auto max-w-4xl bg-white p-10 text-slate-900">
-        <div class="flex justify-between border-b pb-6">
-            <div>
-                <p
-                    class="text-xs font-black uppercase tracking-[.2em] text-pink-600"
-                >
-                    {{ branding.officeName || "Kantor Notaris" }}
-                </p>
-                <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">
-                    {{ branding.officeAddress }}
-                </p>
+        <div class="flex flex-wrap justify-between gap-4 border-b pb-6">
+            <div class="min-w-0 flex-1">
+                <div class="flex items-start gap-4">
+                    <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="`Logo ${branding.officeName || 'kantor'}`" class="h-16 w-16 shrink-0 object-contain" />
+                    <div class="min-w-0">
+                        <p class="text-lg font-black leading-tight text-slate-900 sm:text-xl">
+                            {{ branding.officeName || "Kantor Notaris" }}
+                        </p>
+                        <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">
+                            {{ branding.officeAddress }}
+                        </p>
+                    </div>
+                </div>
                 <h1 class="mt-2 text-3xl font-black">INVOICE</h1>
             </div>
             <div class="text-right">
@@ -144,6 +150,7 @@ const date = (value: any) => {
                 <p class="border-t pt-2 font-bold">Salfa Novia Roza, S.H., M.Kn.</p>
             </div>
         </div>
+        <PrintFooter :verification-url="verificationUrl" />
         <button
             onclick="window.print()"
             class="fixed right-6 bottom-6 rounded-xl bg-pink-600 px-5 py-3 font-bold text-white print:hidden"

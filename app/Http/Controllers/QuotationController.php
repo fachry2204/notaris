@@ -79,6 +79,7 @@ class QuotationController extends Controller
         $quotation = $this->findQuotation($id);
 
         return Inertia::render('Quotations/Show', [
+            'verificationUrl' => DocumentVerificationController::url('quotation', $id),
             'quotation' => $quotation,
             'items' => DB::table('quotation_item')->where('quotationId', $id)->orderBy('sortOrder')->get(),
             'publication' => DB::table('quotation_publications')->where('quotationId', $id)->first(),
@@ -198,6 +199,7 @@ class QuotationController extends Controller
     public function print(string $id)
     {
         return Inertia::render('Print/Quotation', [
+            'verificationUrl' => DocumentVerificationController::url('quotation', $id),
             'quotation' => $this->findQuotation($id),
             'items' => DB::table('quotation_item')->where('quotationId', $id)->orderBy('sortOrder')->get(),
         ]);

@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { Head, usePage } from "@inertiajs/vue3";
+import PrintFooter from "@/Components/PrintFooter.vue";
 
-const props = defineProps<{ invoice: any; job: any; payments: any[] }>();
+const props = defineProps<{ invoice: any; job: any; payments: any[]; verificationUrl: string }>();
 const page = usePage();
 const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string });
 const money = (value: any) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -12,6 +13,14 @@ const date = (value: any) => {
 };
 const paid = computed(() => props.payments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0));
 const complete = computed(() => paid.value >= Number(props.invoice.amount));
+const settlementDate = computed(() => {
+    let total = 0;
+    const payment = props.payments.find((item) => {
+        total += Number(item.amount || 0);
+        return total >= Number(props.invoice.amount);
+    });
+    return payment?.date || null;
+});
 const rows = computed(() => {
     let running = 0;
     return props.payments.map((payment) => {
@@ -38,13 +47,13 @@ const rows = computed(() => {
 
         <section class="mt-8 grid gap-5 sm:grid-cols-2">
             <div><p class="text-sm text-slate-500">Diterima dari</p><p class="mt-1 font-bold">{{ job?.clientName || "-" }}</p><p v-if="job?.clientAddress" class="whitespace-pre-line text-sm">{{ job.clientAddress }}</p></div>
-            <div><p class="text-sm text-slate-500">Untuk pembayaran</p><p class="mt-1 font-bold">{{ job?.title || "Invoice " + invoice.invoiceNumber }}</p><p v-if="job?.trackingCode" class="text-sm">{{ job.trackingCode }}</p></div>
+            <div><p class="text-sm text-slate-500">Untuk pembayaran</p><p class="mt-1 font-bold">{{ job?.title || "Invoice" }}</p><p class="text-sm">{{ invoice.invoiceNumber }}</p></div>
         </section>
 
         <section class="mt-8">
             <h2 class="text-lg font-black">Riwayat Pembayaran</h2>
             <table class="mt-3 w-full text-left text-sm">
-                <thead class="bg-slate-100"><tr><th class="p-3">Tanggal</th><th class="p-3">Pembayaran</th><th class="p-3">Cara</th><th class="p-3">Keterangan</th><th class="p-3 text-right">Jumlah</th></tr></thead>
+                <thead class="bg-slate-100"><tr><th class="p-3">Tanggal</th><th class="p-3">Pembayaran</th><th class="p-3">Cara Pembayaran</th><th class="p-3">Keterangan</th><th class="p-3 text-right">Jumlah</th></tr></thead>
                 <tbody><tr v-for="payment in rows" :key="payment.id" class="border-b"><td class="p-3">{{ date(payment.date) }}</td><td class="p-3 font-semibold">{{ payment.label }}</td><td class="p-3">{{ payment.paymentMethod || "Tidak tercatat" }}</td><td class="p-3">{{ payment.description || "-" }}</td><td class="p-3 text-right">{{ money(payment.amount) }}</td></tr></tbody>
             </table>
             <p v-if="!rows.length" class="py-4 text-sm text-slate-500">Belum ada pembayaran yang tercatat.</p>
@@ -56,8 +65,12 @@ const rows = computed(() => {
             <div class="flex justify-between gap-4 border-t pt-2"><span>Sisa berdasarkan catatan</span><strong>{{ money(Math.max(0, Number(invoice.amount) - paid)) }}</strong></div>
         </div>
         <p v-if="!complete" class="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Status invoice tercatat lunas, tetapi riwayat pembayaran belum mencakup seluruh tagihan. Periksa data pembayaran.</p>
-        <p v-else class="mt-5 text-sm font-bold text-teal-700">Pembayaran lunas berdasarkan riwayat yang tercatat.</p>
+        <div v-else class="mt-5 inline-flex -rotate-3 flex-col items-center rounded-lg border-4 border-red-700 px-6 py-2 font-black uppercase text-red-700">
+            <span class="text-3xl tracking-widest">Lunas</span>
+            <span class="mt-1 text-sm tracking-wide">{{ date(settlementDate) }}</span>
+        </div>
         <div class="mt-14 flex justify-end"><div class="w-56 text-center"><p>Hormat kami,</p><div class="h-20"></div><p class="border-t pt-2 font-bold">Salfa Novia Roza, S.H., M.Kn.</p></div></div>
+        <PrintFooter :verification-url="verificationUrl" />
         <button type="button" onclick="window.print()" class="fixed bottom-6 right-6 rounded-xl bg-teal-700 px-5 py-3 font-bold text-white print:hidden">Cetak Kwitansi</button>
     </main>
 </template>

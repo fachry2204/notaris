@@ -32,6 +32,7 @@ class PrintController extends Controller
         }
 
         return Inertia::render('Print/Invoice', [
+            'verificationUrl' => DocumentVerificationController::url('invoice', $id),
             'invoice' => $invoice,
             'job' => $job,
             'terms' => $invoice->description ?: ($job->terms ?? ''),
@@ -83,6 +84,7 @@ class PrintController extends Controller
         $settings = $storedSettings ? json_decode($storedSettings, true) ?: [] : [];
 
         return Inertia::render('Print/Receipt', [
+            'verificationUrl' => DocumentVerificationController::url('tanda-terima-'.$normalizedType, $id),
             'job' => $job,
             'jobType' => $normalizedType,
             'attachments' => $attachments,

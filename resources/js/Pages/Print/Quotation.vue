@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Head, usePage } from "@inertiajs/vue3";
 import { computed } from "vue";
+import PrintFooter from "@/Components/PrintFooter.vue";
 
-defineProps<{ quotation: any; items: any[] }>();
+defineProps<{ quotation: any; items: any[]; verificationUrl: string }>();
 const branding = computed(() => (usePage().props.branding || {}) as { officeName?: string; officeAddress?: string });
 const money = (value: any) =>
     new Intl.NumberFormat("id-ID", {
@@ -135,6 +136,7 @@ const date = (value: any) =>
                 <p class="text-xs text-slate-500">PIC Quotation</p>
             </div>
         </div>
+        <PrintFooter :verification-url="verificationUrl" />
         <button
             onclick="window.print()"
             class="fixed bottom-6 right-6 rounded-xl bg-pink-600 px-5 py-3 font-bold text-white print:hidden"
