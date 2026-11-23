@@ -23,6 +23,7 @@ import {
     FolderOpen,
     Fingerprint,
 } from "@lucide/vue";
+defineProps<{ hideMobileHeader?: boolean }>();
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user);
 const branding = computed(
@@ -314,7 +315,7 @@ const mobile = computed(() => [
         </aside>
         <div class="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Mobile Top Header Bar -->
-            <header class="flex h-16 items-center justify-between border-b border-[var(--sidebar-border)] bg-[var(--sidebar)] px-4 shadow-sm md:hidden">
+            <header v-if="!hideMobileHeader" class="flex h-16 items-center justify-between border-b border-[var(--sidebar-border)] bg-[var(--sidebar)] px-4 shadow-sm md:hidden">
                 <Link href="/dashboard" class="flex items-center gap-2">
                     <img v-if="logoUrl" :src="logoUrl" :alt="appName" class="h-8 w-8 object-contain" />
                     <span class="font-display truncate text-base font-black text-[#f2e8d5]">{{ appName }}</span>

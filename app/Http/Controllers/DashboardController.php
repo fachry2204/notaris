@@ -114,9 +114,12 @@ class DashboardController extends Controller
         $staffLanding = in_array($user['role'] ?? '', ['STAFFADMIN', 'OB'], true)
             && $request->query('view') !== 'overview';
         $todayAttendance = null;
+        $staffPhoto = null;
         $staffWork = null;
         if ($staffLanding) {
-            $staffId = DB::table('staff')->where('userId', $user['id'] ?? '')->value('id');
+            $staff = DB::table('staff')->where('userId', $user['id'] ?? '')->first(['id', 'photoPath']);
+            $staffId = $staff?->id;
+            $staffPhoto = $staff?->photoPath;
             if ($staffId) {
                 $todayAttendance = DB::table('attendance')->where('staffId', $staffId)->whereDate('date', today())->first();
             }
@@ -237,6 +240,7 @@ class DashboardController extends Controller
             'recentPayments' => $recentPayments,
             'staffLanding' => $staffLanding,
             'staffWork' => $staffWork,
+            'staffPhoto' => $staffPhoto,
             'todayAttendance' => $todayAttendance,
             'user' => $user,
         ]);

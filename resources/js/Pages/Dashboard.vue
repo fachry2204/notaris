@@ -67,6 +67,7 @@ const props = defineProps<{
         invoiceNumber?: string | null;
     }>;
     staffLanding: boolean;
+    staffPhoto: string | null;
     todayAttendance: any | null;
     user: any;
     staffWork: { assigned: number; active: number; completed: number; overdue: number; upcoming: Array<{ id: string; jobType: string; title: string; trackingCode: string; status: string; deadline: string | null }> } | null;
@@ -172,8 +173,8 @@ const time = (value: string | null) =>
 
 <template>
     <Head title="Dashboard" />
-    <AppLayout>
-        <MobileDashboard v-if="staffLanding" :user="user" :today-attendance="todayAttendance" :staff-work="staffWork" />
+    <AppLayout :hide-mobile-header="staffLanding">
+        <MobileDashboard v-if="staffLanding" :user="user" :photo="staffPhoto" :today-attendance="todayAttendance" :staff-work="staffWork" />
         <main v-if="staffLanding" class="hidden md:block mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
             <section
                 class="rounded-3xl p-6 text-white shadow-lg"
