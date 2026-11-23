@@ -49,6 +49,7 @@ class HandleInertiaRequests extends Middleware
                     return [
                         'appName' => $stored['general']['appName'] ?? 'Notaris Digital',
                         'officeName' => $stored['general']['officeName'] ?? 'Kantor Notaris',
+                        'officeAddress' => $stored['general']['officeAddress'] ?? '',
                         'logoUrl' => $stored['branding']['logoUrl'] ?? null,
                         'faviconUrl' => $stored['branding']['faviconUrl'] ?? null,
                         'primaryColor' => in_array(

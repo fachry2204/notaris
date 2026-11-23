@@ -6,6 +6,7 @@ import {
     ArrowLeft,
     Ban,
     CalendarDays,
+    Download,
     Edit3,
     LockKeyhole,
     Mail,
@@ -42,6 +43,71 @@ const date = (value: any) =>
               { day: "2-digit", month: "long", year: "numeric" },
           )
         : "-";
+const downloadingPdf = ref(false);
+const downloadPdf = async () => {
+    if (downloadingPdf.value) return;
+    downloadingPdf.value = true;
+    try {
+        const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+            import("jspdf"),
+            import("jspdf-autotable"),
+        ]);
+        const pdf = new jsPDF();
+        const q = props.quotation;
+        const branding = (page.props.branding || {}) as { appName?: string; officeAddress?: string };
+        pdf.setFontSize(15);
+        pdf.setFont("helvetica", "bold");
+        pdf.text(pdf.splitTextToSize(branding.appName || "Notaris Digital", 180), 14, 18);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        const headerLines: string[] = branding.officeAddress ? pdf.splitTextToSize(branding.officeAddress, 180) : [];
+        if (headerLines.length) pdf.text(headerLines, 14, 25);
+        const headerEnd = 30 + headerLines.length * 5;
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text("QUOTATION", 14, headerEnd);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.text(`Nomor: ${q.quotationNumber}`, 14, headerEnd + 8);
+        pdf.text(`Tanggal: ${date(q.quotationDate)}`, 14, headerEnd + 14);
+        pdf.text(`Kepada: ${q.clientName || "-"}`, 14, headerEnd + 24);
+        const addressLines: string[] = q.clientAddress ? pdf.splitTextToSize(q.clientAddress, 110) : [];
+        if (addressLines.length) pdf.text(addressLines, 14, headerEnd + 30);
+        pdf.text(`PIC: ${q.picName || "-"}`, 130, headerEnd + 24);
+        autoTable(pdf, {
+            startY: headerEnd + Math.max(37, 36 + addressLines.length * 4),
+            head: [["No.", "Deskripsi", "Qty", "Harga", "Jumlah"]],
+            body: props.items.map((item, index) => [
+                String(index + 1), item.description, `${Number(item.quantity)} ${item.unit || ""}`,
+                money(item.unitPrice), money(item.total),
+            ]),
+            headStyles: { fillColor: [15, 145, 132] },
+        });
+        let y = (pdf as any).lastAutoTable.finalY + 10;
+        const line = (text: string, bold = false) => {
+            const lines = pdf.splitTextToSize(text, 180);
+            for (const part of lines) {
+                if (y > 280) { pdf.addPage(); y = 20; }
+                pdf.setFont("helvetica", bold ? "bold" : "normal");
+                pdf.text(part, 14, y);
+                y += 6;
+            }
+        };
+        line(`Perihal: ${q.subject || "-"}`, true);
+        line(`Subtotal: ${money(q.subtotal)}`);
+        line(`Diskon: ${money(q.discount)}`);
+        line(`Pajak (${Number(q.taxPercent || 0)}%): ${money(q.taxAmount)}`);
+        line(`Total Penawaran: ${money(q.grandTotal)}`, true);
+        if (q.terms) { y += 4; line("Syarat dan Ketentuan", true); line(q.terms); }
+        if (q.notes) { y += 4; line("Catatan", true); line(q.notes); }
+        pdf.save(`Quotation-${String(q.quotationNumber).replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`);
+    } catch (error) {
+        console.error("Gagal membuat PDF quotation", error);
+        alert("PDF belum dapat dibuat. Silakan coba lagi.");
+    } finally {
+        downloadingPdf.value = false;
+    }
+};
 const remove = () =>
     confirm("Hapus quotation ini?") &&
     router.delete(`/dashboard/quotation/${props.quotation.id}`);
@@ -181,6 +247,15 @@ const publish = () => {
                     >
                         <Printer class="h-3.5 w-3.5" /> Cetak
                     </a>
+                    <button
+                        type="button"
+                        :disabled="downloadingPdf"
+                        @click="downloadPdf"
+                        class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold disabled:opacity-50"
+                    >
+                        <Download class="h-3.5 w-3.5" />
+                        {{ downloadingPdf ? "Menyiapkan PDF..." : "Download PDF" }}
+                    </button>
                     <Link
                         v-if="
                             quotation.status !== 'Dibatalkan' &&
@@ -333,9 +408,6 @@ const publish = () => {
                             <p class="mt-3 flex items-center gap-2 font-bold">
                                 <CalendarDays class="h-5 w-5 text-pink-600" />
                                 {{ date(quotation.quotationDate) }}
-                            </p>
-                            <p class="mt-1 text-sm text-slate-500">
-                                s.d. {{ date(quotation.validUntil) }}
                             </p>
                         </div>
                         <span

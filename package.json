@@ -23,6 +23,8 @@
         "vue-tsc": "^2.0.24"
     },
     "dependencies": {
-        "@lucide/vue": "^1.25.0"
+        "@lucide/vue": "^1.25.0",
+        "jspdf": "^4.2.1",
+        "jspdf-autotable": "^5.0.9"
     }
 }

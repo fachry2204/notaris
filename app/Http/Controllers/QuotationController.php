@@ -225,7 +225,7 @@ class QuotationController extends Controller
             'picUserId' => 'required|string|exists:user,id',
             'subject' => 'required|string|max:191',
             'quotationDate' => 'required|date',
-            'validUntil' => 'nullable|date|after_or_equal:quotationDate',
+            'validUntil' => 'nullable|date',
             'status' => 'required|in:'.implode(',', self::STATUSES),
             'discount' => 'nullable|numeric|min:0',
             'taxPercent' => 'nullable|numeric|min:0|max:100',

@@ -62,29 +62,6 @@ const sections = [
         ],
     },
     {
-        title: "Operasional",
-        items: [
-            [
-                "Data Client",
-                Users,
-                "/dashboard/clients",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
-            ],
-            [
-                "Data Berkas",
-                FileText,
-                "/dashboard/jobs/inbound",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
-            ],
-            [
-                "Daftar Akta",
-                ClipboardList,
-                "/dashboard/akta",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
-            ],
-        ],
-    },
-    {
         title: "Billing",
         items: [
             [
@@ -104,6 +81,29 @@ const sections = [
                 CreditCard,
                 "/dashboard/finance",
                 ["ADMINISTRATOR", "PIMPINAN"],
+            ],
+        ],
+    },
+    {
+        title: "Operasional",
+        items: [
+            [
+                "Data Client",
+                Users,
+                "/dashboard/clients",
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
+            ],
+            [
+                "Data Berkas",
+                FileText,
+                "/dashboard/jobs/inbound",
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
+            ],
+            [
+                "Daftar Akta",
+                ClipboardList,
+                "/dashboard/akta",
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
             ],
         ],
     },

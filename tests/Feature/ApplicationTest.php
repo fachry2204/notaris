@@ -581,8 +581,8 @@ class ApplicationTest extends TestCase
             'clientId' => null,
             'clientName' => 'PT Client Quotation Manual',
             'clientPhone' => '081234567890',
-            'clientEmail' => 'quotation@example.com',
-            'clientAddress' => 'Jakarta Selatan',
+            'clientEmail' => '',
+            'clientAddress' => '',
             'picUserId' => $picUserId,
             'subject' => $subject,
             'quotationDate' => today()->toDateString(),
@@ -606,6 +606,8 @@ class ApplicationTest extends TestCase
         $this->assertMatchesRegularExpression('/^[A-Z]+\/\d{8}\/\d{4}$/', $quotation->quotationNumber);
         $this->assertNull($quotation->clientId);
         $this->assertSame('PT Client Quotation Manual', $quotation->clientName);
+        $this->assertNull($quotation->clientEmail);
+        $this->assertNull($quotation->clientAddress);
         $this->assertEquals(3500000, (float) $quotation->subtotal);
         $this->assertEquals(3330000, (float) $quotation->grandTotal);
         $this->assertSame(2, DB::table('quotation_item')->where('quotationId', $quotation->id)->count());

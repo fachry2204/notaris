@@ -161,8 +161,8 @@ class NotificationGateway
             ],
             default => [
                 'subject' => "Quotation {$number} - {$title}",
-                'email' => "Yth. {$client},\n\nQuotation {$number} untuk {$title} telah diterbitkan.\nTotal penawaran: {$total}\nBerlaku sampai: {$dueDate}\n\nLihat quotation: {$url}\n\nHormat kami,\n{$pic}",
-                'whatsapp' => "Yth. {$client}, quotation *{$number}* untuk {$title} telah diterbitkan.\n\nTotal penawaran: *{$total}*\nBerlaku sampai: {$dueDate}\n\nLihat quotation: {$url}\n\nHormat kami,\n{$pic}",
+                'email' => "Yth. {$client},\n\nQuotation {$number} untuk {$title} telah diterbitkan.\nTotal penawaran: {$total}\n\nLihat quotation: {$url}\n\nHormat kami,\n{$pic}",
+                'whatsapp' => "Yth. {$client}, quotation *{$number}* untuk {$title} telah diterbitkan.\n\nTotal penawaran: *{$total}*\n\nLihat quotation: {$url}\n\nHormat kami,\n{$pic}",
             ],
         };
     }

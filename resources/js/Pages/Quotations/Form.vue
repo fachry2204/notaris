@@ -20,8 +20,6 @@ const props = defineProps<{
     staff: any[];
 }>();
 const today = new Date();
-const validDate = new Date(today);
-validDate.setDate(validDate.getDate() + 14);
 const dateValue = (date: Date) => date.toISOString().slice(0, 10);
 const form = useForm({
     clientMode: props.quotation?.clientId ? "existing" : "new",
@@ -34,15 +32,14 @@ const form = useForm({
     subject: props.quotation?.subject || "",
     quotationDate:
         props.quotation?.quotationDate?.slice(0, 10) || dateValue(today),
-    validUntil:
-        props.quotation?.validUntil?.slice(0, 10) || dateValue(validDate),
+    validUntil: props.quotation?.validUntil?.slice(0, 10) || null,
     status: props.quotation?.status || "Draft",
     discount: Number(props.quotation?.discount || 0),
     taxPercent: Number(props.quotation?.taxPercent || 0),
     notes: props.quotation?.notes || "",
     terms:
         props.quotation?.terms ||
-        "Harga berlaku sampai tanggal yang tercantum. Pembayaran dilakukan sesuai kesepakatan.",
+        "Pembayaran dilakukan sesuai kesepakatan.",
     items: props.items.length
         ? props.items.map((item) => ({
               description: item.description,
@@ -258,7 +255,7 @@ const save = () =>
                                 />
                             </label>
                             <label>
-                                <span class="label">Email Client</span>
+                                <span class="label">Email Client (opsional)</span>
                                 <input
                                     v-model="form.clientEmail"
                                     type="email"
@@ -272,7 +269,7 @@ const save = () =>
                                 >
                             </label>
                             <label class="md:col-span-2">
-                                <span class="label">Alamat Client</span>
+                                <span class="label">Alamat Client (opsional)</span>
                                 <textarea
                                     v-model="form.clientAddress"
                                     rows="2"
@@ -296,15 +293,6 @@ const save = () =>
                                 v-model="form.quotationDate"
                                 type="date"
                                 required
-                                class="field"
-                            />
-                        </label>
-                        <label>
-                            <span class="label">Berlaku Sampai</span>
-                            <input
-                                v-model="form.validUntil"
-                                type="date"
-                                :min="form.quotationDate"
                                 class="field"
                             />
                         </label>

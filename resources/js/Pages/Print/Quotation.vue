@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { Head } from "@inertiajs/vue3";
+import { Head, usePage } from "@inertiajs/vue3";
+import { computed } from "vue";
 
 defineProps<{ quotation: any; items: any[] }>();
+const branding = computed(() => (usePage().props.branding || {}) as { appName?: string; officeAddress?: string });
 const money = (value: any) =>
     new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -23,8 +25,9 @@ const date = (value: any) =>
                 <p
                     class="text-xs font-black uppercase tracking-[0.2em] text-pink-600"
                 >
-                    Notaris Digital
+                    {{ branding.appName || "Notaris Digital" }}
                 </p>
+                <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">{{ branding.officeAddress }}</p>
                 <h1 class="mt-2 text-3xl font-black">QUOTATION</h1>
                 <p class="mt-1 text-sm text-slate-500">Penawaran Harga</p>
             </div>
@@ -33,9 +36,6 @@ const date = (value: any) =>
                     {{ quotation.quotationNumber }}
                 </p>
                 <p class="mt-1 text-sm">{{ date(quotation.quotationDate) }}</p>
-                <p class="text-xs text-slate-500">
-                    Berlaku sampai {{ date(quotation.validUntil) }}
-                </p>
             </div>
         </header>
         <section class="mt-8 grid grid-cols-2 gap-10">

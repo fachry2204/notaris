@@ -270,9 +270,6 @@ const badgeStyle = (status: string) => {
                                 </td>
                                 <td class="text-xs text-slate-600">
                                     <p class="font-semibold text-slate-800">{{ date(quotation.quotationDate) }}</p>
-                                    <p class="text-[11px] text-slate-400">
-                                        s.d. {{ date(quotation.validUntil) }}
-                                    </p>
                                 </td>
                                 <td class="font-black text-slate-900">
                                     {{ money(quotation.grandTotal) }}
