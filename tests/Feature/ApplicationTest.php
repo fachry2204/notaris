@@ -191,14 +191,14 @@ class ApplicationTest extends TestCase
         config(['app.url' => 'http://localhost']);
         url()->forceRootUrl('http://localhost');
         $suffix = strtolower(\Illuminate\Support\Str::random(8));
-        foreach (['WFH', 'WFC', 'Dinas Luar', 'Missing', 'NoProfile', 'Inactive'] as $index => $type) {
+        foreach (['WFH', 'WFC', 'Dinas Luar', 'Missing', 'NoProfile', 'Inactive', 'AdminMissing', 'AdminWFH'] as $index => $type) {
             $id = 'qa-'.$suffix.'-'.$index;
-            DB::table('user')->insert(['id' => $id, 'username' => $id, 'email' => $id.'@example.com', 'fullName' => 'QA '.$suffix.' '.$type, 'passwordHash' => 'test', 'role' => 'STAFFADMIN', 'isActive' => $type !== 'Inactive', 'createdAt' => now(), 'updatedAt' => now()]);
+            DB::table('user')->insert(['id' => $id, 'username' => $id, 'email' => $id.'@example.com', 'fullName' => 'QA '.$suffix.' '.$type, 'passwordHash' => 'test', 'role' => str_starts_with($type, 'Admin') ? 'ADMINISTRATOR' : 'STAFFADMIN', 'isActive' => $type !== 'Inactive', 'createdAt' => now(), 'updatedAt' => now()]);
             if ($type === 'NoProfile') continue;
             $staffId = 'staff-'.$id;
             DB::table('staff')->insert(['id' => $staffId, 'userId' => $id, 'createdAt' => now(), 'updatedAt' => now()]);
-            if (in_array($type, ['WFH', 'WFC', 'Dinas Luar'], true)) {
-                DB::table('attendance')->insert(['id' => 'att-'.$id, 'staffId' => $staffId, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => ['workLocationType' => $type]]), 'createdAt' => now(), 'updatedAt' => now()]);
+            if (in_array($type, ['WFH', 'WFC', 'Dinas Luar', 'AdminWFH'], true)) {
+                DB::table('attendance')->insert(['id' => 'att-'.$id, 'staffId' => $staffId, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => ['workLocationType' => $type === 'AdminWFH' ? 'WFH' : $type]]), 'createdAt' => now(), 'updatedAt' => now()]);
             }
         }
         $admin = ['auth_user' => ['id' => 'admin-test', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
@@ -207,6 +207,8 @@ class ApplicationTest extends TestCase
         foreach (['wfh' => 'WFH', 'wfc' => 'WFC', 'dinas' => 'Dinas Luar', 'missing' => 'Missing'] as $key => $label) {
             $this->assertContains('QA '.$suffix.' '.$label, $notifications[$key]);
         }
+        $this->assertNotContains('QA '.$suffix.' AdminMissing', $notifications['missing']);
+        $this->assertNotContains('QA '.$suffix.' AdminWFH', $notifications['wfh']);
         $this->assertNotContains('QA '.$suffix.' Inactive', $notifications['missing']);
         $this->assertNotContains('QA '.$suffix.' NoProfile', $notifications['missing']);
         $staff = ['auth_user' => ['id' => 'qa-'.$suffix.'-0', 'role' => 'STAFFADMIN', 'source' => 'user']];

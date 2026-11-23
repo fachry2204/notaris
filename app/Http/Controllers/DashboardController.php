@@ -123,6 +123,7 @@ class DashboardController extends Controller
             $employees = DB::table('user as u')
                 ->leftJoin('staff as s', 's.userId', '=', 'u.id')
                 ->where('u.isActive', true)
+                ->where('u.role', '<>', 'ADMINISTRATOR')
                 ->select('u.id', 'u.fullName', 'u.username', 's.id as staffId')
                 ->orderBy('u.fullName')->get();
             $records = DB::table('attendance')

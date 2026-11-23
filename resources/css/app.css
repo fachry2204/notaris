@@ -29,6 +29,7 @@
 }
 
 html {
+    touch-action: manipulation;
     font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent;
 }
