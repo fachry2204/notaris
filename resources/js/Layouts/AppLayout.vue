@@ -150,8 +150,6 @@ const sections = [
             [
                 "User Login",
                 UserCog,
-    FolderOpen,
-    Fingerprint,
                 "/dashboard/system/users",
                 ["ADMINISTRATOR", "PIMPINAN"],
             ],
