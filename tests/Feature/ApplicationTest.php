@@ -216,6 +216,19 @@ class ApplicationTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('attendanceNotifications', null));
     }
 
+    public function test_reverse_geocoding_succeeds_when_file_cache_is_unavailable(): void
+    {
+        $cache = Mockery::mock();
+        $cache->shouldReceive('get')->once()->andThrow(new \RuntimeException('cache read failed'));
+        $cache->shouldReceive('put')->once()->andThrow(new \RuntimeException('cache write failed'));
+        \Illuminate\Support\Facades\Cache::shouldReceive('store')->with('file')->twice()->andReturn($cache);
+        Http::fake(['*' => Http::response(['display_name' => 'Alamat uji'], 200)]);
+        $request = Request::create('/dashboard/pegawai/absensi/location', 'GET', ['latitude' => -6.17539, 'longitude' => 106.82715]);
+        $response = app(\App\Http\Controllers\AttendanceController::class)->reverseGeocode($request);
+        $this->assertSame(200, $response->getStatusCode());
+        $this->assertSame('Alamat uji', $response->getData(true)['address']);
+    }
+
     public function test_attendance_keeps_gps_and_marks_manual_address_when_geocoding_is_unavailable(): void
     {
         if (! Schema::hasTable('attendance')) {
@@ -234,9 +247,9 @@ class ApplicationTest extends TestCase
         $this->withSession($session)->getJson('/dashboard/pegawai/absensi/location?latitude='.$latitude.'&longitude=106.8')->assertStatus(502);
         Storage::fake('public_root');
         $this->withSession($session)->post('/dashboard/pegawai/absensi', [
-            'workLocationType' => 'WFH', 'locationLabel' => 'Alamat diisi manual', 'locationSource' => 'manual',
-            'latitude' => $latitude, 'longitude' => 106.8, 'photo' => UploadedFile::fake()->image('foto.jpg'),
-        ])->assertSessionHasNoErrors();
+            'attendanceAction' => 'checkin', 'workLocationType' => 'WFH', 'locationLabel' => 'Alamat diisi manual', 'locationSource' => 'manual',
+            'latitude' => $latitude, 'longitude' => 106.8, 'locationAccuracy' => 10.5, 'photo' => UploadedFile::fake()->image('foto.jpg'),
+        ])->assertSessionHasNoErrors()->assertRedirect(route('attendance.checkin'));
         $record = DB::table('attendance')->where('staffId', $staffId)->first();
         $this->assertNotNull($record);
         $checkIn = json_decode($record->notes, true)['checkIn'];
@@ -244,10 +257,42 @@ class ApplicationTest extends TestCase
         $this->assertSame('Alamat diisi manual', $checkIn['locationLabel']);
         $this->assertEquals($latitude, $checkIn['latitude']);
         $this->assertEquals(106.8, $checkIn['longitude']);
+        $this->assertEquals(10.5, $checkIn['locationAccuracy']);
+        $recap = $this->withSession($session)->get('/dashboard/pegawai/absensi')->assertOk();
+        $this->assertSame($record->id, data_get($recap->viewData('page')['props']['today'], 'id'));
+        $rows = collect($recap->viewData('page')['props']['records']['data']);
+        $this->assertTrue($rows->contains(fn ($row) => data_get($row, 'id') === $record->id && data_get($row, 'staffName') === 'QA Lokasi'));
+        $this->assertNull(data_get($rows->firstWhere('id', $record->id), 'checkOut'));
+        $admin = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $noProfile = ['auth_user' => ['id' => 'no-profile-'.$suffix, 'role' => 'STAFFADMIN', 'source' => 'user']];
+        $noProfileRecap = $this->withSession($noProfile)->get('/dashboard/pegawai/absensi')->assertOk();
+        $this->assertEmpty($noProfileRecap->viewData('page')['props']['records']['data']);
+        $adminRecap = $this->withSession($admin)->get('/dashboard/pegawai/absensi')->assertOk();
+        $this->assertTrue(collect($adminRecap->viewData('page')['props']['records']['data'])->contains(fn ($row) => data_get($row, 'id') === $record->id));
+        $report = $this->withSession($admin)->get('/dashboard/pegawai/laporan?month='.now()->format('Y-m'))->assertOk();
+        $reportRows = collect($report->viewData('page')['props']['rows']);
+        $this->assertGreaterThanOrEqual(1, (int) data_get($reportRows->firstWhere('id', $userId), 'presentDays'));
         $this->withSession($session)->post('/dashboard/pegawai/absensi', [
-            'workLocationType' => 'WFH', 'locationLabel' => 'Alamat manual', 'locationSource' => 'manual',
+            'attendanceAction' => 'checkin', 'workLocationType' => 'WFH', 'locationLabel' => 'Alamat manual', 'locationSource' => 'manual',
             'photo' => UploadedFile::fake()->image('foto.jpg'),
         ])->assertSessionHasErrors(['latitude', 'longitude']);
+        $this->withSession($session)->get('/dashboard/pegawai/absensi/absenku')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('checkoutRequested', false)->where('today.id', $record->id));
+        $this->withSession($session)->get('/dashboard/pegawai/absensi/absenku?action=checkout')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('checkoutRequested', true));
+        $submission = [
+            'workLocationType' => 'WFH', 'locationLabel' => 'Alamat manual', 'locationSource' => 'manual',
+            'latitude' => $latitude, 'longitude' => 106.8, 'photo' => UploadedFile::fake()->image('foto.jpg'),
+        ];
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', [...$submission, 'attendanceAction' => 'checkin'])->assertSessionHasErrors('attendanceAction');
+        $this->assertNull(DB::table('attendance')->where('id', $record->id)->value('checkOut'));
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', $submission)->assertSessionHasErrors('attendanceAction');
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', [...$submission, 'attendanceAction' => 'checkout'])->assertSessionHasNoErrors()->assertRedirect(route('attendance.checkin'));
+        $checkedOut = DB::table('attendance')->where('id', $record->id)->first();
+        $this->assertNotNull($checkedOut->checkOut);
+        $this->assertArrayHasKey('checkIn', json_decode($checkedOut->notes, true));
+        $this->assertArrayHasKey('checkOut', json_decode($checkedOut->notes, true));
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', [...$submission, 'attendanceAction' => 'checkout'])->assertSessionHasErrors('attendanceAction');
     }
 
     public function test_employee_cannot_update_employee_fees(): void

@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class AttendanceController extends Controller
@@ -29,10 +33,16 @@ class AttendanceController extends Controller
             })
             ->leftJoin('user as u', 'u.id', '=', 's.userId')
             ->select('a.*', 'u.fullName as staffName')
-            ->orderByDesc('a.date');
+            ->orderByDesc('a.date')
+            ->orderByDesc('a.checkIn')
+            ->orderByDesc('a.createdAt');
 
-        if (!in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN']) && $staff) {
-            $query->where('a.staffId', $staff->id);
+        if (! in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN'], true)) {
+            if ($staff) {
+                $query->where('a.staffId', $staff->id);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
         }
 
         $today = $staff
@@ -58,7 +68,7 @@ class AttendanceController extends Controller
         $user = $request->session()->get('auth_user');
         $staff = DB::table('staff')->where('userId', $user['id'])->first();
         $today = $staff ? DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first() : null;
-        return Inertia::render('Attendance/CheckIn', ['today' => $today, 'hasStaff' => (bool) $staff]);
+        return Inertia::render('Attendance/CheckIn', ['today' => $today, 'hasStaff' => (bool) $staff, 'checkoutRequested' => $request->query('action') === 'checkout' && (bool) ($today?->checkIn) && ! $today?->checkOut]);
     }
 
     public function report(Request $request)
@@ -80,35 +90,51 @@ class AttendanceController extends Controller
         $longitude = round((float) $coordinates['longitude'], 5);
         $cacheKey = "attendance-address:{$latitude}:{$longitude}";
 
+        // A cache permission error must not prevent an address lookup.
         try {
-            $address = Cache::store('file')->remember($cacheKey, now()->addDays(7), function () use ($latitude, $longitude) {
-                $client = Http::withHeaders([
-                    'User-Agent' => (string) config('services.geocoding.user_agent'),
-                    'Accept-Language' => 'id',
-                ])->acceptJson()->timeout(8);
-                if (app()->isLocal()) {
-                    $client = $client->withoutVerifying();
-                }
-                $response = $client->get((string) config('services.geocoding.url'), [
-                    'format' => 'jsonv2',
-                    'lat' => $latitude,
-                    'lon' => $longitude,
-                    'zoom' => 18,
-                    'addressdetails' => 1,
-                ])->throw();
+            $address = Cache::store('file')->get($cacheKey);
+            if (is_string($address) && trim($address) !== '') {
+                return response()->json(['address' => $address]);
+            }
+        } catch (\Throwable $exception) {
+            Log::notice('Attendance address cache unavailable.', ['exception' => get_class($exception)]);
+        }
 
-                return Str::limit(trim((string) $response->json('display_name')), 255, '');
-            });
-        } catch (\Throwable) {
-            return response()->json([
-                'message' => 'Alamat saat ini belum dapat ditemukan. Silakan coba kembali.',
-            ], 502);
+        try {
+            $client = Http::withHeaders([
+                'User-Agent' => (string) config('services.geocoding.user_agent'),
+                'Accept-Language' => 'id',
+            ])->acceptJson()->connectTimeout(5)->timeout(12);
+            if (app()->isLocal()) {
+                $client = $client->withoutVerifying();
+            }
+            $response = $client->get((string) config('services.geocoding.url'), [
+                'format' => 'jsonv2',
+                'lat' => $latitude,
+                'lon' => $longitude,
+                'zoom' => 18,
+                'addressdetails' => 1,
+            ])->throw();
+            $address = Str::limit(trim((string) $response->json('display_name')), 255, '');
+        } catch (ConnectionException $exception) {
+            Log::warning('Attendance geocoding connection failed.', ['exception' => get_class($exception)]);
+            return response()->json(['message' => 'Server tidak dapat menghubungi layanan alamat.', 'code' => 'connection_error'], 502);
+        } catch (RequestException $exception) {
+            Log::warning('Attendance geocoding provider returned an error.', ['status' => $exception->response->status()]);
+            return response()->json(['message' => 'Layanan alamat sedang tidak tersedia.', 'code' => 'provider_error'], 502);
+        } catch (\Throwable $exception) {
+            Log::warning('Attendance geocoding failed.', ['exception' => get_class($exception)]);
+            return response()->json(['message' => 'Pencarian alamat gagal.', 'code' => 'lookup_error'], 502);
         }
 
         if (! $address) {
-            return response()->json([
-                'message' => 'Alamat tidak ditemukan untuk titik GPS ini.',
-            ], 404);
+            return response()->json(['message' => 'Alamat tidak ditemukan untuk titik GPS ini.', 'code' => 'address_not_found'], 404);
+        }
+
+        try {
+            Cache::store('file')->put($cacheKey, $address, now()->addDays(7));
+        } catch (\Throwable $exception) {
+            Log::notice('Attendance address cache write failed.', ['exception' => get_class($exception)]);
         }
 
         return response()->json(['address' => $address]);
@@ -121,25 +147,38 @@ class AttendanceController extends Controller
         abort_unless($staff, 422, 'Profil staff tidak ditemukan.');
 
         $data = $request->validate([
+            'attendanceAction' => 'required|in:checkin,checkout',
             'workLocationType' => 'required|in:Office,Dinas Luar,WFC,WFH',
             'locationLabel' => 'required|string|max:255',
             'locationSource' => 'nullable|in:gps,manual',
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
+            'locationAccuracy' => 'nullable|numeric|min:0|max:1000000',
             'photo' => 'required|image|max:5120',
         ]);
-        $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first();
-        $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'locationSource' => $data['locationSource'] ?? 'gps', 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'submittedAt' => now()->toIso8601String()];
-        if ($request->hasFile('photo')) $payload['photoPath'] = '/'.$request->file('photo')->store('uploads/attendance', 'public_root');
+        DB::transaction(function () use ($staff, $request, $data) {
+            // Serialize submissions for one employee so a retry cannot turn check-in into check-out.
+            DB::table('staff')->where('id', $staff->id)->lockForUpdate()->first();
+            $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->lockForUpdate()->first();
+            if ($data['attendanceAction'] === 'checkin' && $existing) {
+                throw ValidationException::withMessages(['attendanceAction' => 'Absen masuk hari ini sudah tercatat.']);
+            }
+            if ($data['attendanceAction'] === 'checkout' && (! $existing || ! $existing->checkIn || $existing->checkOut)) {
+                throw ValidationException::withMessages(['attendanceAction' => 'Absen pulang tidak tersedia atau sudah tercatat.']);
+            }
 
-        if ($existing) {
-            $notes = json_decode($existing->notes ?: '{}', true) ?: [];
-            $notes['checkOut'] = $payload;
-            DB::table('attendance')->where('id', $existing->id)->update(['checkOut' => $existing->checkOut ?: now(), 'notes' => json_encode($notes), 'updatedAt' => now()]);
-        } else {
-            DB::table('attendance')->insert(['id' => 'attendance-'.Str::random(12), 'staffId' => $staff->id, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => $payload]), 'createdAt' => now(), 'updatedAt' => now()]);
-        }
-        return back()->with('success', $existing ? 'Check-out berhasil.' : 'Check-in berhasil.');
+            $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'locationSource' => $data['locationSource'] ?? 'gps', 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'locationAccuracy' => isset($data['locationAccuracy']) ? (float) $data['locationAccuracy'] : null, 'submittedAt' => now()->toIso8601String()];
+            $payload['photoPath'] = '/'.$request->file('photo')->store('uploads/attendance', 'public_root');
+            if ($data['attendanceAction'] === 'checkout') {
+                $notes = json_decode($existing->notes ?: '{}', true) ?: [];
+                $notes['checkOut'] = $payload;
+                DB::table('attendance')->where('id', $existing->id)->update(['checkOut' => now(), 'notes' => json_encode($notes), 'updatedAt' => now()]);
+            } else {
+                DB::table('attendance')->insert(['id' => 'attendance-'.Str::random(12), 'staffId' => $staff->id, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => $payload]), 'createdAt' => now(), 'updatedAt' => now()]);
+            }
+        });
+
+        return redirect()->route('attendance.checkin')->with('success', $data['attendanceAction'] === 'checkout' ? 'Absen pulang berhasil.' : 'Absen masuk berhasil.');
     }
 
     public function destroy(Request $request, string $id)

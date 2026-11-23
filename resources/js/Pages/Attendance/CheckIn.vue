@@ -15,14 +15,17 @@ import {
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
-const props = defineProps<{ today: any; hasStaff: boolean }>();
+const props = defineProps<{ today: any; hasStaff: boolean; checkoutRequested: boolean }>();
+const checkInComplete = computed(() => Boolean(props.today?.checkIn && !props.today?.checkOut && !props.checkoutRequested));
 
 const f = useForm({
+    attendanceAction: props.checkoutRequested ? "checkout" : "checkin",
     workLocationType: "Office",
     locationLabel: "",
     locationSource: "gps" as "gps" | "manual",
     latitude: null as number | null,
     longitude: null as number | null,
+    locationAccuracy: null as number | null,
     photo: null as File | null,
 });
 
@@ -62,6 +65,7 @@ const locate = () => {
     f.locationLabel = "";
     f.latitude = null;
     f.longitude = null;
+    f.locationAccuracy = null;
 
     if (!navigator.geolocation || !window.isSecureContext) {
         locationError.value = "GPS tidak tersedia. Pastikan aplikasi dibuka melalui HTTPS dan izin lokasi aktif.";
@@ -72,6 +76,7 @@ const locate = () => {
     navigator.geolocation.getCurrentPosition(async (position) => {
         f.latitude = position.coords.latitude;
         f.longitude = position.coords.longitude;
+        f.locationAccuracy = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null;
 
         try {
             const params = new URLSearchParams({
@@ -106,7 +111,7 @@ const locate = () => {
     }, {
         enableHighAccuracy: true,
         timeout: 15000,
-        maximumAge: 60000,
+        maximumAge: 0,
     });
 };
 
@@ -275,7 +280,7 @@ onMounted(() => {
     clockTimer = setInterval(() => {
         currentTime.value = new Date();
     }, 1000);
-    if (props.hasStaff && !props.today?.checkOut) locate();
+    if (props.hasStaff && !props.today?.checkOut && !checkInComplete.value) locate();
 });
 </script>
 
@@ -311,13 +316,13 @@ onMounted(() => {
                             <span class="grid h-12 w-12 place-items-center rounded-2xl border border-[#6e5729] bg-[#211b11] text-[#d7aa4d]">
                                 <UserCheck class="h-6 w-6" />
                             </span>
-                            <h2 class="mt-5 text-2xl font-black sm:text-3xl">{{ today?.checkIn && !today?.checkOut ? "Absen Pulang" : "Absen Masuk" }}</h2>
+                            <h2 class="mt-5 text-2xl font-black sm:text-3xl">{{ today?.checkOut ? "Absensi Selesai" : checkoutRequested ? "Absen Pulang" : "Absen Masuk" }}</h2>
                             <p class="mt-1 text-sm font-medium text-[#b7aa94]">
                                 {{ new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) }}
                             </p>
                         </div>
                         <span class="rounded-full border border-[#66532d] bg-[#201b12] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#d7aa4d]">
-                            {{ today?.checkIn ? "Pulang" : "Masuk" }}
+                            {{ today?.checkOut ? "Selesai" : checkoutRequested ? "Pulang" : "Masuk" }}
                         </span>
                     </div>
                 </header>
@@ -331,6 +336,16 @@ onMounted(() => {
                     <Link href="/dashboard/pegawai/absensi" class="mt-6 inline-flex h-11 items-center gap-2 rounded-xl border border-[#d8c9aa] bg-[#f5ead1] px-5 text-sm font-black text-[#8a611c] hover:border-[#c99a3d]">
                         <ArrowLeft class="h-4 w-4" /> Lihat Riwayat Absensi
                     </Link>
+                </div>
+
+                <div v-else-if="checkInComplete" class="p-8 text-center sm:p-12">
+                    <span class="mx-auto grid h-20 w-20 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600"><CheckCircle2 class="h-10 w-10" /></span>
+                    <h3 class="mt-5 text-xl font-black text-[#17120a]">Absen Masuk Berhasil</h3>
+                    <p class="mt-2 text-sm text-[#766d5d]">Absen masuk hari ini sudah tercatat. Pilih tombol berikut saat waktunya absen pulang.</p>
+                    <div class="mt-6 flex flex-wrap justify-center gap-3">
+                        <Link href="/dashboard/pegawai/absensi" class="inline-flex h-11 items-center justify-center rounded-xl border border-[#d8c9aa] bg-white px-5 text-sm font-bold text-[#514a3e]">Lihat Riwayat</Link>
+                        <Link href="/dashboard/pegawai/absensi/absenku?action=checkout" class="inline-flex h-11 items-center justify-center rounded-xl bg-[#c99a3d] px-5 text-sm font-black text-[#17120a]">Absen Pulang</Link>
+                    </div>
                 </div>
 
                 <form v-else class="space-y-6 p-5 sm:p-8" @submit.prevent="submit">
@@ -361,6 +376,10 @@ onMounted(() => {
 
                     <div v-if="locationResolved" class="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">
                         <CheckCircle2 class="h-4 w-4" />{{ manualAddress ? "GPS terdeteksi · alamat diisi manual" : "Lokasi dan alamat terdeteksi otomatis" }}
+                    </div>
+                    <div v-if="f.latitude !== null && f.longitude !== null" class="rounded-xl border border-[#e0c58f] bg-[#fffaf0] p-3 text-xs leading-relaxed text-[#665330]">
+                        <p class="font-bold">Koordinat GPS: {{ f.latitude.toFixed(6) }}, {{ f.longitude.toFixed(6) }}</p>
+                        <p class="mt-1">{{ f.locationAccuracy !== null ? `Perkiraan akurasi perangkat: ±${Math.ceil(f.locationAccuracy)} meter.` : 'Akurasi GPS tidak tersedia dari perangkat.' }} Alamat otomatis adalah objek terdekat di peta dan dapat berbeda dari titik GPS.</p>
                     </div>
                     <div v-if="locationError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                         {{ locationError }}
@@ -408,10 +427,11 @@ onMounted(() => {
                     <div v-if="cameraError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                         {{ cameraError }}
                     </div>
+                    <p v-if="f.errors.attendanceAction" class="text-sm font-bold text-rose-600">{{ f.errors.attendanceAction }}</p>
                     <p v-if="f.errors.photo" class="text-sm font-bold text-rose-600">{{ f.errors.photo }}</p>
 
                     <button :disabled="f.processing || !f.photo || !locationResolved" class="h-14 w-full rounded-2xl bg-[#12110e] text-base font-black text-[#f7efdf] shadow-xl shadow-black/15 transition hover:bg-[#292319] disabled:cursor-not-allowed disabled:opacity-40 sm:text-lg">
-                        {{ f.processing ? "Mengirim..." : today?.checkIn ? "Kirim Absen Pulang" : "Kirim Absen Masuk" }}
+                        {{ f.processing ? "Mengirim..." : checkoutRequested ? "Kirim Absen Pulang" : "Kirim Absen Masuk" }}
                     </button>
                 </form>
             </section>

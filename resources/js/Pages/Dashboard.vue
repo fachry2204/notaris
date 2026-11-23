@@ -206,8 +206,12 @@ const time = (value: string | null) =>
                     </div>
                 </div>
 
+                <button v-if="todayAttendance?.checkOut" type="button" disabled aria-label="Absensi hari ini sudah selesai" class="mt-5 flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white/50 font-black text-slate-600">
+                    <UserCheck class="h-5 w-5" /> Absensi Selesai
+                </button>
                 <Link
-                    href="/dashboard/pegawai/absensi/absenku"
+                    v-else
+                    :href="todayAttendance?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'"
                     class="mt-5 flex h-12 items-center justify-center gap-2 rounded-2xl bg-white font-black shadow-md transition hover:-translate-y-0.5"
                     :style="{ color: 'var(--primary)' }"
                 >

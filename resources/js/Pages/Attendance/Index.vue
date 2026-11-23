@@ -103,21 +103,29 @@ const cardStatusStyle = (x: any) => {
                         Pantau kehadiran dan jam kerja seluruh pegawai.
                     </p>
                 </div>
+                <button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai">
+                    <UserCheck class="h-4 w-4" /> Absensi Selesai
+                </button>
                 <Link
-                    v-if="hasStaff"
-                    href="/dashboard/pegawai/absensi/absenku"
+                    v-else-if="hasStaff"
+                    :href="today?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'"
                     class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
                 >
                     <UserCheck class="h-4 w-4" />
                     <span>
                         {{
-                            today?.checkIn && !today?.checkOut
-                                ? "Absen Pulang"
-                                : "Absen Masuk"
+                            today?.checkOut ? "Absensi Selesai" : today?.checkIn ? "Absen Pulang" : "Absen Masuk"
                         }}
                     </span>
                 </Link>
             </div>
+
+            <section v-if="today?.checkIn" aria-label="Absensi saya hari ini" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div><h2 class="text-sm font-black text-emerald-900">Absensi saya hari ini tercatat</h2><p class="mt-1 text-xs text-emerald-800">{{ date(today.date) }} · Masuk {{ time(today.checkIn) }} · {{ today.checkOut ? `Pulang ${time(today.checkOut)}` : 'Belum absen pulang' }}</p></div>
+                    <Link v-if="!today.checkOut" href="/dashboard/pegawai/absensi/absenku?action=checkout" class="inline-flex h-10 items-center justify-center rounded-xl bg-emerald-700 px-4 text-xs font-bold text-white">Absen Pulang</Link>
+                </div>
+            </section>
 
             <!-- Manager Stats cards -->
             <div
@@ -380,6 +388,7 @@ const cardStatusStyle = (x: any) => {
                             <div v-for="item in detailLocations" :key="item.label" class="rounded-xl border border-slate-200 p-3 text-sm">
                                 <p class="font-bold">{{ item.label }} · {{ item.data.workLocationType || 'Lokasi kerja' }}</p>
                                 <p class="mt-1 text-slate-600">{{ item.data.locationLabel }}</p>
+                                <p v-if="item.data.locationAccuracy != null" class="mt-1 text-xs text-slate-500">Perkiraan akurasi GPS: ±{{ Math.ceil(Number(item.data.locationAccuracy)) }} meter</p>
                                 <p class="mt-1 text-xs text-slate-500">{{ item.data.locationSource === 'manual' ? 'Alamat diisi manual; koordinat dari GPS' : item.data.locationSource === 'gps' ? 'Alamat dari pencarian GPS' : 'Sumber alamat tidak tercatat' }}</p>
                             </div>
                         </div>
