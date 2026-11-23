@@ -62,29 +62,6 @@ const sections = [
         ],
     },
     {
-        title: "Billing",
-        items: [
-            [
-                "Quotation",
-                FileSignature,
-                "/dashboard/quotation",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
-            ],
-            [
-                "Invoice",
-                Receipt,
-                "/dashboard/invoice",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
-            ],
-            [
-                "Keuangan",
-                CreditCard,
-                "/dashboard/finance",
-                ["ADMINISTRATOR", "PIMPINAN"],
-            ],
-        ],
-    },
-    {
         title: "Operasional",
         items: [
             [
@@ -104,6 +81,29 @@ const sections = [
                 ClipboardList,
                 "/dashboard/akta",
                 ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
+            ],
+        ],
+    },
+    {
+        title: "Billing",
+        items: [
+            [
+                "Quotation",
+                FileSignature,
+                "/dashboard/quotation",
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
+            ],
+            [
+                "Invoice",
+                Receipt,
+                "/dashboard/invoice",
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
+            ],
+            [
+                "Keuangan",
+                CreditCard,
+                "/dashboard/finance",
+                ["ADMINISTRATOR", "PIMPINAN"],
             ],
         ],
     },
