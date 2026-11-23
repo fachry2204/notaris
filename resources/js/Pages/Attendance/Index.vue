@@ -19,6 +19,7 @@ const p = defineProps<{
     hasStaff: boolean;
     isManager: boolean;
     stats: any;
+    personalStats: { present: number; missing: number; leave: number; period: string } | null;
 }>();
 
 const q = ref("");
@@ -108,7 +109,7 @@ const cardStatusStyle = (x: any) => {
                 <div>
                     <h1 class="text-xl sm:text-2xl font-black text-slate-900">Rekap Absensi</h1>
                     <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">
-                        Pantau kehadiran dan jam kerja seluruh pegawai.
+                        {{ isManager ? 'Pantau kehadiran dan jam kerja seluruh pegawai.' : 'Pantau riwayat kehadiran dan jam kerja Anda.' }}
                     </p>
                 </div>
                 <button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai">
@@ -135,6 +136,14 @@ const cardStatusStyle = (x: any) => {
                 </div>
             </section>
 
+            <section v-if="!isManager" aria-label="Ringkasan absensi pribadi" class="space-y-2">
+                <p class="text-xs font-semibold text-slate-500">Ringkasan {{ personalStats?.period || 'bulan ini' }}</p>
+                <div class="grid grid-cols-3 gap-2 sm:gap-4">
+                    <div v-for="card in [{ label: 'Absen Masuk', value: personalStats?.present, color: 'text-emerald-800 bg-emerald-50 border-emerald-200' }, { label: 'Tidak Absen', value: personalStats?.missing, color: 'text-rose-800 bg-rose-50 border-rose-200' }, { label: 'Izin / Sakit', value: personalStats?.leave, color: 'text-amber-800 bg-amber-50 border-amber-200' }]" :key="card.label" class="min-w-0 rounded-2xl border p-3 sm:p-4" :class="card.color"><p class="break-words text-[10px] font-bold uppercase sm:text-xs">{{ card.label }}</p><p class="mt-1 text-xl font-black sm:text-2xl">{{ card.value ?? '—' }}</p><p class="text-[10px]">hari</p></div>
+                </div>
+                <p v-if="personalStats" class="text-xs text-slate-500">Tidak absen adalah perkiraan hari Senin–Jumat sampai kemarin; belum memperhitungkan hari libur dan jadwal khusus.</p>
+                <p v-else class="text-xs text-slate-500">Profil absensi belum tersedia.</p>
+            </section>
             <!-- Manager Stats cards -->
             <div
                 v-if="isManager"
@@ -178,7 +187,7 @@ const cardStatusStyle = (x: any) => {
             </div>
 
             <!-- Search bar -->
-            <div class="relative">
+            <div v-if="isManager" class="relative">
                 <Search
                     class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
                 />

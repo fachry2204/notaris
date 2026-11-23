@@ -427,6 +427,8 @@ const getRowNumber = (index: number | string) => {
                                             <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-700">
                                                 {{ task.trackingCode || '-' }}
                                             </span>
+                                            <span v-if="!task.deedSignedDate" class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Akta Belum Ditandatangani</span>
+                                            <span v-else class="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Akta Sudah Ditandatangani</span>
                                             <span class="text-[10px] font-bold text-slate-400">
                                                 {{ task.jobCategory }}
                                             </span>

@@ -354,7 +354,9 @@ class ModuleController extends Controller
 
     public function deeds(Request $request)
     {
-        $query = $this->jobs($request);
+        $query = $this->jobs($request)->join('signed_deeds as deed', function ($join) {
+            $join->on('deed.job_id', '=', 'jobs.id')->on('deed.job_type', '=', 'jobs.jobType');
+        })->select('jobs.*', 'deed.signed_date', 'deed.deed_number');
 
         return Inertia::render('Modules/Deeds', [
             'jobs' => (clone $query)->paginate(30)->withQueryString(),

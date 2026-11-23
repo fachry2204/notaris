@@ -281,7 +281,13 @@ class JobController extends Controller
         $progress->each(function ($item) use ($progressPhotos, $type, $id) {
             $item->photos = ($progressPhotos[$item->id] ?? collect())->map(fn ($photo) => ['id' => $photo->id, 'fileName' => $photo->file_name, 'filePath' => route('jobs.progress-photo', [$type, $id, $photo->id]), 'fileType' => 'image/jpeg'])->values();
         });
+        $signedDeed = DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->first();
+        if ($signedDeed) {
+            $signedDeed->photos = DB::table('signed_deed_photos')->where('deed_id', $signedDeed->id)->orderBy('id')->get()->map(fn ($photo) => ['id' => $photo->id, 'fileName' => $photo->file_name, 'filePath' => route('jobs.deed.photo', [$type, $id, $photo->id]), 'fileType' => 'image/jpeg']);
+        }
         return Inertia::render('Jobs/Show', [
+            'trackingShareUrl' => \Illuminate\Support\Facades\URL::signedRoute('tracking.shared', ['type' => $type, 'id' => $id]),
+            'signedDeed' => $signedDeed,
             'uploadedReceipts' => DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->orderByDesc('created_at')->get()->map(function ($receipt) use ($type, $id) {
                 return ['id' => $receipt->id, 'fileName' => $receipt->file_name, 'documentDate' => $receipt->document_date, 'receiver' => $receipt->receiver, 'submitter' => $receipt->submitter, 'uploadedBy' => $receipt->uploaded_by, 'url' => route('jobs.receipts.show', [$type, $id, $receipt->id])];
             }),
@@ -459,7 +465,7 @@ class JobController extends Controller
                 'number' => $job->trackingCode,
                 'title' => $job->title,
                 'status' => $job->status,
-                'url' => url('/cekberkas'),
+                'url' => \Illuminate\Support\Facades\URL::signedRoute('tracking.shared', ['type' => $type, 'id' => $id]),
                 'picName' => $job->picName,
             ]);
             DB::table('jobprogress')->insert([
@@ -625,8 +631,12 @@ class JobController extends Controller
         abort_unless(isset(self::TABLES[$type]), 404);
         $fk = $this->foreignKey($type);
         $receiptPaths = DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->pluck('file_path')->all();
+        $deedIds = DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->pluck('id');
+        $deedPaths = DB::table('signed_deed_photos')->whereIn('deed_id', $deedIds)->pluck('file_path')->all();
         $photoPaths = DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->pluck('file_path')->all();
-        DB::transaction(function () use ($type, $id, $fk, $request) {
+        DB::transaction(function () use ($type, $id, $fk, $request, $deedIds) {
+            DB::table('signed_deed_photos')->whereIn('deed_id', $deedIds)->delete();
+            DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->delete();
             DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->delete();
             DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->delete();
             foreach (['founder', 'attachment', 'jobprogress', 'job_employee_task'] as $table) {
@@ -636,6 +646,7 @@ class JobController extends Controller
         });
         \Illuminate\Support\Facades\Storage::disk('local')->delete($receiptPaths);
         Storage::disk('local')->delete($photoPaths);
+        Storage::disk('local')->delete($deedPaths);
 
         return redirect()->route('jobs.index')->with('success', 'Berkas dihapus.');
     }

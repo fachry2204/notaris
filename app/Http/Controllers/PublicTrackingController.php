@@ -72,6 +72,7 @@ class PublicTrackingController extends Controller
                 }
 
                 $results->push([
+                    'shareUrl' => \Illuminate\Support\Facades\URL::signedRoute('tracking.shared', ['type' => $table, 'id' => $job->id]),
                     'job' => [
                         ...(array) $job,
                         'clientName' => $this->maskedName($job->clientName),
@@ -89,6 +90,23 @@ class PublicTrackingController extends Controller
             'error' => $results->isEmpty()
                 ? 'Berkas tidak ditemukan. Periksa kembali nomor berkas, nomor HP, atau email Anda.'
                 : null,
+        ]);
+    }
+
+    public function shared(string $type, string $id)
+    {
+        abort_unless(isset(self::JOB_TABLES[$type]), 404);
+        $job = DB::table($type.' as job')->leftJoin('client as client', 'client.id', '=', 'job.clientId')
+            ->select('job.id', 'job.trackingCode', 'job.title', 'job.type', 'job.pengurusanUntuk', 'job.status', 'job.deadline', 'job.createdAt', 'client.name as clientName')
+            ->where('job.id', $id)->first();
+        abort_unless($job, 404);
+        $progress = DB::table('jobprogress')->where($this->foreignKey($type), $id)->select('statusBefore', 'statusAfter', 'description', 'createdAt')->orderBy('createdAt')->get();
+        if ($progress->isEmpty()) {
+            $progress->push((object) ['statusBefore' => $job->status, 'statusAfter' => $job->status, 'createdAt' => $job->createdAt]);
+        }
+        return Inertia::render('Public/Tracking', [
+            'results' => [['shareUrl' => \Illuminate\Support\Facades\URL::signedRoute('tracking.shared', ['type' => $type, 'id' => $id]), 'job' => [...(array) $job, 'clientName' => $this->maskedName($job->clientName), 'category' => self::JOB_TABLES[$type]], 'progress' => $progress]],
+            'searched' => true, 'query' => '', 'error' => null,
         ]);
     }
 

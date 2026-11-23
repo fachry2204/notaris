@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { Head, Link, useForm, usePage } from "@inertiajs/vue3";
 import {
     AlertCircle,
@@ -18,7 +18,7 @@ import {
 } from "@lucide/vue";
 
 const props = defineProps<{
-    results: Array<{ job: any; progress: any[] }>;
+    results: Array<{ job: any; progress: any[]; shareUrl?: string }>;
     searched: boolean;
     query: string;
     error?: string | null;
@@ -31,6 +31,11 @@ const appName = computed(() => branding.value.appName || "Notaris Digital");
 const officeName = computed(() => branding.value.officeName || "Kantor Notaris");
 const logoUrl = computed(() => branding.value.logoUrl || "");
 const form = useForm({ query: props.query || "" });
+const copied = ref('');
+const copyLink = async (url: string) => {
+    try { await navigator.clipboard.writeText(url); copied.value = url; window.setTimeout(() => { copied.value = ''; }, 3000); }
+    catch { window.prompt('Salin tautan cek berkas:', url); }
+};
 
 const search = () =>
     form.post("/cekberkas", {
@@ -134,7 +139,7 @@ const deadlineLabel = (value?: string | null) => {
                 </div>
             </section>
 
-            <section class="relative z-10 mx-auto -mt-16 max-w-5xl px-5 pb-16 sm:px-8">
+            <section class="relative z-10 mx-auto -mt-16 max-w-7xl px-5 pb-16 sm:px-8">
                 <div v-if="error" class="rounded-2xl border border-red-200 bg-white p-6 text-center shadow-xl">
                     <span class="mx-auto grid h-12 w-12 place-items-center rounded-full bg-red-50 text-red-600"><AlertCircle class="h-6 w-6" /></span>
                     <h2 class="mt-3 text-lg font-black text-slate-900">Berkas Tidak Ditemukan</h2>
@@ -144,8 +149,8 @@ const deadlineLabel = (value?: string | null) => {
                 <div v-else-if="searched && results.length" class="space-y-5">
                     <div class="flex flex-col justify-between gap-2 rounded-2xl border border-[#d8c9aa] bg-[#fffdf8] px-5 py-4 shadow-lg sm:flex-row sm:items-center">
                         <div>
-                            <p class="text-xs font-black uppercase tracking-wider text-[#9a6b16]">Hasil Pencarian</p>
-                            <p class="mt-1 text-sm text-slate-500">Ditemukan {{ results.length }} berkas yang terhubung dengan data Anda.</p>
+                            <p class="text-sm font-black text-slate-900">{{ results.length }} berkas ditemukan</p>
+                            <p class="mt-1 text-xs text-slate-500">Identitas client ditampilkan sebagian.</p>
                         </div>
                         <span class="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">Data ditemukan</span>
                     </div>
@@ -157,6 +162,7 @@ const deadlineLabel = (value?: string | null) => {
                                     <code class="rounded-lg bg-[#ede2cd] px-2.5 py-1 text-xs font-black text-[#9a6b16]">{{ result.job.trackingCode }}</code>
                                     <h2 class="mt-3 text-xl font-black text-slate-950 sm:text-2xl">{{ result.job.title }}</h2>
                                     <p class="mt-1 text-sm text-slate-500">{{ result.job.category }} · Client {{ result.job.clientName }}</p>
+                                    <button v-if="result.shareUrl" type="button" @click="copyLink(result.shareUrl)" class="mt-3 rounded-lg border border-teal-300 bg-white px-3 py-2 text-xs font-bold text-teal-700">{{ copied === result.shareUrl ? 'Tautan disalin' : 'Salin tautan berkas' }}</button>
                                 </div>
                                 <span class="inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-xs font-black" :class="status(result.job.status).className">
                                     <Clock3 v-if="result.job.status !== 'SELESAI'" class="h-4 w-4" />
@@ -166,8 +172,14 @@ const deadlineLabel = (value?: string | null) => {
                             </div>
                         </div>
 
-                        <div class="grid gap-5 p-5 sm:p-7 lg:grid-cols-3">
-                            <section class="space-y-3 lg:col-span-1">
+                        <div class="mx-5 mt-5 rounded-2xl border border-amber-200 bg-[#fff9ef] p-4 sm:mx-7">
+                            <div class="flex flex-wrap items-center justify-between gap-2"><div><p class="font-serif text-lg font-black text-slate-900">Status saat ini</p><p class="mt-1 text-sm text-slate-600">{{ status(result.job.status).label }}</p></div><span class="rounded-full border px-4 py-2 text-xs font-bold" :class="status(result.job.status).className">{{ status(result.job.status).label }}</span></div>
+                            <p class="mt-3 text-xs text-slate-500">Status diperbarui berdasarkan informasi yang dicatat oleh petugas.</p>
+                        </div>
+
+                        <div class="grid gap-5 p-5 sm:p-7 lg:grid-cols-2">
+                            <section class="space-y-3">
+                                <h3 class="font-serif text-lg font-black text-slate-900">Informasi Berkas</h3>
                                 <div class="rounded-2xl border border-slate-200 bg-white p-4">
                                     <div class="flex items-center gap-2 text-slate-400"><BriefcaseBusiness class="h-4 w-4" /><p class="text-[10px] font-black uppercase tracking-wider">Jenis Pengurusan</p></div>
                                     <p class="mt-2 text-sm font-black text-slate-800">{{ result.job.pengurusanUntuk ? `${result.job.type} — ${result.job.pengurusanUntuk}` : result.job.type || '-' }}</p>
@@ -183,6 +195,11 @@ const deadlineLabel = (value?: string | null) => {
                                 </div>
                             </section>
 
+                            <section class="rounded-2xl border border-amber-200 bg-[#fffaf3] p-5">
+                                <h3 class="font-serif text-lg font-black text-slate-900">Informasi untuk Anda</h3>
+                                <div class="mt-4 rounded-xl bg-white p-4"><p class="text-sm font-bold text-slate-800">{{ status(result.job.status).label }}</p><p class="mt-2 text-sm leading-relaxed text-slate-600">Lihat riwayat di bawah untuk mengetahui pembaruan yang telah dicatat. Hubungi kantor jika Anda membutuhkan informasi lebih lanjut.</p></div>
+                            </section>
+
                             <section class="rounded-2xl border border-slate-200 bg-white p-5 lg:col-span-2">
                                 <div class="flex items-center justify-between gap-3">
                                     <div>
@@ -192,12 +209,12 @@ const deadlineLabel = (value?: string | null) => {
                                     <FileCheck2 class="h-5 w-5 text-[#c99a3d]" />
                                 </div>
                                 <div class="mt-5 space-y-0">
-                                    <div v-for="(progress, index) in result.progress" :key="`${progress.createdAt}-${index}`" class="relative flex gap-4 pb-6 last:pb-0">
-                                        <div class="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border-4 border-white shadow-sm" :class="index === result.progress.length - 1 ? 'bg-[#c99a3d] text-white' : 'bg-slate-200 text-slate-500'">
+                                    <div v-for="(progress, index) in [...result.progress].reverse()" :key="`${progress.createdAt}-${index}`" class="relative flex gap-4 pb-4 last:pb-0">
+                                        <div class="relative z-10 grid h-9 w-9 shrink-0 place-items-center rounded-full border-4 border-white shadow-sm" :class="index === 0 ? 'bg-[#d98500] text-white' : 'bg-emerald-100 text-emerald-700'">
                                             <CheckCircle2 class="h-4 w-4" />
                                         </div>
                                         <div v-if="index < result.progress.length - 1" class="absolute bottom-0 left-[17px] top-8 w-px bg-slate-200" />
-                                        <div class="min-w-0 pt-1">
+                                        <div class="min-w-0 flex-1 rounded-xl p-3" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
                                             <p class="text-sm font-black text-slate-800">{{ status(progress.statusAfter).label }}</p>
                                             <p class="mt-1 text-[11px] text-slate-400">{{ formatDate(progress.createdAt, true) }}</p>
                                             <p v-if="progress.description" class="mt-2 whitespace-pre-line break-words text-sm text-slate-600">{{ progress.description }}</p>
@@ -229,7 +246,7 @@ const deadlineLabel = (value?: string | null) => {
 
                 <div class="mt-6 flex items-start gap-3 rounded-2xl border border-[#d8c9aa] bg-[#efe5d2] p-4 text-xs leading-relaxed text-[#705d3e]">
                     <ShieldCheck class="mt-0.5 h-5 w-5 shrink-0" />
-                    <p><strong>Privasi terjaga.</strong> Halaman ini hanya menampilkan informasi progres berkas. Nama client disamarkan dan catatan internal kantor tidak ditampilkan.</p>
+                    <p><strong>Informasi berkas.</strong> Nama client disamarkan. Status dan keterangan progres yang tersimpan ditampilkan pada halaman ini.</p>
                 </div>
             </section>
         </main>

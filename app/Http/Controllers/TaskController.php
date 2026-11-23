@@ -63,6 +63,7 @@ class TaskController extends Controller
                 DB::raw('COALESCE(bh.title, nbh.title, ppat.title) as jobTitle'),
                 DB::raw('COALESCE(bh.trackingCode, nbh.trackingCode, ppat.trackingCode) as trackingCode'),
                 DB::raw('COALESCE(bh.status, nbh.status, ppat.status) as jobStatus')
+                , DB::raw("(SELECT signed_date FROM signed_deeds WHERE job_id = COALESCE(bh.id, nbh.id, ppat.id) AND job_type = CASE WHEN bh.id IS NOT NULL THEN 'badan_hukum' WHEN nbh.id IS NOT NULL THEN 'non_badan_hukum' ELSE 'ppat' END LIMIT 1) as deedSignedDate")
             )
             ->when($userId, fn ($q) => $q->where('task.userId', $userId))
             ->when($taskType, fn ($q) => $q->where('task.taskType', $taskType))

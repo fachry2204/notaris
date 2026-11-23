@@ -20,6 +20,7 @@ import {
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import JobDateFilter from "@/Components/JobDateFilter.vue";
+import MobileDashboard from "@/Components/MobileDashboard.vue";
 
 type DashboardJob = {
     id: string;
@@ -172,7 +173,8 @@ const time = (value: string | null) =>
 <template>
     <Head title="Dashboard" />
     <AppLayout>
-        <main v-if="staffLanding" class="mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
+        <MobileDashboard v-if="staffLanding" :user="user" :today-attendance="todayAttendance" :staff-work="staffWork" />
+        <main v-if="staffLanding" class="hidden md:block mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
             <section
                 class="rounded-3xl p-6 text-white shadow-lg"
                 :style="{
@@ -272,7 +274,7 @@ const time = (value: string | null) =>
             </section>
         </main>
 
-        <main v-else class="space-y-5 p-2 sm:p-4">
+        <main v-if="!staffLanding" class="space-y-5 p-2 sm:p-4">
             <section v-if="attendanceNotifications" aria-label="Notifikasi absensi hari ini" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div><h2 class="flex items-center gap-2 text-base font-black text-amber-950"><AlertTriangle class="h-5 w-5" /> Notifikasi absensi hari ini</h2><p class="mt-1 text-xs text-amber-800">Berdasarkan check-in hari ini untuk akun pegawai aktif.</p></div>

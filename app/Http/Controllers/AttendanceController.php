@@ -49,11 +49,31 @@ class AttendanceController extends Controller
             ? DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first()
             : null;
 
+        $isManager = in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN'], true);
+        $personalStats = null;
+        if (! $isManager && $staff) {
+            $start = now()->startOfMonth()->startOfDay();
+            if (! empty($staff->createdAt)) {
+                $created = \Illuminate\Support\Carbon::parse($staff->createdAt)->startOfDay();
+                if ($created->gt($start)) $start = $created;
+            }
+            $records = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', '>=', $start->toDateString())->whereDate('date', '<=', today()->toDateString())->get(['date', 'status', 'checkIn']);
+            $present = $records->filter(fn ($row) => $row->checkIn)->map(fn ($row) => substr((string) $row->date, 0, 10))->unique();
+            $leave = $records->filter(fn ($row) => in_array(mb_strtolower(trim((string) $row->status)), ['izin', 'sakit'], true))->map(fn ($row) => substr((string) $row->date, 0, 10))->unique();
+            $known = $present->merge($leave)->unique()->all();
+            $missing = 0;
+            for ($day = $start->copy(); $day->lt(today()); $day->addDay()) {
+                if ($day->isWeekday() && ! in_array($day->toDateString(), $known, true)) $missing++;
+            }
+            $personalStats = ['present' => $present->count(), 'missing' => $missing, 'leave' => $leave->count(), 'period' => now()->locale('id')->translatedFormat('F Y')];
+        }
+
         return Inertia::render('Attendance/Index', [
             'records' => $query->paginate(30),
             'today' => $today,
             'hasStaff' => (bool) $staff,
-            'isManager' => in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN']),
+            'isManager' => $isManager,
+            'personalStats' => $personalStats,
             'stats' => [
                 'present' => DB::table('attendance')->whereDate('date', today())->where('status', 'Hadir')->count(),
                 'late' => DB::table('attendance')->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),

@@ -18,6 +18,7 @@ use App\Http\Controllers\StaffController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\UserLoginController;
 use App\Http\Controllers\UploadedReceiptController;
+use App\Http\Controllers\SignedDeedController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
@@ -28,6 +29,7 @@ Route::post('/admin/login', [AuthController::class, 'storeAdmin'])->name('admin.
 Route::post('/logout', [AuthController::class, 'destroy'])->name('logout');
 Route::get('/cekberkas', [PublicTrackingController::class, 'index'])->name('tracking');
 Route::post('/cekberkas', [PublicTrackingController::class, 'search'])->middleware('throttle:30,1')->name('tracking.search');
+Route::get('/cekberkas/{type}/{id}', [PublicTrackingController::class, 'shared'])->middleware(['signed', 'throttle:60,1'])->name('tracking.shared');
 Route::redirect('/tracking', '/cekberkas');
 Route::redirect('/cek-berkas', '/cekberkas');
 Route::get('/verifikasi-dokumen/{type}/{id}', [DocumentVerificationController::class, 'show'])->middleware(['signed', 'throttle:60,1'])->name('document.verify');
@@ -56,6 +58,8 @@ Route::middleware('legacy.auth')->group(function () {
     Route::post('/dashboard/jobs', [JobController::class, 'store'])->name('jobs.store');
     Route::post('/dashboard/jobs/{type}/{id}/invoice', [JobController::class, 'attachInvoice'])->name('jobs.invoice.attach');
     Route::post('/dashboard/jobs/{type}/{id}/receipts', [UploadedReceiptController::class, 'store'])->name('jobs.receipts.store');
+    Route::post('/dashboard/jobs/{type}/{id}/signed-deed', [SignedDeedController::class, 'save'])->name('jobs.deed.save');
+    Route::get('/dashboard/jobs/{type}/{id}/signed-deed/photo/{photo}', [SignedDeedController::class, 'photo'])->name('jobs.deed.photo');
     Route::get('/dashboard/jobs/{type}/{id}/receipts/{receipt}', [UploadedReceiptController::class, 'show'])->name('jobs.receipts.show');
     Route::post('/dashboard/jobs/{type}/{id}/notify', [JobController::class, 'notify'])->where('type', 'badan-hukum|non-badan-hukum|ppat|badan_hukum|non_badan_hukum')->name('jobs.notify');
     Route::get('/dashboard/jobs/{id}/invoice', [JobController::class, 'legacyInvoice'])->name('jobs.legacy-invoice');

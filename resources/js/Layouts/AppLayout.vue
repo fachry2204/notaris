@@ -20,6 +20,8 @@ import {
     Search,
     Bell,
     UserCog,
+    FolderOpen,
+    Fingerprint,
 } from "@lucide/vue";
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user);
@@ -148,6 +150,8 @@ const sections = [
             [
                 "User Login",
                 UserCog,
+    FolderOpen,
+    Fingerprint,
                 "/dashboard/system/users",
                 ["ADMINISTRATOR", "PIMPINAN"],
             ],
@@ -228,19 +232,14 @@ onMounted(() => {
 });
 watch([() => page.url, appName, faviconUrl], queueBrowserBrandingSync);
 watch(primaryColor, (newColor) => applyPrimaryColor(newColor));
-const mobile = computed(() =>
-    ["STAFFADMIN", "OB"].includes(role.value)
-        ? [
-              ["Home", "/dashboard", "/uploads/home.png"],
-              ["Absen", "/dashboard/pegawai/absensi", "/uploads/camera.png"],
-              ["Berkas", "/dashboard/jobs/inbound", "/uploads/lapor.png"],
-          ]
-        : [
-              ["Home", "/dashboard", "/uploads/home.png"],
-              ["Berkas", "/dashboard/jobs/inbound", "/uploads/lapor.png"],
-              ["Setting", "/dashboard/settings", ""],
-          ],
-);
+const mobile = computed(() => [
+    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: FolderOpen },
+    { label: "Data Akta", href: "/dashboard/akta", icon: FileText },
+    { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: Fingerprint },
+    { label: "Data Akta", href: "/dashboard/akta", icon: ClipboardList },
+    { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: Clock },
+]);
+
 </script>
 <template>
     <div
@@ -379,23 +378,10 @@ const mobile = computed(() =>
                 <slot />
             </main>
         </div>
-        <nav
-            class="fixed inset-x-0 bottom-0 z-50 flex h-16 items-center justify-around border-t border-[var(--sidebar-border)] bg-[var(--sidebar)] px-2 shadow-[0_-4px_20px_rgba(0,0,0,.18)] md:hidden"
-        >
-            <Link
-                v-for="i in mobile"
-                :href="i[1]"
-                class="flex h-full w-full flex-col items-center justify-center gap-1 text-slate-400 transition-colors"
-                :class="active(i[1]) ? 'font-bold text-[var(--primary)]' : 'hover:text-slate-600'"
-                ><img
-                    v-if="i[2]"
-                    :src="i[2]"
-                    class="h-5 w-5 object-contain"
-                /><Settings v-else class="h-5 w-5" /><span
-                    class="text-[11px]"
-                    >{{ i[0] }}</span
-                ></Link
-            >
+        <nav aria-label="Navigasi mobile" class="fixed inset-x-0 bottom-0 z-50 flex items-end justify-around rounded-t-3xl border-t border-[#e7e2da] bg-[#fffefa] px-1 pt-2 shadow-[0_-4px_20px_rgba(0,0,0,.08)] md:hidden" style="padding-bottom:max(.5rem,env(safe-area-inset-bottom))">
+            <Link v-for="(item, index) in mobile" :key="index" :href="item.href" class="flex min-h-14 w-1/5 flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold leading-tight text-slate-700" :class="active(item.href) ? 'text-emerald-700' : ''">
+                <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><component :is="item.icon" :class="index === 2 ? 'h-7 w-7' : 'h-6 w-6'" /></span><span>{{ item.label }}</span>
+            </Link>
         </nav>
     </div>
 </template>

@@ -120,6 +120,7 @@ const number = (value: number) =>
                             <tr>
                                 <th class="p-4 pl-6">No.</th>
                                 <th>Tanggal Berkas</th>
+                                <th>Nomor / Tanggal Akta</th>
                                 <th>Nama Client</th>
                                 <th>Jenis Pekerjaan</th>
                                 <th>PIC Pegawai</th>
@@ -129,7 +130,7 @@ const number = (value: number) =>
                         <tbody>
                             <tr v-if="!jobs.data.length">
                                 <td
-                                    colspan="6"
+                                    colspan="7"
                                     class="py-16 text-center text-slate-400"
                                 >
                                     <FileText
@@ -147,6 +148,7 @@ const number = (value: number) =>
                                     {{ (jobs.from || 1) + i }}
                                 </td>
                                 <td>{{ date(j.createdAt) }}</td>
+                                <td>{{ j.deed_number || '—' }}<p class="text-xs text-slate-500">{{ date(j.signed_date) }}</p></td>
                                 <td class="font-bold">
                                     {{ j.clientName || "-" }}
                                 </td>

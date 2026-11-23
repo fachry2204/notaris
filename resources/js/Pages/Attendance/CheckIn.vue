@@ -42,6 +42,38 @@ const locating = ref(false);
 const locationError = ref("");
 const manualAddress = ref(false);
 const photoNotice = ref("");
+const permissionDialog = ref(false);
+const permissionBusy = ref(false);
+const gpsPermission = ref<'unknown' | 'prompt' | 'granted' | 'denied'>('unknown');
+const cameraPermission = ref<'unknown' | 'prompt' | 'granted' | 'denied'>('unknown');
+const permissionMessage = ref('');
+const refreshPermissions = async () => {
+    if (!navigator.permissions?.query) return;
+    await Promise.allSettled([
+        navigator.permissions.query({ name: 'geolocation' }).then((result) => { gpsPermission.value = result.state; result.onchange = () => { gpsPermission.value = result.state; }; }),
+        navigator.permissions.query({ name: 'camera' as PermissionName }).then((result) => { cameraPermission.value = result.state; result.onchange = () => { cameraPermission.value = result.state; }; }),
+    ]);
+};
+const requestPermissions = async () => {
+    permissionMessage.value = '';
+    if (!window.isSecureContext || !navigator.geolocation || !navigator.mediaDevices?.getUserMedia) {
+        permissionMessage.value = 'Kamera atau lokasi tidak tersedia. Buka aplikasi melalui HTTPS dan aktifkan kamera serta layanan lokasi perangkat.';
+        return;
+    }
+    permissionBusy.value = true;
+    const locationRequest = new Promise<boolean>((resolve) => navigator.geolocation.getCurrentPosition(
+        () => { gpsPermission.value = 'granted'; resolve(true); },
+        (error) => { if (error.code === error.PERMISSION_DENIED) gpsPermission.value = 'denied'; resolve(false); },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    ));
+    const cameraRequest = navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then((stream) => { stream.getTracks().forEach((track) => track.stop()); cameraPermission.value = 'granted'; return true; })
+        .catch((error: unknown) => { if (error instanceof DOMException && (error.name === 'NotAllowedError' || error.name === 'SecurityError')) cameraPermission.value = 'denied'; return false; });
+    const [locationOk, cameraOk] = await Promise.all([locationRequest, cameraRequest]);
+    permissionBusy.value = false;
+    if (locationOk && cameraOk) { permissionDialog.value = false; locate(); }
+    else permissionMessage.value = 'Izin belum lengkap. Jika permintaan tidak muncul atau sebelumnya ditolak, ubah izin di pengaturan situs atau perangkat, lalu tekan Coba Lagi.';
+};
 const locationResolved = computed(() => f.latitude !== null && f.longitude !== null && Boolean(f.locationLabel.trim()));
 watch(() => [f.latitude, f.longitude, f.locationLabel, f.workLocationType], () => {
     if (!f.photo) return;
@@ -74,6 +106,7 @@ const locate = () => {
     }
 
     navigator.geolocation.getCurrentPosition(async (position) => {
+        gpsPermission.value = 'granted';
         f.latitude = position.coords.latitude;
         f.longitude = position.coords.longitude;
         f.locationAccuracy = Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null;
@@ -102,6 +135,7 @@ const locate = () => {
             locating.value = false;
         }
     }, (error) => {
+        if (error.code === error.PERMISSION_DENIED) { gpsPermission.value = 'denied'; permissionDialog.value = true; }
         locationError.value = error.code === error.PERMISSION_DENIED
             ? "Izin lokasi ditolak. Izinkan akses lokasi pada browser, lalu coba kembali."
             : error.code === error.TIMEOUT
@@ -144,6 +178,7 @@ const startCamera = async () => {
             audio: false,
         });
         cameraStream.value = stream;
+        cameraPermission.value = 'granted';
         cameraActive.value = true;
         document.body.style.overflow = "hidden";
         await nextTick();
@@ -152,6 +187,7 @@ const startCamera = async () => {
             await videoElement.value.play();
         }
     } catch (error) {
+        if (error instanceof DOMException && error.name === 'NotAllowedError') { cameraPermission.value = 'denied'; permissionDialog.value = true; }
         cameraError.value = error instanceof DOMException && error.name === "NotAllowedError"
             ? "Izin kamera ditolak. Izinkan akses kamera pada browser, lalu coba kembali."
             : "Kamera tidak dapat dibuka. Pastikan kamera tidak sedang digunakan aplikasi lain.";
@@ -276,17 +312,42 @@ onBeforeUnmount(() => {
     if (clockTimer) clearInterval(clockTimer);
 });
 
-onMounted(() => {
+onMounted(async () => {
     clockTimer = setInterval(() => {
         currentTime.value = new Date();
     }, 1000);
-    if (props.hasStaff && !props.today?.checkOut && !checkInComplete.value) locate();
+    if (props.hasStaff && !props.today?.checkOut && !checkInComplete.value) {
+        await refreshPermissions();
+        if (gpsPermission.value === 'granted' && cameraPermission.value === 'granted') locate();
+        else permissionDialog.value = true;
+    }
 });
 </script>
 
 <template>
     <Head title="Absenku" />
     <AppLayout>
+        <Teleport to="body">
+            <div v-if="permissionDialog" role="dialog" aria-modal="true" aria-labelledby="attendance-permission-title" class="fixed inset-0 z-[250] flex items-center justify-center bg-black/70 p-4">
+                <div class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-3xl bg-white p-6 shadow-2xl">
+                    <h2 id="attendance-permission-title" class="text-xl font-black text-slate-900">Izinkan Kamera dan Lokasi</h2>
+                    <p class="mt-2 text-sm leading-relaxed text-slate-600">Absensi memerlukan lokasi GPS dan foto selfie. Tekan tombol di bawah, lalu pilih <strong>Izinkan</strong> pada permintaan yang muncul.</p>
+                    <div class="mt-5 space-y-2 text-sm">
+                        <div class="flex items-center justify-between rounded-xl bg-slate-50 p-3"><span class="flex items-center gap-2 font-bold"><MapPin class="h-5 w-5 text-teal-700" /> Lokasi GPS</span><span class="text-xs font-bold" :class="gpsPermission === 'granted' ? 'text-emerald-700' : 'text-amber-700'">{{ gpsPermission === 'granted' ? 'Diizinkan' : gpsPermission === 'denied' ? 'Ditolak' : 'Belum dikonfirmasi' }}</span></div>
+                        <div class="flex items-center justify-between rounded-xl bg-slate-50 p-3"><span class="flex items-center gap-2 font-bold"><Camera class="h-5 w-5 text-teal-700" /> Kamera</span><span class="text-xs font-bold" :class="cameraPermission === 'granted' ? 'text-emerald-700' : 'text-amber-700'">{{ cameraPermission === 'granted' ? 'Diizinkan' : cameraPermission === 'denied' ? 'Ditolak' : 'Belum dikonfirmasi' }}</span></div>
+                    </div>
+                    <p v-if="permissionMessage" role="alert" class="mt-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{{ permissionMessage }}</p>
+                    <div v-if="gpsPermission === 'denied' || cameraPermission === 'denied'" class="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-relaxed text-amber-950">
+                        <p class="font-bold">Jika sebelumnya menekan Tolak:</p>
+                        <p class="mt-1">Android: buka ikon pengaturan di sebelah alamat situs → Izin → aktifkan Kamera dan Lokasi. Jika menggunakan aplikasi terpasang, periksa juga Pengaturan perangkat → Aplikasi → izin aplikasi.</p>
+                        <p class="mt-2">iPhone: buka Pengaturan → Privasi &amp; Keamanan → Layanan Lokasi dan Kamera, lalu izinkan browser atau aplikasi yang digunakan. Periksa juga pengaturan situs di Safari.</p>
+                        <p class="mt-2">Kembali ke halaman ini lalu tekan Coba Lagi. Nama menu dapat berbeda pada tiap perangkat.</p>
+                    </div>
+                    <button type="button" :disabled="permissionBusy" @click="requestPermissions" class="mt-5 w-full rounded-xl bg-teal-700 px-4 py-3 font-bold text-white disabled:opacity-50">{{ permissionBusy ? 'Menunggu izin perangkat...' : 'Izinkan Kamera dan Lokasi / Coba Lagi' }}</button>
+                    <button type="button" :disabled="permissionBusy" @click="permissionDialog = false" class="mt-2 w-full rounded-xl border px-4 py-3 text-sm font-bold text-slate-600">Nanti</button>
+                </div>
+            </div>
+        </Teleport>
         <main class="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
             <header class="flex items-start gap-4">
                 <Link
@@ -360,16 +421,19 @@ onMounted(() => {
                             </select>
                         </label>
 
+                        <div v-if="f.latitude !== null && f.longitude !== null" class="overflow-hidden rounded-xl border border-[#d8c9aa] bg-white">
+                            <iframe title="Peta lokasi GPS saat ini" class="h-48 w-full border-0" loading="lazy" referrerpolicy="no-referrer" :src="`https://www.openstreetmap.org/export/embed.html?bbox=${f.longitude - 0.003}%2C${f.latitude - 0.002}%2C${f.longitude + 0.003}%2C${f.latitude + 0.002}&layer=mapnik&marker=${f.latitude}%2C${f.longitude}`"></iframe>
+                        </div>
                         <label>
-                            <span class="label"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
+                            <span class="label text-xs"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
                             <textarea
                                 v-model="f.locationLabel"
                                 :readonly="!manualAddress"
                                 :disabled="locating"
                                 maxlength="255"
-                                rows="3"
+                                rows="2"
                                 :placeholder="locating ? 'Sedang mendeteksi lokasi GPS dan alamat...' : manualAddress ? 'Masukkan alamat lokasi Anda saat ini' : 'Alamat akan terisi otomatis dari GPS'"
-                                class="w-full resize-none rounded-xl border border-[#d8c9aa] bg-[#f4efe5] px-4 py-3 text-sm font-semibold leading-relaxed text-[#514a3e] read-only:cursor-not-allowed"
+                                class="w-full resize-none rounded-xl border border-[#d8c9aa] bg-[#f4efe5] px-4 py-2 text-xs font-normal leading-relaxed text-[#514a3e] read-only:cursor-not-allowed"
                             ></textarea>
                         </label>
                     </div>
@@ -388,6 +452,7 @@ onMounted(() => {
                         <Navigation class="h-4 w-4" :class="locating ? 'animate-pulse' : ''" />
                         {{ locating ? "Mendeteksi Lokasi..." : locationResolved ? "Perbarui Lokasi GPS" : "Coba Deteksi Lokasi" }}
                     </button>
+                    <button type="button" @click="permissionDialog = true" class="w-full text-center text-xs font-bold text-teal-700 underline">Bantuan izin kamera dan lokasi</button>
                     <p class="text-center text-[10px] text-[#8c826f]">
                         Data alamat © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="font-bold text-[#8a611c] underline">OpenStreetMap contributors</a>
                     </p>

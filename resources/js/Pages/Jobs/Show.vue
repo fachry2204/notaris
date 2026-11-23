@@ -29,12 +29,14 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 const props = defineProps<{
     job: any;
     jobType: string;
+    trackingShareUrl: string;
     founders: any[];
     attachments: any[];
     employeeTasks: any[];
     progress: any[];
     invoiceHistory: any[];
     uploadedReceipts: Array<{ id: number; fileName: string; documentDate: string; receiver: string; submitter: string; uploadedBy: string | null; url: string }>;
+    signedDeed: { signed_date: string; deed_number: string | null; notes: string | null; photos: any[] } | null;
     availableInvoices: Array<{ id: string; invoiceNumber: string; clientName?: string | null; amount: number | string; status: string }>;
 }>();
 const progressForm = useForm({
@@ -43,6 +45,11 @@ const progressForm = useForm({
     photos: [] as File[],
 });
 const notificationForm = useForm({ notification: "" });
+const trackingCopied = ref(false);
+const copyTrackingLink = async () => {
+    try { await navigator.clipboard.writeText(props.trackingShareUrl); trackingCopied.value = true; window.setTimeout(() => { trackingCopied.value = false; }, 3000); }
+    catch { window.prompt('Salin tautan cek berkas:', props.trackingShareUrl); }
+};
 const receiptDialog = ref(false);
 const receiptMode = ref<'choose' | 'upload'>('choose');
 const receiptForm = useForm({ file: null as File | null, document_date: '', receiver: '', submitter: '' });
@@ -51,6 +58,18 @@ const saveReceipt = () => receiptForm.post(`/dashboard/jobs/${props.jobType}/${p
     onSuccess: () => { receiptDialog.value = false; receiptMode.value = 'choose'; receiptForm.reset(); },
 });
 const progressDialog = ref(false);
+const deedDialog = ref(false);
+const deedInput = ref<HTMLInputElement | null>(null);
+const deedError = ref('');
+const deedForm = useForm({ signed_date: '', deed_number: '', notes: '', photos: [] as File[] });
+const openDeed = () => { deedForm.signed_date = props.signedDeed?.signed_date || ''; deedForm.deed_number = props.signedDeed?.deed_number || ''; deedForm.notes = props.signedDeed?.notes || ''; deedForm.photos = []; deedForm.clearErrors(); deedError.value = ''; deedDialog.value = true; };
+const addDeedPhotos = (event: Event) => {
+    const input = event.target as HTMLInputElement; const files = Array.from(input.files || []); input.value = ''; deedError.value = '';
+    if ((props.signedDeed?.photos.length || 0) + deedForm.photos.length + files.length > 10) { deedError.value = 'Maksimal 10 foto per akta.'; return; }
+    if (files.some(file => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) { deedError.value = 'Gunakan JPG, PNG, atau WebP maksimal 5 MB per foto.'; return; }
+    deedForm.photos.push(...files);
+};
+const saveDeed = () => deedForm.post(`/dashboard/jobs/${props.jobType}/${props.job.id}/signed-deed`, { forceFormData: true, preserveScroll: true, onSuccess: () => { deedDialog.value = false; deedForm.reset(); } });
 const progressFilter = ref('');
 const filteredProgress = computed(() => props.progress.filter((item) => !progressFilter.value || item.statusAfter === progressFilter.value));
 const progressPhotoInput = ref<HTMLInputElement | null>(null);
@@ -246,46 +265,50 @@ const address =
                 <div class="flex flex-wrap items-center gap-2">
                     <Link
                         href="/dashboard/jobs/inbound"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
+                        aria-label="Kembali" title="Kembali"
+                        class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
                     >
                         <ArrowLeft class="h-4 w-4" />
-                        <span>Kembali</span>
+                        <span class="job-action-tooltip">Kembali</span>
                     </Link>
                     <button
                         :disabled="notificationForm.processing"
                         @click="sendNotification"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-xs font-bold text-white shadow-sm transition-all hover:bg-emerald-700 disabled:opacity-50"
+                        aria-label="Kirim notifikasi" title="Kirim notifikasi"
+                        class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
                     >
                         <Send class="h-4 w-4" />
-                        <span>{{
-                            notificationForm.processing
-                                ? "Mengirim..."
-                                : "Kirim Notifikasi"
-                        }}</span>
+                        <span class="job-action-tooltip">{{ notificationForm.processing ? "Mengirim..." : "Kirim notifikasi" }}</span>
                     </button>
                     <button
                         type="button"
                         @click="receiptMode = 'choose'; receiptDialog = true"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
+                        aria-label="Tanda terima" title="Tanda terima"
+                        class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm hover:bg-slate-50"
                     >
                         <Printer class="h-4 w-4" />
-                        <span>Tanda Terima</span>
+                        <span class="job-action-tooltip">Tanda terima</span>
                     </button>
-                    <button type="button" @click="openProgressDialog" class="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-700 px-4 text-xs font-bold text-white hover:bg-blue-800"><History class="h-4 w-4" /> Update Status Berkas</button>
+                    <button type="button" @click="copyTrackingLink" :aria-label="trackingCopied ? 'Tautan disalin' : 'Salin tautan cek berkas'" title="Salin tautan cek berkas" class="job-action relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300 bg-teal-50 text-teal-700"><FileText class="h-4 w-4" /><span class="job-action-tooltip">{{ trackingCopied ? 'Tautan disalin' : 'Salin tautan cek berkas' }}</span></button>
+                    <button type="button" @click="openProgressDialog" aria-label="Update status berkas" title="Update status berkas" class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-700 text-white hover:bg-blue-800"><History class="h-4 w-4" /><span class="job-action-tooltip">Update status berkas</span></button>
+                    <button type="button" @click="openDeed" :aria-label="signedDeed ? 'Edit tanda tangan akta' : 'Tanda tangan akta'" :title="signedDeed ? 'Edit tanda tangan akta' : 'Tanda tangan akta'" class="job-action relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-amber-600 text-white hover:bg-amber-700"><FileText class="h-4 w-4" /><span class="job-action-tooltip">{{ signedDeed ? 'Edit tanda tangan akta' : 'Tanda tangan akta' }}</span></button>
                     <Link
                         :href="`/dashboard/jobs/${jobType}/${job.id}/edit`"
-                        class="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-xs font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
+                        aria-label="Edit berkas" title="Edit berkas"
+                        class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-md hover:opacity-90"
                         :style="{ backgroundColor: 'var(--primary)' }"
                     >
                         <Edit3 class="h-4 w-4" />
-                        <span>Edit</span>
+                        <span class="job-action-tooltip">Edit berkas</span>
                     </Link>
                     <button
                         @click="remove"
-                        class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 border border-rose-200 text-rose-600 shadow-sm transition-all hover:bg-rose-100"
+                        aria-label="Hapus berkas"
+                        class="job-action group relative inline-flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 border border-rose-200 text-rose-600 shadow-sm transition-all hover:bg-rose-100"
                         title="Hapus Berkas"
                     >
                         <Trash2 class="h-4 w-4" />
+                        <span class="job-action-tooltip">Hapus berkas</span>
                     </button>
                 </div>
             </div>
@@ -302,6 +325,7 @@ const address =
                 {{ notificationForm.errors.notification }}
             </div>
 
+            <section class="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm"><div class="flex flex-wrap items-center justify-between gap-2"><div><p class="font-bold">{{ signedDeed ? 'Akta sudah ditandatangani' : 'Akta belum ditandatangani' }}</p><p v-if="signedDeed" class="mt-1 text-slate-600">Tanggal: {{ signedDeed.signed_date }} · Nomor akta: {{ signedDeed.deed_number || 'Belum diisi' }}</p></div><button type="button" @click="openDeed" class="font-bold text-teal-700 underline">{{ signedDeed ? 'Lihat / edit' : 'Catat tanda tangan' }}</button></div></section>
             <section class="grid gap-6 lg:grid-cols-3">
                 <article
                     class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"
@@ -894,6 +918,26 @@ const address =
             </section>
         </main>
         <Teleport to="body">
+            <div v-if="deedDialog" role="dialog" aria-modal="true" aria-label="Tanda tangan akta" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" @click.self="!deedForm.processing && (deedDialog = false)">
+                <form @submit.prevent="saveDeed" class="max-h-[90vh] w-full max-w-lg space-y-4 overflow-auto rounded-2xl bg-white p-6 shadow-xl">
+                    <div class="flex items-center justify-between"><h2 class="text-lg font-black">{{ signedDeed ? 'Edit Tanda Tangan Akta' : 'Tanda Tangan Akta' }}</h2><button type="button" @click="deedDialog = false" aria-label="Tutup"><X class="h-5 w-5" /></button></div>
+                    <label class="block text-sm font-bold">Tanggal ditandatangani<input v-model="deedForm.signed_date" required type="date" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="deedForm.errors.signed_date" class="text-xs text-red-600">{{ deedForm.errors.signed_date }}</span></label>
+                    <label class="block text-sm font-bold">Nomor akta (opsional)<input v-model="deedForm.deed_number" maxlength="191" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="deedForm.errors.deed_number" class="text-xs text-red-600">{{ deedForm.errors.deed_number }}</span></label>
+                    <label class="block text-sm font-bold">Keterangan (opsional)<textarea v-model="deedForm.notes" maxlength="5000" rows="3" class="mt-1 w-full rounded-xl border-slate-200"></textarea></label>
+                    <div class="text-sm font-bold">Foto akta (opsional)
+                        <div v-if="signedDeed?.photos.length" class="mt-2 flex flex-wrap gap-2"><button v-for="photo in signedDeed.photos" :key="photo.id" type="button" @click="deedDialog = false; openPreview(photo)" :aria-label="`Lihat ${photo.fileName}`" class="overflow-hidden rounded-lg border"><img :src="photo.filePath" :alt="photo.fileName" class="h-16 w-16 object-cover" /></button></div>
+                        <input ref="deedInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" tabindex="-1" @change="addDeedPhotos" />
+                        <button type="button" @click="deedInput?.click()" class="mt-2 inline-flex items-center gap-2 rounded-xl border border-teal-600 px-3 py-2 text-teal-700"><Plus class="h-4 w-4" /> Tambah foto</button>
+                        <p class="mt-1 text-xs font-normal text-slate-500">Maksimal 10 foto, JPG/PNG/WebP hingga 5 MB per foto.</p>
+                        <div v-for="(file, i) in deedForm.photos" :key="i" class="mt-1 flex justify-between gap-2 rounded bg-slate-50 p-2 text-xs"><span class="break-all">{{ file.name }}</span><button type="button" @click="deedForm.photos.splice(i, 1)" :aria-label="`Hapus ${file.name}`"><Trash2 class="h-4 w-4 text-rose-600" /></button></div>
+                        <p v-if="deedError || deedForm.errors.photos" class="mt-1 text-xs text-red-600">{{ deedError || deedForm.errors.photos }}</p>
+                        <p v-for="(message, field) in deedForm.errors" :key="field" class="text-xs text-red-600">{{ String(field).startsWith('photos.') ? message : '' }}</p>
+                    </div>
+                    <button :disabled="deedForm.processing" class="w-full rounded-xl bg-teal-700 p-3 font-bold text-white disabled:opacity-50">{{ deedForm.processing ? 'Menyimpan...' : 'Simpan Tanda Tangan' }}</button>
+                </form>
+            </div>
+        </Teleport>
+        <Teleport to="body">
             <div v-if="progressDialog" role="dialog" aria-modal="true" aria-label="Update Status Berkas" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" @click.self="!progressForm.processing && (progressDialog = false)">
                 <form @submit.prevent="saveProgress" class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl">
                     <div class="flex items-center justify-between"><h2 class="text-lg font-black">Update Status Berkas</h2><button type="button" @click="progressDialog = false" :disabled="progressForm.processing" aria-label="Tutup"><X class="h-5 w-5" /></button></div>
@@ -1111,3 +1155,29 @@ const address =
         </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.job-action-tooltip {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 30;
+    pointer-events: none;
+    white-space: nowrap;
+    border-radius: 0.4rem;
+    background: #1e293b;
+    color: white;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+    opacity: 0;
+    visibility: hidden;
+}
+.job-action:hover .job-action-tooltip,
+.job-action:focus .job-action-tooltip,
+.job-action:focus-visible .job-action-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+</style>
