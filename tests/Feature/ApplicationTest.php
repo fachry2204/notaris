@@ -216,6 +216,40 @@ class ApplicationTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('attendanceNotifications', null));
     }
 
+    public function test_attendance_keeps_gps_and_marks_manual_address_when_geocoding_is_unavailable(): void
+    {
+        if (! Schema::hasTable('attendance')) {
+            $this->markTestSkipped('Skema absensi belum tersedia.');
+        }
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $suffix = strtolower(\Illuminate\Support\Str::random(10));
+        $userId = 'qa-gps-'.$suffix;
+        $staffId = 'staff-'.$userId;
+        DB::table('user')->insert(['id' => $userId, 'username' => $userId, 'email' => $userId.'@example.com', 'fullName' => 'QA Lokasi', 'passwordHash' => 'test', 'role' => 'STAFFADMIN', 'isActive' => true, 'createdAt' => now(), 'updatedAt' => now()]);
+        DB::table('staff')->insert(['id' => $staffId, 'userId' => $userId, 'createdAt' => now(), 'updatedAt' => now()]);
+        $session = ['auth_user' => ['id' => $userId, 'role' => 'STAFFADMIN', 'source' => 'user']];
+        Http::fake(['*' => Http::response([], 503)]);
+        $latitude = -6 - random_int(10000, 90000) / 100000;
+        $this->withSession($session)->getJson('/dashboard/pegawai/absensi/location?latitude='.$latitude.'&longitude=106.8')->assertStatus(502);
+        Storage::fake('public_root');
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', [
+            'workLocationType' => 'WFH', 'locationLabel' => 'Alamat diisi manual', 'locationSource' => 'manual',
+            'latitude' => $latitude, 'longitude' => 106.8, 'photo' => UploadedFile::fake()->image('foto.jpg'),
+        ])->assertSessionHasNoErrors();
+        $record = DB::table('attendance')->where('staffId', $staffId)->first();
+        $this->assertNotNull($record);
+        $checkIn = json_decode($record->notes, true)['checkIn'];
+        $this->assertSame('manual', $checkIn['locationSource']);
+        $this->assertSame('Alamat diisi manual', $checkIn['locationLabel']);
+        $this->assertEquals($latitude, $checkIn['latitude']);
+        $this->assertEquals(106.8, $checkIn['longitude']);
+        $this->withSession($session)->post('/dashboard/pegawai/absensi', [
+            'workLocationType' => 'WFH', 'locationLabel' => 'Alamat manual', 'locationSource' => 'manual',
+            'photo' => UploadedFile::fake()->image('foto.jpg'),
+        ])->assertSessionHasErrors(['latitude', 'longitude']);
+    }
+
     public function test_employee_cannot_update_employee_fees(): void
     {
         $request = Request::create('/dashboard/jobs/badan_hukum/job-test/fees', 'PATCH', [

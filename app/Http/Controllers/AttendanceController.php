@@ -123,12 +123,13 @@ class AttendanceController extends Controller
         $data = $request->validate([
             'workLocationType' => 'required|in:Office,Dinas Luar,WFC,WFH',
             'locationLabel' => 'required|string|max:255',
+            'locationSource' => 'nullable|in:gps,manual',
             'latitude' => 'required|numeric|between:-90,90',
             'longitude' => 'required|numeric|between:-180,180',
             'photo' => 'required|image|max:5120',
         ]);
         $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first();
-        $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'submittedAt' => now()->toIso8601String()];
+        $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'locationSource' => $data['locationSource'] ?? 'gps', 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'submittedAt' => now()->toIso8601String()];
         if ($request->hasFile('photo')) $payload['photoPath'] = '/'.$request->file('photo')->store('uploads/attendance', 'public_root');
 
         if ($existing) {

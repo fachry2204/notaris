@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Head, Link, useForm } from "@inertiajs/vue3";
 import {
     ArrowLeft,
@@ -20,6 +20,7 @@ const props = defineProps<{ today: any; hasStaff: boolean }>();
 const f = useForm({
     workLocationType: "Office",
     locationLabel: "",
+    locationSource: "gps" as "gps" | "manual",
     latitude: null as number | null,
     longitude: null as number | null,
     photo: null as File | null,
@@ -36,7 +37,16 @@ const cameraFacing = ref<"user" | "environment">("user");
 const currentTime = ref(new Date());
 const locating = ref(false);
 const locationError = ref("");
-const locationResolved = computed(() => f.latitude !== null && f.longitude !== null && Boolean(f.locationLabel));
+const manualAddress = ref(false);
+const photoNotice = ref("");
+const locationResolved = computed(() => f.latitude !== null && f.longitude !== null && Boolean(f.locationLabel.trim()));
+watch(() => [f.latitude, f.longitude, f.locationLabel, f.workLocationType], () => {
+    if (!f.photo) return;
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    photoPreview.value = "";
+    f.photo = null;
+    photoNotice.value = "Lokasi berubah. Silakan ambil ulang foto agar sesuai dengan lokasi terbaru.";
+});
 const currentDateTime = computed(() => {
     const pad = (value: number) => String(value).padStart(2, "0");
     const date = currentTime.value;
@@ -47,10 +57,14 @@ let clockTimer: ReturnType<typeof setInterval> | null = null;
 const locate = () => {
     locationError.value = "";
     locating.value = true;
+    manualAddress.value = false;
+    f.locationSource = "gps";
     f.locationLabel = "";
+    f.latitude = null;
+    f.longitude = null;
 
-    if (!navigator.geolocation) {
-        locationError.value = "GPS tidak tersedia pada browser ini.";
+    if (!navigator.geolocation || !window.isSecureContext) {
+        locationError.value = "GPS tidak tersedia. Pastikan aplikasi dibuka melalui HTTPS dan izin lokasi aktif.";
         locating.value = false;
         return;
     }
@@ -73,18 +87,21 @@ const locate = () => {
                 throw new Error(result.message || "Alamat saat ini tidak dapat ditemukan.");
             }
             f.locationLabel = result.address;
+            f.locationSource = "gps";
             f.clearErrors("locationLabel", "latitude", "longitude");
         } catch (error) {
-            locationError.value = error instanceof Error
-                ? error.message
-                : "Alamat saat ini tidak dapat ditemukan.";
+            manualAddress.value = true;
+            f.locationSource = "manual";
+            locationError.value = "GPS berhasil didapat, tetapi alamat otomatis belum tersedia. Isi alamat secara manual atau coba deteksi lagi.";
         } finally {
             locating.value = false;
         }
     }, (error) => {
         locationError.value = error.code === error.PERMISSION_DENIED
             ? "Izin lokasi ditolak. Izinkan akses lokasi pada browser, lalu coba kembali."
-            : "Lokasi GPS tidak dapat diperoleh. Aktifkan GPS dan coba kembali.";
+            : error.code === error.TIMEOUT
+              ? "Pencarian GPS terlalu lama. Aktifkan lokasi akurat, pindah ke area terbuka, lalu coba lagi."
+              : "Lokasi GPS tidak dapat diperoleh. Aktifkan GPS dan coba kembali.";
         locating.value = false;
     }, {
         enableHighAccuracy: true,
@@ -169,12 +186,16 @@ const capturePhoto = () => {
         return;
     }
 
+    const capturedLocation = JSON.stringify([f.latitude, f.longitude, f.locationLabel, f.workLocationType]);
     const maximumWidth = 1280;
     const scale = Math.min(1, maximumWidth / video.videoWidth);
     canvas.width = Math.round(video.videoWidth * scale);
     canvas.height = Math.round(video.videoHeight * scale);
     const context = canvas.getContext("2d");
-    if (!context) return;
+    if (!context) {
+        cameraError.value = "Foto tidak dapat diproses di browser ini. Coba browser lain.";
+        return;
+    }
 
     context.save();
     if (cameraFacing.value === "user") {
@@ -188,7 +209,7 @@ const capturePhoto = () => {
     const addressFontSize = Math.max(17, Math.round(canvas.width * 0.022));
     const dateFontSize = Math.max(20, Math.round(canvas.width * 0.027));
     context.font = `600 ${addressFontSize}px sans-serif`;
-    const addressLines = wrapCanvasText(context, f.locationLabel, canvas.width - (padding * 2));
+    const addressLines = wrapCanvasText(context, f.locationLabel || "Lokasi belum tersedia saat foto diambil", canvas.width - (padding * 2));
     const lineHeight = Math.round(addressFontSize * 1.35);
     const overlayHeight = padding * 2 + dateFontSize + 12 + (addressLines.length * lineHeight) + lineHeight;
     context.fillStyle = "rgba(2, 6, 23, 0.72)";
@@ -204,6 +225,10 @@ const capturePhoto = () => {
     context.font = `700 ${addressFontSize}px sans-serif`;
     context.fillText(`Lokasi Kerja: ${f.workLocationType}`, padding, canvas.height - padding);
     canvas.toBlob((blob) => {
+        if (capturedLocation !== JSON.stringify([f.latitude, f.longitude, f.locationLabel, f.workLocationType])) {
+            cameraError.value = "Lokasi berubah. Silakan ambil foto kembali.";
+            return;
+        }
         if (!blob) {
             cameraError.value = "Foto gagal diambil. Silakan coba kembali.";
             return;
@@ -212,6 +237,7 @@ const capturePhoto = () => {
         const filename = `selfie-${new Date().toISOString().replace(/[:.]/g, "-")}.jpg`;
         f.photo = new File([blob], filename, { type: "image/jpeg" });
         photoPreview.value = URL.createObjectURL(blob);
+        photoNotice.value = "";
         f.clearErrors("photo");
         stopCamera();
     }, "image/jpeg", 0.88);
@@ -322,17 +348,19 @@ onMounted(() => {
                         <label>
                             <span class="label"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
                             <textarea
-                                :value="locating ? 'Sedang mendeteksi lokasi GPS dan alamat...' : f.locationLabel"
-                                readonly
+                                v-model="f.locationLabel"
+                                :readonly="!manualAddress"
+                                :disabled="locating"
+                                maxlength="255"
                                 rows="3"
-                                placeholder="Alamat akan terisi otomatis dari GPS"
+                                :placeholder="locating ? 'Sedang mendeteksi lokasi GPS dan alamat...' : manualAddress ? 'Masukkan alamat lokasi Anda saat ini' : 'Alamat akan terisi otomatis dari GPS'"
                                 class="w-full resize-none rounded-xl border border-[#d8c9aa] bg-[#f4efe5] px-4 py-3 text-sm font-semibold leading-relaxed text-[#514a3e] read-only:cursor-not-allowed"
                             ></textarea>
                         </label>
                     </div>
 
                     <div v-if="locationResolved" class="flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs font-bold text-emerald-700">
-                        <CheckCircle2 class="h-4 w-4" />Lokasi berhasil terdeteksi otomatis
+                        <CheckCircle2 class="h-4 w-4" />{{ manualAddress ? "GPS terdeteksi · alamat diisi manual" : "Lokasi dan alamat terdeteksi otomatis" }}
                     </div>
                     <div v-if="locationError" class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
                         {{ locationError }}
@@ -348,6 +376,7 @@ onMounted(() => {
                         {{ f.errors.locationLabel || f.errors.latitude || f.errors.longitude }}
                     </p>
 
+                    <p v-if="photoNotice" class="text-sm font-bold text-amber-800">{{ photoNotice }}</p>
                     <div class="overflow-hidden rounded-2xl border-2 border-dashed border-[#d8c9aa] bg-[#f7f1e5]">
                         <div v-if="photoPreview" class="relative bg-[#12110e]">
                             <img :src="photoPreview" alt="Hasil foto selfie" class="aspect-[4/3] w-full object-cover" />
@@ -397,7 +426,7 @@ onMounted(() => {
                 leave-from-class="opacity-100"
                 leave-to-class="opacity-0"
             >
-                <div v-if="cameraActive" class="fixed inset-0 z-[200] overflow-hidden bg-black" role="dialog" aria-modal="true" aria-label="Kamera selfie absensi">
+                <div v-if="cameraActive" class="fixed inset-0 z-[200] h-[100dvh] overflow-hidden bg-black" role="dialog" aria-modal="true" aria-label="Kamera selfie absensi">
                     <video
                         ref="videoElement"
                         autoplay
@@ -429,7 +458,7 @@ onMounted(() => {
                         </button>
                     </div>
 
-                    <div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-5 pb-6 pt-24 text-white sm:px-8 sm:pb-8">
+                    <div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/55 to-transparent px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-12 text-white sm:px-8 sm:pb-8">
                         <div class="mx-auto max-w-3xl text-center">
                             <p class="font-mono text-base font-black tracking-wide sm:text-xl">{{ currentDateTime }}</p>
                             <p class="mx-auto mt-2 max-w-2xl text-xs font-semibold leading-relaxed text-white/90 sm:text-sm">
@@ -438,16 +467,17 @@ onMounted(() => {
                             </p>
                             <p class="mt-1 text-xs font-bold text-[#d7aa4d]">Lokasi Kerja: {{ f.workLocationType }}</p>
 
+                            <p v-if="cameraError" role="alert" class="mx-auto mt-3 max-w-md rounded-xl bg-red-900/90 p-3 text-xs font-bold text-white">{{ cameraError }}</p>
                             <button
                                 type="button"
-                                :disabled="!locationResolved"
-                                class="pointer-events-auto mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full border-4 border-[#fff8e9] bg-[#c99a3d] text-[#17120a] shadow-2xl transition hover:bg-[#d9ad52] active:scale-90 disabled:cursor-not-allowed disabled:bg-slate-500 disabled:opacity-60 sm:h-20 sm:w-20"
-                                :title="locationResolved ? 'Ambil foto' : 'Menunggu lokasi GPS'"
+                                aria-label="Ambil foto selfie"
+                                class="pointer-events-auto mx-auto mt-5 grid h-16 w-16 place-items-center rounded-full border-4 border-[#fff8e9] bg-[#c99a3d] text-[#17120a] shadow-2xl transition hover:bg-[#d9ad52] active:scale-90 sm:h-20 sm:w-20"
+                                title="Ambil foto"
                                 @click="capturePhoto"
                             >
                                 <Camera class="h-7 w-7 sm:h-9 sm:w-9" />
                             </button>
-                            <p v-if="!locationResolved" class="mt-2 text-xs font-bold text-amber-300">Foto dapat diambil setelah lokasi berhasil terdeteksi.</p>
+                            <p v-if="!locationResolved" class="mt-2 text-xs font-bold text-amber-300">Foto bisa diambil, tetapi GPS dan alamat tetap diperlukan untuk mengirim absensi. Jika lokasi berubah, foto perlu diambil ulang.</p>
                         </div>
                     </div>
                 </div>

@@ -23,6 +23,15 @@ const p = defineProps<{
 
 const q = ref("");
 const detail = ref<any>(null);
+const detailLocations = computed(() => {
+    try {
+        const notes = typeof detail.value?.notes === "string" ? JSON.parse(detail.value.notes) : detail.value?.notes;
+        return [
+            { label: "Check-in", data: notes?.checkIn },
+            { label: "Check-out", data: notes?.checkOut },
+        ].filter((item) => item.data?.locationLabel);
+    } catch { return []; }
+});
 const editing = ref<any>(null);
 const editForm = useForm({ checkIn: "", checkOut: "" });
 
@@ -365,6 +374,13 @@ const cardStatusStyle = (x: any) => {
                                 <p class="font-bold text-slate-800 text-sm mt-1">
                                     {{ hours(detail.checkIn, detail.checkOut) }}
                                 </p>
+                            </div>
+                        </div>
+                        <div v-if="detailLocations.length" class="space-y-3">
+                            <div v-for="item in detailLocations" :key="item.label" class="rounded-xl border border-slate-200 p-3 text-sm">
+                                <p class="font-bold">{{ item.label }} · {{ item.data.workLocationType || 'Lokasi kerja' }}</p>
+                                <p class="mt-1 text-slate-600">{{ item.data.locationLabel }}</p>
+                                <p class="mt-1 text-xs text-slate-500">{{ item.data.locationSource === 'manual' ? 'Alamat diisi manual; koordinat dari GPS' : item.data.locationSource === 'gps' ? 'Alamat dari pencarian GPS' : 'Sumber alamat tidak tercatat' }}</p>
                             </div>
                         </div>
                         <button
