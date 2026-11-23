@@ -18,8 +18,10 @@ import {
     UserRound,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import DocumentEditHistory from "@/Components/DocumentEditHistory.vue";
 
 const props = defineProps<{
+    editHistory: any[];
     verificationUrl: string;
     quotation: any;
     items: any[];
@@ -618,6 +620,7 @@ const publish = () => {
                     </section>
                 </div>
             </Teleport>
+            <DocumentEditHistory :entries="editHistory" />
         </main>
     </AppLayout>
 </template>

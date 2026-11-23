@@ -79,6 +79,7 @@ class QuotationController extends Controller
         $quotation = $this->findQuotation($id);
 
         return Inertia::render('Quotations/Show', [
+            'editHistory' => app(\App\Services\DocumentEditHistory::class)->forDocument('quotation', $id),
             'verificationUrl' => DocumentVerificationController::url('quotation', $id),
             'quotation' => $quotation,
             'items' => DB::table('quotation_item')->where('quotationId', $id)->orderBy('sortOrder')->get(),
@@ -118,10 +119,16 @@ class QuotationController extends Controller
                 ]);
         }
 
+        $reason = $request->validate(['editReason' => 'required|string|max:2000'])['editReason'];
         $data = $this->validated($request);
-        DB::transaction(function () use ($id, $data) {
+        DB::transaction(function () use ($id, $data, $request, $reason) {
+            $before = DB::table('quotation')->where('id', $id)->lockForUpdate()->first();
+            abort_unless($before, 404);
+            $payload = $this->quotationPayload($data, $this->totals($data));
+            $oldItems = DB::table('quotation_item')->where('quotationId', $id)->orderBy('sortOrder')->get();
+            app(\App\Services\DocumentEditHistory::class)->record($request, 'quotation', $id, $before, $payload, $oldItems, $data['items'], $reason);
             DB::table('quotation')->where('id', $id)->update([
-                ...$this->quotationPayload($data, $this->totals($data)),
+                ...$payload,
                 'updatedAt' => now(),
             ]);
             DB::table('quotation_item')->where('quotationId', $id)->delete();

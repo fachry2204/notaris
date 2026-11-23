@@ -22,6 +22,7 @@ const props = defineProps<{
 const today = new Date();
 const dateValue = (date: Date) => date.toISOString().slice(0, 10);
 const form = useForm({
+    editReason: "",
     clientMode: props.quotation?.clientId ? "existing" : "new",
     clientId: props.quotation?.clientId || "",
     clientName: props.quotation?.clientName || "",
@@ -515,6 +516,11 @@ const save = () =>
                     </section>
                 </div>
 
+                <label v-if="quotation" class="block rounded-2xl border bg-white p-5">
+                    <span class="label">Alasan perubahan <span class="text-rose-600">*</span></span>
+                    <textarea v-model="form.editReason" required maxlength="2000" rows="3" class="field h-auto py-3" placeholder="Jelaskan alasan perubahan quotation"></textarea>
+                    <span v-if="form.errors.editReason" class="error">{{ form.errors.editReason }}</span>
+                </label>
                 <div class="flex justify-end">
                     <button
                         :disabled="form.processing"

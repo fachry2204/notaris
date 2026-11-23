@@ -156,7 +156,7 @@ class InvoiceController extends Controller
         $payments->each(function ($payment) use ($proofs, $id) {
             $payment->proofs = ($proofs[$payment->id] ?? collect())->map(fn ($proof) => ['id' => $proof->id, 'name' => $proof->original_name, 'url' => route('invoices.payment-proof', [$id, $proof->id])])->values();
         });
-        return Inertia::render('Invoices/Show', ['invoice' => $invoice, 'items' => DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get(), 'payments' => $payments, 'job' => $job, 'jobType' => $type, 'masterClient' => $masterClient]);
+        return Inertia::render('Invoices/Show', ['editHistory' => app(\App\Services\DocumentEditHistory::class)->forDocument('invoice', $id), 'invoice' => $invoice, 'items' => DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get(), 'payments' => $payments, 'job' => $job, 'jobType' => $type, 'masterClient' => $masterClient]);
     }
 
     public function receipt(string $id)
@@ -187,6 +187,7 @@ class InvoiceController extends Controller
     public function update(Request $r, string $id)
     {
         $d = $r->validate([
+            'editReason' => 'required|string|max:2000',
             'status' => 'required|in:Belum Bayar,DP Bayar,Lunas',
             'description' => 'nullable|string',
             'date' => 'required|date',
@@ -200,8 +201,13 @@ class InvoiceController extends Controller
         $amount = $this->itemsTotal($d['items']);
         $invoice = DB::table('invoice')->where('id', $id)->first();
         abort_unless($invoice, 404);
-        DB::transaction(function () use ($id, $d, $amount, $invoice) {
-            DB::table('invoice')->where('id', $id)->update(['amount' => $amount, 'status' => $d['status'], 'description' => $d['description'] ?? null, 'date' => $d['date'], 'dueDate' => $d['dueDate'] ?? null, 'updatedAt' => now()]);
+        DB::transaction(function () use ($id, $d, $amount, $invoice, $r) {
+            $before = DB::table('invoice')->where('id', $id)->lockForUpdate()->first();
+            abort_unless($before, 404);
+            $payload = ['amount' => $amount, 'status' => $d['status'], 'description' => $d['description'] ?? null, 'date' => $d['date'], 'dueDate' => $d['dueDate'] ?? null];
+            $oldItems = DB::table('invoice_item')->where('invoiceId', $id)->orderBy('sortOrder')->get();
+            app(\App\Services\DocumentEditHistory::class)->record($r, 'invoice', $id, $before, $payload, $oldItems, $d['items'], $d['editReason']);
+            DB::table('invoice')->where('id', $id)->update([...$payload, 'updatedAt' => now()]);
             DB::table('invoice_item')->where('invoiceId', $id)->delete();
             $this->storeItems($id, $d['items']);
             $this->syncLinkedJobInvoiceStatus($invoice, $d['status']);

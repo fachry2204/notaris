@@ -31,6 +31,7 @@ const selected = ref(
     props.jobType && props.jobId ? `${props.jobType}|${props.jobId}` : "",
 );
 const form = useForm({
+    editReason: "",
     quotationId:
         props.invoice?.quotationId || props.sourceQuotation?.id || null,
     jobId: props.jobId || "",
@@ -441,6 +442,11 @@ const backUrl = computed(() => {
                 >
                     {{ form.errors.quotationId }}
                 </p>
+                <label v-if="invoice" class="block rounded-2xl border bg-white p-5">
+                    <span class="label">Alasan perubahan <span class="text-rose-600">*</span></span>
+                    <textarea v-model="form.editReason" required maxlength="2000" rows="3" class="field h-auto py-3" placeholder="Jelaskan alasan perubahan invoice"></textarea>
+                    <span v-if="form.errors.editReason" class="error">{{ form.errors.editReason }}</span>
+                </label>
                 <div class="flex justify-end border-t pt-6">
                     <button
                         :disabled="

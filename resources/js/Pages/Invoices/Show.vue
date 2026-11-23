@@ -17,6 +17,7 @@ import {
     X,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import DocumentEditHistory from "@/Components/DocumentEditHistory.vue";
 
 const props = defineProps<{
     invoice: any;
@@ -25,6 +26,7 @@ const props = defineProps<{
     job: any;
     jobType: string;
     masterClient?: any | null;
+    editHistory: any[];
 }>();
 const form = useForm({
     amount: 0,
@@ -406,6 +408,7 @@ const remove = () =>
                     </div>
                 </section>
             </div>
+            <DocumentEditHistory :entries="editHistory" />
         </main>
         <Teleport to="body">
             <div v-if="previewProof" role="dialog" aria-modal="true" aria-label="Pratinjau bukti pembayaran" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" @click.self="previewProof = null" @keydown.esc="previewProof = null">
