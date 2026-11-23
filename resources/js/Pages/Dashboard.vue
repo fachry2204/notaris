@@ -68,6 +68,7 @@ const props = defineProps<{
     staffLanding: boolean;
     todayAttendance: any | null;
     user: any;
+    staffWork: { assigned: number; active: number; completed: number; overdue: number; upcoming: Array<{ id: string; jobType: string; title: string; trackingCode: string; status: string; deadline: string | null }> } | null;
 }>();
 
 const maxMonth = computed(() =>
@@ -171,7 +172,7 @@ const time = (value: string | null) =>
 <template>
     <Head title="Dashboard" />
     <AppLayout>
-        <main v-if="staffLanding" class="mx-auto max-w-5xl space-y-6 p-2 sm:p-4">
+        <main v-if="staffLanding" class="mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
             <section
                 class="rounded-3xl p-6 text-white shadow-lg"
                 :style="{
@@ -179,7 +180,8 @@ const time = (value: string | null) =>
                         'linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, black) 100%)',
                 }"
             >
-                <p class="text-sm font-semibold opacity-90">Selamat datang kembali,</p>
+                <p class="text-sm font-semibold opacity-90">{{ new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()) }}</p>
+                <p class="mt-4 text-sm font-semibold opacity-90">Selamat datang kembali,</p>
                 <h1 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
                     {{ user.fullName }}
                 </h1>
@@ -190,11 +192,11 @@ const time = (value: string | null) =>
                 </span>
 
                 <div
-                    class="mt-6 grid gap-3 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm sm:grid-cols-3 sm:p-5"
+                    class="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm sm:grid-cols-3 sm:p-5"
                 >
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Jadwal Kerja</p>
-                        <p class="mt-1 text-xl font-black">09:00 - 18:00</p>
+                        <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Status Absensi</p>
+                        <p class="mt-1 text-base font-black">{{ todayAttendance?.checkOut ? 'Selesai' : todayAttendance?.checkIn ? 'Sudah masuk' : 'Belum masuk' }}</p>
                     </div>
                     <div>
                         <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Masuk</p>
@@ -224,6 +226,24 @@ const time = (value: string | null) =>
                             : "Absen Masuk"
                     }}
                 </Link>
+            </section>
+
+            <section v-if="staffWork" aria-label="Ringkasan pekerjaan saya" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <Link v-for="card in [
+                    { label: 'Berkas ditugaskan', value: staffWork.assigned, icon: Files, tone: 'text-teal-700 bg-teal-50' },
+                    { label: 'Berkas aktif', value: staffWork.active, icon: Clock3, tone: 'text-blue-700 bg-blue-50' },
+                    { label: 'Berkas selesai', value: staffWork.completed, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50' },
+                    { label: 'Lewat deadline', value: staffWork.overdue, icon: AlertTriangle, tone: 'text-rose-700 bg-rose-50' },
+                ]" :key="card.label" href="/dashboard/tasks" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-teal-400">
+                    <span class="inline-flex rounded-xl p-2" :class="card.tone"><component :is="card.icon" class="h-5 w-5" /></span>
+                    <p class="mt-3 text-xs font-semibold text-slate-500">{{ card.label }}</p><p class="mt-1 text-2xl font-black text-slate-900">{{ card.value }}</p>
+                </Link>
+            </section>
+
+            <section v-if="staffWork" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                <div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-lg font-black text-slate-900">Berkas yang perlu ditangani</h2><p class="mt-1 text-xs text-slate-500">Berdasarkan tugas Anda, diurutkan menurut deadline terdekat.</p></div><Link href="/dashboard/tasks" class="text-sm font-bold text-teal-700">Lihat tugas →</Link></div>
+                <p v-if="!staffWork.upcoming.length" class="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Tidak ada berkas aktif yang ditugaskan kepada Anda.</p>
+                <div v-else class="mt-4 divide-y divide-slate-100"><Link v-for="job in staffWork.upcoming" :key="`${job.jobType}-${job.id}`" :href="`/dashboard/jobs/${job.jobType}/${job.id}`" class="flex flex-wrap items-center justify-between gap-3 py-3 hover:text-teal-700"><div class="min-w-0"><p class="break-words text-sm font-bold">{{ job.title }}</p><p class="mt-1 text-xs text-slate-500">{{ job.trackingCode }} · {{ job.status }}</p></div><span class="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ job.deadline ? 'Deadline ' + String(job.deadline).slice(0, 10).split('-').reverse().join('-') : 'Belum ada deadline' }}</span></Link></div>
             </section>
 
             <section class="grid gap-4 sm:grid-cols-2">

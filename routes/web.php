@@ -66,6 +66,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/jobs/{type}/{id}/edit', [JobController::class, 'edit'])->name('jobs.edit');
     Route::patch('/dashboard/jobs/{type}/{id}/fees', [JobController::class, 'updateEmployeeFees'])->name('jobs.fees.update');
     Route::put('/dashboard/jobs/{type}/{id}/progress', [JobController::class, 'updateProgress'])->name('jobs.progress');
+    Route::get('/dashboard/jobs/{type}/{id}/progress-photo/{photo}', [JobController::class, 'progressPhoto'])->name('jobs.progress-photo');
     Route::put('/dashboard/jobs/{type}/{id}', [JobController::class, 'update'])->name('jobs.update');
     Route::delete('/dashboard/jobs/{type}/{id}', [JobController::class, 'destroy'])->name('jobs.destroy');
     Route::delete('/dashboard/attachments/{id}', [JobController::class, 'deleteAttachment'])->name('attachments.destroy');

@@ -80,9 +80,17 @@ const hours = (a: any, b: any) =>
         ? `${Math.floor((+new Date(b) - +new Date(a)) / 3600000)}j ${Math.floor(((+new Date(b) - +new Date(a)) % 3600000) / 60000)}m`
         : "-";
 
-const remove = (id: string) =>
-    confirm("Hapus data absensi ini?") &&
-    router.delete(`/dashboard/pegawai/absensi/${id}`);
+const pendingDelete = ref<any>(null);
+const deleting = ref(false);
+const remove = () => {
+    if (!pendingDelete.value || deleting.value) return;
+    router.delete(`/dashboard/pegawai/absensi/${pendingDelete.value.id}`, {
+        preserveScroll: true,
+        onStart: () => { deleting.value = true; },
+        onSuccess: () => { pendingDelete.value = null; },
+        onFinish: () => { deleting.value = false; },
+    });
+};
 
 const cardStatusStyle = (x: any) => {
     if (!x.checkOut) return "bg-sky-50/90 border-sky-200 text-sky-950 shadow-sm";
@@ -233,7 +241,7 @@ const cardStatusStyle = (x: any) => {
                         </button>
                         <button
                             v-if="isManager"
-                            @click="remove(x.id)"
+                            @click="pendingDelete = x"
                             class="grid h-7 w-7 place-items-center rounded-lg bg-rose-100 text-rose-700 shadow-sm"
                         >
                             <Trash2 class="h-3.5 w-3.5" />
@@ -323,7 +331,7 @@ const cardStatusStyle = (x: any) => {
                                         </button>
                                         <button
                                             v-if="isManager"
-                                            @click="remove(x.id)"
+                                            @click="pendingDelete = x"
                                             class="grid h-8 w-8 place-items-center rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100"
                                             title="Hapus"
                                         >
@@ -400,6 +408,14 @@ const cardStatusStyle = (x: any) => {
                         </button>
                     </div>
                 </section>
+            </div>
+
+            <div v-if="pendingDelete && isManager" role="dialog" aria-modal="true" aria-labelledby="delete-attendance-title" class="fixed inset-0 z-[100] grid place-items-center bg-slate-950/60 p-4" @click.self="!deleting && (pendingDelete = null)">
+                <div class="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+                    <div class="flex items-center gap-3 text-rose-700"><Trash2 class="h-6 w-6" /><h2 id="delete-attendance-title" class="text-lg font-black">Hapus data absensi?</h2></div>
+                    <p class="mt-3 text-sm text-slate-600">Data absensi <strong>{{ pendingDelete.staffName || 'pegawai' }}</strong> pada <strong>{{ date(pendingDelete.date) }}</strong> akan dihapus dari rekap. Tindakan ini tidak dapat dibatalkan.</p>
+                    <div class="mt-6 flex justify-end gap-3"><button type="button" :disabled="deleting" @click="pendingDelete = null" class="rounded-xl border px-4 py-2 text-sm font-bold">Batal</button><button type="button" :disabled="deleting" @click="remove" class="rounded-xl bg-rose-700 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">{{ deleting ? 'Menghapus...' : 'Ya, hapus' }}</button></div>
+                </div>
             </div>
 
             <!-- Edit Modal -->

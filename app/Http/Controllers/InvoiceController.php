@@ -59,6 +59,15 @@ class InvoiceController extends Controller
 
         $jobId = (string) $r->query('job');
         $jobType = (string) $r->query('type');
+        if (! $jobId && ! $jobType) {
+            $quotations = DB::table('quotation as q')
+                ->leftJoin('client as c', 'c.id', '=', 'q.clientId')
+                ->whereIn('q.status', ['Dikirim', 'Disetujui'])
+                ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('invoice as i')->whereColumn('i.quotationId', 'q.id'))
+                ->select('q.id', 'q.quotationNumber', 'q.subject', 'q.clientName', 'c.name as legacyClientName')
+                ->orderByDesc('q.quotationDate')->orderByDesc('q.createdAt')->get();
+            return Inertia::render('Invoices/Form', ['invoice' => null, 'jobId' => '', 'jobType' => '', 'job' => null, 'jobs' => [], 'quotations' => $quotations, 'sourceQuotation' => null, 'quotationItems' => [], 'invoiceItems' => []]);
+        }
         $job = null;
         if (in_array($jobType, self::TABLES) && $jobId) {
             $job = DB::table($jobType.' as j')->leftJoin('client as c', 'c.id', '=', 'j.clientId')->select('j.id', 'j.title', 'j.trackingCode', 'c.name as clientName')->where('j.id', $jobId)->first();

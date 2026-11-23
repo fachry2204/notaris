@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { Head, Link, useForm } from "@inertiajs/vue3";
+import { Head, Link, router, useForm } from "@inertiajs/vue3";
 import {
     ArrowLeft,
     FileCheck2,
@@ -21,6 +21,7 @@ const props = defineProps<{
     sourceQuotation?: any | null;
     quotationItems?: any[];
     invoiceItems?: any[];
+    quotations?: any[];
 }>();
 
 const sourceItems = props.invoice
@@ -111,6 +112,10 @@ const choose = () => {
     form.jobType = type || "";
     form.jobId = id || "";
 };
+const selectedQuotation = ref('');
+const chooseQuotation = () => {
+    if (selectedQuotation.value) router.get('/dashboard/invoice/new', { quotation: selectedQuotation.value });
+};
 const save = () =>
     props.invoice
         ? form.put(`/dashboard/invoice/${props.invoice.id}`)
@@ -187,28 +192,27 @@ const backUrl = computed(() => {
                 class="rounded-3xl border bg-white p-6"
             >
                 <label>
-                    <span class="label">Pilih Berkas</span>
+                    <span class="label">Pilih Quotation</span>
                     <select
-                        v-model="selected"
-                        @change="choose"
+                        v-model="selectedQuotation"
+                        @change="chooseQuotation"
                         required
                         class="field"
                     >
                         <option value="">
-                            Pilih berkas yang belum memiliki invoice
+                            Pilih quotation yang belum memiliki invoice
                         </option>
                         <option
-                            v-for="item in jobs"
-                            :key="`${item.jobType}|${item.id}`"
-                            :value="`${item.jobType}|${item.id}`"
+                            v-for="item in quotations || []"
+                            :key="item.id"
+                            :value="item.id"
                         >
-                            {{ item.trackingCode }} — {{ item.clientName }} —
-                            {{ item.title }}
+                            {{ item.quotationNumber }} — {{ item.clientName || item.legacyClientName || 'Client' }} — {{ item.subject }}
                         </option>
                     </select>
                 </label>
-                <p v-if="!jobs.length" class="mt-4 text-sm text-amber-600">
-                    Semua berkas sudah memiliki invoice atau belum ada berkas.
+                <p v-if="!quotations?.length" class="mt-4 text-sm text-amber-600">
+                    Belum ada quotation diterbitkan yang tersedia untuk dibuatkan invoice.
                 </p>
             </section>
 
@@ -246,7 +250,7 @@ const backUrl = computed(() => {
                 </div>
             </section>
 
-            <form @submit.prevent="save" class="space-y-6">
+            <form v-if="invoice || job || sourceQuotation" @submit.prevent="save" class="space-y-6">
                 <section class="space-y-6 rounded-3xl border bg-white p-8">
                     <div>
                         <h2 class="text-lg font-black">Detail Tagihan</h2>

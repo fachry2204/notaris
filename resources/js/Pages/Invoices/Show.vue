@@ -306,7 +306,10 @@ const remove = () =>
                 <section
                     class="order-2 rounded-3xl border border-slate-200 bg-white p-6"
                 >
-                    <h2 class="font-black">Riwayat Pembayaran</h2>
+                    <div class="flex flex-wrap items-start justify-between gap-4">
+                        <div><h2 class="flex items-center gap-2 font-black"><Receipt class="h-5 w-5 text-orange-600" /> Riwayat Pembayaran</h2><p class="mt-1 text-xs text-slate-500">Daftar seluruh transaksi pembayaran untuk invoice ini.</p></div>
+                        <div class="flex flex-wrap gap-2 text-xs"><div class="rounded-xl border border-orange-200 bg-orange-50 px-3 py-2"><span class="block text-slate-500">Total Tagihan</span><strong class="text-orange-800">{{ money(invoice.amount) }}</strong></div><div class="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2"><span class="block text-slate-500">Total Dibayar</span><strong class="text-emerald-700">{{ money(paid()) }}</strong></div><div class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2"><span class="block text-slate-500">Status</span><strong class="text-blue-700">{{ invoice.status }}</strong></div></div>
+                    </div>
                     <p
                         v-if="!payments.length"
                         class="py-10 text-center text-sm text-slate-400"
@@ -314,12 +317,13 @@ const remove = () =>
                         Belum ada pembayaran.
                     </p>
                     <div
-                        v-for="item in payments"
+                        v-for="(item, index) in payments"
                         :key="item.id"
-                        class="mt-3 flex justify-between rounded-xl bg-slate-50 p-4"
+                        class="relative ml-2 border-l-2 border-slate-200 pb-2 pl-6 last:border-transparent"
                     >
-                        <div>
-                            <p class="font-bold">{{ item.description }}</p>
+                        <span class="absolute -left-[7px] top-5 h-3 w-3 rounded-full border-2 border-white bg-emerald-600" />
+                        <div class="mt-2 flex flex-wrap items-start justify-between gap-3 rounded-xl p-4" :class="index === 0 ? 'bg-emerald-50' : 'border-b border-slate-100'"><div class="flex min-w-0 gap-3"><span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-200 bg-white text-emerald-700"><Receipt class="h-5 w-5" /></span><div>
+                            <p class="font-bold">{{ item.description || 'Pembayaran invoice' }}</p>
                             <p class="text-xs text-slate-500">
                                 {{ paymentDate(item.date) }}
                                 · {{ item.paymentMethod || "Cara pembayaran tidak tercatat" }}
@@ -330,8 +334,8 @@ const remove = () =>
                                     <img :src="proof.url" :alt="proof.name" loading="lazy" class="h-20 w-20 object-cover" />
                                 </button>
                             </div>
-                        </div>
-                        <b class="text-emerald-600">{{ money(item.amount) }}</b>
+                        </div></div>
+                        <div class="flex items-center gap-3"><b class="text-emerald-700">{{ money(item.amount) }}</b><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Tercatat</span></div></div>
                     </div>
                 </section>
                 <form
@@ -413,7 +417,7 @@ const remove = () =>
                     </div>
                 </section>
             </div>
-            <DocumentEditHistory :entries="editHistory" />
+            <DocumentEditHistory title="Riwayat Perubahan Invoice" :entries="editHistory" />
         </main>
         <Teleport to="body">
             <div v-if="previewProof" role="dialog" aria-modal="true" aria-label="Pratinjau bukti pembayaran" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" @click.self="previewProof = null" @keydown.esc="previewProof = null">

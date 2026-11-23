@@ -114,11 +114,30 @@ class DashboardController extends Controller
         $staffLanding = in_array($user['role'] ?? '', ['STAFFADMIN', 'OB'], true)
             && $request->query('view') !== 'overview';
         $todayAttendance = null;
+        $staffWork = null;
         if ($staffLanding) {
             $staffId = DB::table('staff')->where('userId', $user['id'] ?? '')->value('id');
             if ($staffId) {
                 $todayAttendance = DB::table('attendance')->where('staffId', $staffId)->whereDate('date', today())->first();
             }
+            $userId = (string) ($user['id'] ?? '');
+            $myJobs = collect();
+            foreach ($tables as $table) {
+                $foreignKey = match ($table) { 'badan_hukum' => 'badanHukumId', 'non_badan_hukum' => 'nonBadanHukumId', default => 'ppatId' };
+                $myJobs = $myJobs->concat(DB::table($table.' as j')
+                    ->whereExists(fn ($query) => $query->selectRaw('1')->from('job_employee_task as t')->whereColumn("t.{$foreignKey}", 'j.id')->where('t.userId', $userId))
+                    ->select('j.id', 'j.trackingCode', 'j.title', 'j.status', 'j.deadline')
+                    ->get()->map(fn ($job) => (object) [...(array) $job, 'jobType' => $table]));
+            }
+            $active = $myJobs->filter(fn ($job) => ! in_array($job->status, ['SELESAI', 'CANCELLED'], true));
+            $overdue = $active->filter(fn ($job) => $job->deadline && substr((string) $job->deadline, 0, 10) < today()->toDateString());
+            $staffWork = [
+                'assigned' => $myJobs->count(),
+                'active' => $active->count(),
+                'completed' => $myJobs->where('status', 'SELESAI')->count(),
+                'overdue' => $overdue->count(),
+                'upcoming' => $active->sortBy(fn ($job) => $job->deadline ?: '9999-12-31')->take(5)->values(),
+            ];
         }
 
         $attendanceNotifications = null;
@@ -217,6 +236,7 @@ class DashboardController extends Controller
             'invoiceSummary' => $invoiceSummary,
             'recentPayments' => $recentPayments,
             'staffLanding' => $staffLanding,
+            'staffWork' => $staffWork,
             'todayAttendance' => $todayAttendance,
             'user' => $user,
         ]);

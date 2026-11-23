@@ -277,6 +277,10 @@ class JobController extends Controller
             $progress = DB::table('jobprogress')->where($fk, $id)->orderByDesc('createdAt')->get();
         }
 
+        $progressPhotos = DB::table('job_progress_photos')->whereIn('progress_id', $progress->pluck('id'))->orderBy('id')->get()->groupBy('progress_id');
+        $progress->each(function ($item) use ($progressPhotos, $type, $id) {
+            $item->photos = ($progressPhotos[$item->id] ?? collect())->map(fn ($photo) => ['id' => $photo->id, 'fileName' => $photo->file_name, 'filePath' => route('jobs.progress-photo', [$type, $id, $photo->id]), 'fileType' => 'image/jpeg'])->values();
+        });
         return Inertia::render('Jobs/Show', [
             'uploadedReceipts' => DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->orderByDesc('created_at')->get()->map(function ($receipt) use ($type, $id) {
                 return ['id' => $receipt->id, 'fileName' => $receipt->file_name, 'documentDate' => $receipt->document_date, 'receiver' => $receipt->receiver, 'submitter' => $receipt->submitter, 'uploadedBy' => $receipt->uploaded_by, 'url' => route('jobs.receipts.show', [$type, $id, $receipt->id])];
@@ -286,7 +290,7 @@ class JobController extends Controller
             'founders' => DB::table('founder')->where($fk, $id)->get(),
             'attachments' => DB::table('attachment')->where($fk, $id)->get(),
             'employeeTasks' => $employeeTasks,
-            'progress' => DB::table('jobprogress')->where($fk, $id)->orderByDesc('createdAt')->get(),
+            'progress' => $progress,
             'invoiceHistory' => $invoiceHistory,
             'availableInvoices' => $invoiceHistory->isEmpty() ? $this->availableInvoices() : collect(),
         ]);
@@ -395,19 +399,24 @@ class JobController extends Controller
         $data = $request->validate([
             'status' => 'required|in:PENDING,PROSES,REVISI,REVISI_PROSES,VERIFIKASI,SELESAI,CANCELLED',
             'description' => 'required|string|max:1000',
+            'photos' => 'nullable|array|max:10',
+            'photos.*' => 'required|image|mimes:jpg,jpeg,png,webp|max:5120',
         ]);
         $job = DB::table($type)->where('id', $id)->first();
         abort_unless((bool) $job, 404);
         $foreignKey = $this->foreignKey($type);
 
         $actorUserId = $this->attachmentUserId($request, $job->staffId ?? null);
-        DB::transaction(function () use ($request, $type, $id, $data, $job, $foreignKey, $actorUserId) {
+        $paths = [];
+        try {
+        DB::transaction(function () use ($request, $type, $id, $data, $job, $foreignKey, $actorUserId, &$paths) {
             DB::table($type)->where('id', $id)->update([
                 'status' => $data['status'],
                 'updatedAt' => now(),
             ]);
+            $progressId = 'PROG-'.Str::random(12);
             DB::table('jobprogress')->insert([
-                'id' => 'PROG-'.Str::random(12),
+                'id' => $progressId,
                 'userId' => $actorUserId,
                 'statusBefore' => $job->status,
                 'statusAfter' => $data['status'],
@@ -415,8 +424,18 @@ class JobController extends Controller
                 $foreignKey => $id,
                 'createdAt' => now(),
             ]);
+            foreach ($data['photos'] ?? [] as $photo) {
+                $path = $photo->store('job-progress-photos', 'local');
+                if (! $path) { throw new \RuntimeException('Gagal menyimpan foto progres.'); }
+                $paths[] = $path;
+                DB::table('job_progress_photos')->insert(['progress_id' => $progressId, 'file_path' => $path, 'file_name' => Str::limit($photo->getClientOriginalName(), 240, ''), 'created_at' => now()]);
+            }
             $this->log($request, 'UPDATE_JOB_PROGRESS', "Memperbarui progress berkas {$id}");
         });
+        } catch (Throwable $exception) {
+            Storage::disk('local')->delete($paths);
+            throw $exception;
+        }
 
         return back()->with('success', 'Progress berkas berhasil diperbarui.');
     }
@@ -606,7 +625,9 @@ class JobController extends Controller
         abort_unless(isset(self::TABLES[$type]), 404);
         $fk = $this->foreignKey($type);
         $receiptPaths = DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->pluck('file_path')->all();
+        $photoPaths = DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->pluck('file_path')->all();
         DB::transaction(function () use ($type, $id, $fk, $request) {
+            DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->delete();
             DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->delete();
             foreach (['founder', 'attachment', 'jobprogress', 'job_employee_task'] as $table) {
                 DB::table($table)->where($fk, $id)->delete();
@@ -614,6 +635,7 @@ class JobController extends Controller
             $this->log($request, 'DELETE_JOB', "Menghapus berkas {$id}");
         });
         \Illuminate\Support\Facades\Storage::disk('local')->delete($receiptPaths);
+        Storage::disk('local')->delete($photoPaths);
 
         return redirect()->route('jobs.index')->with('success', 'Berkas dihapus.');
     }
@@ -627,6 +649,15 @@ class JobController extends Controller
         }
 
         return $number !== '' ? $number : null;
+    }
+
+    public function progressPhoto(string $type, string $id, int $photo)
+    {
+        abort_unless(isset(self::TABLES[$type]), 404);
+        $foreignKey = $this->foreignKey($type);
+        $file = DB::table('job_progress_photos as photo')->join('jobprogress as progress', 'progress.id', '=', 'photo.progress_id')->where("progress.{$foreignKey}", $id)->where('photo.id', $photo)->select('photo.file_path')->first();
+        abort_unless($file && Storage::disk('local')->exists($file->file_path), 404);
+        return Storage::disk('local')->response($file->file_path, null, ['Cache-Control' => 'private, no-store', 'X-Content-Type-Options' => 'nosniff']);
     }
 
     private function trackingCodeExists(string $number, ?string $type = null, ?string $id = null): bool

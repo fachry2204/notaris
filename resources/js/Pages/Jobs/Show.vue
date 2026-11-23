@@ -40,6 +40,7 @@ const props = defineProps<{
 const progressForm = useForm({
     status: props.job.status,
     description: "",
+    photos: [] as File[],
 });
 const notificationForm = useForm({ notification: "" });
 const receiptDialog = ref(false);
@@ -50,10 +51,23 @@ const saveReceipt = () => receiptForm.post(`/dashboard/jobs/${props.jobType}/${p
     onSuccess: () => { receiptDialog.value = false; receiptMode.value = 'choose'; receiptForm.reset(); },
 });
 const progressDialog = ref(false);
-const openProgressDialog = () => { progressForm.status = props.job.status; progressForm.reset('description'); progressForm.clearErrors(); progressDialog.value = true; };
-const saveProgress = () => progressForm.put(`/dashboard/jobs/${props.jobType}/${props.job.id}/progress`, {
-    preserveScroll: true,
-    onSuccess: () => { progressForm.reset('description'); progressDialog.value = false; },
+const progressFilter = ref('');
+const filteredProgress = computed(() => props.progress.filter((item) => !progressFilter.value || item.statusAfter === progressFilter.value));
+const progressPhotoInput = ref<HTMLInputElement | null>(null);
+const progressPhotoError = ref('');
+const addProgressPhotos = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    input.value = '';
+    progressPhotoError.value = '';
+    if (progressForm.photos.length + files.length > 10) { progressPhotoError.value = 'Maksimal 10 foto.'; return; }
+    if (files.some((file) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 5 * 1024 * 1024)) { progressPhotoError.value = 'Gunakan JPG, PNG, atau WebP maksimal 5 MB per foto.'; return; }
+    progressForm.photos.push(...files);
+};
+const openProgressDialog = () => { progressForm.status = props.job.status; progressForm.reset('description', 'photos'); progressPhotoError.value = ''; progressForm.clearErrors(); progressDialog.value = true; };
+const saveProgress = () => progressForm.transform((data) => ({ ...data, _method: 'put' })).post(`/dashboard/jobs/${props.jobType}/${props.job.id}/progress`, {
+    forceFormData: true, preserveScroll: true,
+    onSuccess: () => { progressForm.reset('description', 'photos'); progressDialog.value = false; },
 });
 const showInvoicePicker = ref(false);
 const invoiceSearch = ref("");
@@ -704,10 +718,12 @@ const address =
                     </div>
                     <div v-else class="mt-5 space-y-4">
                         <article
-                            v-for="invoice in invoiceHistory"
+                            v-for="(invoice, index) in invoiceHistory"
                             :key="invoice.id"
-                            class="rounded-2xl border border-slate-200 p-4 md:p-5"
+                            class="relative ml-3 border-l-2 border-slate-200 pl-6 last:border-transparent"
                         >
+                            <span class="absolute -left-[7px] top-5 h-3 w-3 rounded-full border-2 border-white" :class="index === 0 ? 'bg-orange-500 ring-2 ring-orange-300' : 'bg-slate-300'" />
+                            <div class="rounded-2xl border border-slate-100 p-4 md:p-5" :class="index === 0 ? 'bg-orange-50' : 'bg-white'">
                             <div
                                 class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start"
                             >
@@ -817,6 +833,7 @@ const address =
                                     Lihat Detail Invoice
                                 </Link>
                             </div>
+                            </div>
                         </article>
                     </div>
                 </article>
@@ -829,20 +846,25 @@ const address =
                 <article
                     class="rounded-2xl border border-slate-200 bg-white p-6"
                 >
-                    <div class="flex items-center gap-2">
-                        <History class="h-5 w-5 text-pink-500" />
-                        <h2 class="font-black">Aktivitas Berkas</h2>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2"><History class="h-5 w-5 text-amber-700" /><h2 class="font-black">Detail Riwayat Aktivitas</h2></div>
+                        <select v-model="progressFilter" aria-label="Filter aktivitas berdasarkan status" class="rounded-xl border-slate-200 text-xs font-semibold"><option value="">Semua Aktivitas</option><option v-for="status in ['PENDING','PROSES','REVISI','REVISI_PROSES','VERIFIKASI','SELESAI','CANCELLED']" :key="status" :value="status">{{ status }}</option></select>
                     </div>
                     <div
                         class="mt-5 max-h-[620px] space-y-3 overflow-y-auto pr-2"
                     >
                         <div
-                            v-for="item in progress"
+                            v-for="(item, index) in filteredProgress"
                             :key="item.id"
-                            class="rounded-xl bg-slate-50 p-4 border border-slate-100 shadow-2xs"
+                            class="relative ml-3 border-l-2 border-slate-200 pl-7 pb-2 last:border-transparent"
                         >
-                            <div class="flex items-center justify-between gap-2">
-                                <span class="text-xs font-black uppercase tracking-wider text-[var(--primary)] bg-[color-mix(in_srgb,var(--primary)_10%,white)] px-2.5 py-0.5 rounded-full border border-[var(--primary)]/20">
+                            <span class="absolute -left-[7px] top-5 h-3 w-3 rounded-full border-2 border-white" :class="index === 0 ? 'bg-orange-500 ring-2 ring-orange-300' : 'bg-slate-300'" />
+                            <div class="flex flex-wrap items-start gap-3 rounded-xl p-3" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
+                                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-orange-200 bg-white text-orange-600"><History class="h-5 w-5" /></span>
+                                <div class="min-w-0 flex-1"><p class="whitespace-pre-line break-words text-sm font-bold text-slate-800">{{ item.description || 'Pembaruan berkas' }}</p>
+                                <p class="mt-1 text-xs text-slate-500">{{ activityDate(item.createdAt) }}</p>
+                                <div v-if="item.photos?.length" class="mt-3 flex flex-wrap gap-2"><button v-for="photo in item.photos" :key="photo.id" type="button" @click="openPreview(photo)" :aria-label="`Lihat ${photo.fileName}`" class="overflow-hidden rounded-lg border focus:ring-2 focus:ring-teal-600"><img :src="photo.filePath" :alt="photo.fileName" loading="lazy" class="h-20 w-20 object-cover" /></button></div></div>
+                                <span class="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
                                     <template v-if="item.statusBefore && item.statusBefore !== item.statusAfter && item.statusBefore !== 'BARU'">
                                         {{ item.statusBefore }} → {{ item.statusAfter }}
                                     </template>
@@ -850,16 +872,10 @@ const address =
                                         {{ item.statusAfter || 'UPDATE' }}
                                     </template>
                                 </span>
-                                <span class="text-[11px] font-semibold text-slate-400">
-                                    {{ activityDate(item.createdAt) }}
-                                </span>
                             </div>
-                            <p class="mt-2 text-sm font-semibold text-slate-700">
-                                {{ item.description }}
-                            </p>
                         </div>
                         <p
-                            v-if="!progress.length"
+                            v-if="!filteredProgress.length"
                             class="py-6 text-center text-sm text-slate-400"
                         >
                             Belum ada riwayat progress.
@@ -879,10 +895,18 @@ const address =
         </main>
         <Teleport to="body">
             <div v-if="progressDialog" role="dialog" aria-modal="true" aria-label="Update Status Berkas" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" @click.self="!progressForm.processing && (progressDialog = false)">
-                <form @submit.prevent="saveProgress" class="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+                <form @submit.prevent="saveProgress" class="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white p-6 shadow-xl">
                     <div class="flex items-center justify-between"><h2 class="text-lg font-black">Update Status Berkas</h2><button type="button" @click="progressDialog = false" :disabled="progressForm.processing" aria-label="Tutup"><X class="h-5 w-5" /></button></div>
                     <label class="mt-5 block text-sm font-bold">Status Berkas<select v-model="progressForm.status" required class="mt-2 w-full rounded-xl border-slate-200"><option v-for="option in [{value:'PENDING',label:'Menunggu Diproses'},{value:'PROSES',label:'Sedang Diproses'},{value:'REVISI',label:'Revisi'},{value:'REVISI_PROSES',label:'Revisi Diproses'},{value:'VERIFIKASI',label:'Verifikasi'},{value:'SELESAI',label:'Selesai'},{value:'CANCELLED',label:'Dibatalkan'}]" :key="option.value" :value="option.value">{{ option.label }}</option></select><span v-if="progressForm.errors.status" class="text-xs text-red-600">{{ progressForm.errors.status }}</span></label>
                     <label class="mt-4 block text-sm font-bold">Keterangan progres<textarea v-model="progressForm.description" required maxlength="1000" rows="4" placeholder="Jelaskan perkembangan berkas" class="mt-2 w-full rounded-xl border-slate-200"></textarea><span class="mt-1 block text-xs font-normal text-slate-500">Keterangan ini dapat dilihat pada halaman cek status berkas.</span><span v-if="progressForm.errors.description" class="text-xs text-red-600">{{ progressForm.errors.description }}</span></label>
+                    <div class="mt-4 text-sm font-bold">Foto progres (opsional)
+                        <input ref="progressPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" multiple class="sr-only" tabindex="-1" @change="addProgressPhotos" />
+                        <button type="button" :disabled="progressForm.photos.length >= 10" @click="progressPhotoInput?.click()" class="mt-2 inline-flex items-center gap-2 rounded-xl border border-teal-600 px-4 py-2 text-teal-700 disabled:opacity-50"><Plus class="h-4 w-4" /> Tambah foto</button>
+                        <p class="mt-1 text-xs font-normal text-slate-500">Maksimal 10 foto JPG, PNG, atau WebP; masing-masing 5 MB. Foto hanya terlihat oleh pengguna yang login.</p>
+                        <ul class="mt-2 space-y-1"><li v-for="(photo, index) in progressForm.photos" :key="index" class="flex items-center justify-between gap-2 rounded bg-slate-50 p-2 text-xs font-normal"><span class="break-all">{{ photo.name }}</span><button type="button" @click="progressForm.photos.splice(index, 1); progressPhotoError = ''" :aria-label="`Hapus ${photo.name}`" class="text-rose-600"><Trash2 class="h-4 w-4" /></button></li></ul>
+                        <p v-if="progressPhotoError || progressForm.errors.photos" class="mt-1 text-xs text-red-600">{{ progressPhotoError || progressForm.errors.photos }}</p>
+                        <p v-for="(message, field) in progressForm.errors" :key="field" class="text-xs text-red-600">{{ String(field).startsWith('photos.') ? message : '' }}</p>
+                    </div>
                     <button :disabled="progressForm.processing" class="mt-5 w-full rounded-xl bg-emerald-700 p-3 font-bold text-white disabled:opacity-50">{{ progressForm.processing ? 'Menyimpan...' : 'Simpan Progres' }}</button>
                 </form>
             </div>
