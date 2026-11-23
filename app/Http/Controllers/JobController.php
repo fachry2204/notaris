@@ -70,15 +70,17 @@ class JobController extends Controller
                     ->where('j.title', 'like', "%{$search}%")
                     ->orWhere('j.trackingCode', 'like', "%{$search}%")
                     ->orWhere('c.name', 'like', "%{$search}%")))
-                ->when($status, fn ($query) => $query->where('j.status', $status));
+                ->when($status === 'TERLAMBAT', fn ($query) => $query->whereNotNull('j.deadline')->whereDate('j.deadline', '<', today())->whereNotIn('j.status', ['SELESAI', 'CANCELLED']))
+                ->when($status && $status !== 'TERLAMBAT', fn ($query) => $query->where('j.status', $status));
         });
         $query = $parts->shift();
         foreach ($parts as $part) {
             $query->unionAll($part);
         }
-        $stats = ['all' => 0, 'PENDING' => 0, 'PROSES' => 0, 'SELESAI' => 0];
+        $stats = ['all' => 0, 'PENDING' => 0, 'PROSES' => 0, 'SELESAI' => 0, 'TERLAMBAT' => 0];
         foreach (array_keys(self::TABLES) as $table) {
             $stats['all'] += DB::table($table)->count();
+            $stats['TERLAMBAT'] += DB::table($table)->whereNotNull('deadline')->whereDate('deadline', '<', today())->whereNotIn('status', ['SELESAI', 'CANCELLED'])->count();
             foreach (['PENDING', 'PROSES', 'SELESAI'] as $key) {
                 $stats[$key] += DB::table($table)->where('status', $key)->count();
             }

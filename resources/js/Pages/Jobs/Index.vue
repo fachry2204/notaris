@@ -12,6 +12,7 @@ import {
     User,
     Tag,
     ChevronRight,
+    AlertTriangle,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
@@ -167,13 +168,14 @@ const feeStatusInfo = (job: any) => {
             </div>
 
             <!-- Stats filters -->
-            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
                 <button
                     v-for="x in [
                         { s: '', l: 'Total Berkas', v: stats.all, i: BriefcaseBusiness, color: 'bg-pink-50/80 border-pink-200/90 text-pink-950 hover:bg-pink-100/70' },
                         { s: 'PENDING', l: 'Menunggu', v: stats.PENDING, i: Clock3, color: 'bg-amber-50/80 border-amber-200/90 text-amber-950 hover:bg-amber-100/70' },
                         { s: 'PROSES', l: 'Dalam Proses', v: stats.PROSES, i: Settings2, color: 'bg-sky-50/80 border-sky-200/90 text-sky-950 hover:bg-sky-100/70' },
                         { s: 'SELESAI', l: 'Selesai', v: stats.SELESAI, i: CheckCircle2, color: 'bg-emerald-50/80 border-emerald-200/90 text-emerald-950 hover:bg-emerald-100/70' },
+                        { s: 'TERLAMBAT', l: 'Berkas Terlambat', v: stats.TERLAMBAT, i: AlertTriangle, color: 'bg-rose-50 border-rose-200 text-rose-950 hover:bg-rose-100' },
                     ]"
                     :key="x.s"
                     @click="filter(x.s)"
@@ -206,6 +208,7 @@ const feeStatusInfo = (job: any) => {
                     class="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 >
                     <option value="">Semua Status</option>
+                    <option value="TERLAMBAT">Terlambat</option>
                     <option v-for="s in ['PENDING', 'PROSES', 'REVISI', 'VERIFIKASI', 'SELESAI', 'CANCELLED']" :key="s">
                         {{ s }}
                     </option>
