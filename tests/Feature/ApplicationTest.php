@@ -603,7 +603,7 @@ class ApplicationTest extends TestCase
         $this->assertNotNull($quotation);
         $response->assertRedirect(route('quotations.show', $quotation->id));
         $this->assertSame($picUserId, $quotation->picUserId);
-        $this->assertMatchesRegularExpression('/^[A-Z]+\/\d{8}\/\d{4}$/', $quotation->quotationNumber);
+        $this->assertMatchesRegularExpression('/^\d{4}\/[A-Z]+\/(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII)\/\d{4}$/', $quotation->quotationNumber);
         $this->assertNull($quotation->clientId);
         $this->assertSame('PT Client Quotation Manual', $quotation->clientName);
         $this->assertNull($quotation->clientEmail);
@@ -701,7 +701,7 @@ class ApplicationTest extends TestCase
             $numbers->next('ppat', $date),
         ];
 
-        $this->assertMatchesRegularExpression('/^PEN\/03022037\/\d{4}$/', $generated[0]);
+        $this->assertMatchesRegularExpression('/^\d{4}\/PEN\/II\/2037$/', $generated[0]);
         $this->assertMatchesRegularExpression('/^\d{4}\/TAG\/II\/2037$/', $generated[1]);
         $this->assertMatchesRegularExpression('/^BH\/03022037\/\d{4}$/', $generated[2]);
         $this->assertMatchesRegularExpression('/^NBH\/03022037\/\d{4}$/', $generated[3]);

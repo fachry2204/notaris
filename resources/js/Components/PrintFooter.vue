@@ -13,11 +13,11 @@ const branding = computed(() => (page.props.branding || {}) as { appName?: strin
 </script>
 
 <template>
-    <footer class="mt-10 border-t border-slate-300 pt-3 text-center text-xs text-slate-500">
-        <div v-if="qr" class="mb-2 flex flex-col items-center gap-1">
+    <footer class="mt-10 flex items-end justify-between gap-4 border-t border-slate-300 pt-3 text-xs text-slate-500">
+        <span class="text-left">Dicetak Melalui : {{ branding.appName || "Notaris Digital" }} | {{ branding.officeName || "Kantor Notaris" }}</span>
+        <div v-if="qr" class="flex shrink-0 flex-col items-center gap-1 text-center">
             <img :src="qr" class="h-24 w-24" alt="QR verifikasi dokumen" />
             <span>Pindai untuk verifikasi dokumen</span>
         </div>
-        Dicetak Melalui : {{ branding.appName || "Notaris Digital" }} | {{ branding.officeName || "Kantor Notaris" }}
     </footer>
 </template>

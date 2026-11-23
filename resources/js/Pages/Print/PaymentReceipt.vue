@@ -5,7 +5,7 @@ import PrintFooter from "@/Components/PrintFooter.vue";
 
 const props = defineProps<{ invoice: any; job: any; payments: any[]; verificationUrl: string }>();
 const page = usePage();
-const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string });
+const branding = computed(() => (page.props.branding || {}) as { officeName?: string; officeAddress?: string; logoUrl?: string });
 const money = (value: any) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value || 0));
 const date = (value: any) => {
     const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -34,9 +34,12 @@ const rows = computed(() => {
     <Head :title="`Kwitansi ${invoice.invoiceNumber}`" />
     <main class="mx-auto min-h-screen max-w-4xl bg-white p-6 text-slate-900 sm:p-10">
         <header class="flex flex-wrap justify-between gap-5 border-b-2 border-teal-700 pb-6">
-            <div>
+            <div class="flex min-w-0 items-start gap-4">
+                <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="`Logo ${branding.officeName || 'kantor'}`" class="h-16 w-16 shrink-0 object-contain" />
+                <div>
                 <p class="text-lg font-black">{{ branding.officeName || "Kantor Notaris" }}</p>
                 <p v-if="branding.officeAddress" class="mt-1 max-w-md whitespace-pre-line text-sm text-slate-600">{{ branding.officeAddress }}</p>
+                </div>
             </div>
             <div class="text-right">
                 <h1 class="text-2xl font-black">KWITANSI</h1>
@@ -59,16 +62,18 @@ const rows = computed(() => {
             <p v-if="!rows.length" class="py-4 text-sm text-slate-500">Belum ada pembayaran yang tercatat.</p>
         </section>
 
-        <div class="ml-auto mt-6 max-w-sm space-y-2 rounded-xl border p-5 text-sm">
+        <div class="mt-6 flex flex-wrap items-center justify-end gap-6">
+        <div v-if="complete" class="inline-flex -rotate-3 flex-col items-center rounded-lg border-4 border-red-700 px-6 py-2 font-black uppercase text-red-700">
+            <span class="text-3xl tracking-widest">Lunas</span>
+            <span class="mt-1 text-sm tracking-wide">{{ date(settlementDate) }}</span>
+        </div>
+        <div class="w-full max-w-sm space-y-2 rounded-xl border p-5 text-sm">
             <div class="flex justify-between gap-4"><span>Total tagihan</span><strong>{{ money(invoice.amount) }}</strong></div>
             <div class="flex justify-between gap-4"><span>Total pembayaran tercatat</span><strong>{{ money(paid) }}</strong></div>
             <div class="flex justify-between gap-4 border-t pt-2"><span>Sisa berdasarkan catatan</span><strong>{{ money(Math.max(0, Number(invoice.amount) - paid)) }}</strong></div>
         </div>
-        <p v-if="!complete" class="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Status invoice tercatat lunas, tetapi riwayat pembayaran belum mencakup seluruh tagihan. Periksa data pembayaran.</p>
-        <div v-else class="mt-5 inline-flex -rotate-3 flex-col items-center rounded-lg border-4 border-red-700 px-6 py-2 font-black uppercase text-red-700">
-            <span class="text-3xl tracking-widest">Lunas</span>
-            <span class="mt-1 text-sm tracking-wide">{{ date(settlementDate) }}</span>
         </div>
+        <p v-if="!complete" class="mt-5 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Status invoice tercatat lunas, tetapi riwayat pembayaran belum mencakup seluruh tagihan. Periksa data pembayaran.</p>
         <div class="mt-14 flex justify-end"><div class="w-56 text-center"><p>Hormat kami,</p><div class="h-20"></div><p class="border-t pt-2 font-bold">Salfa Novia Roza, S.H., M.Kn.</p></div></div>
         <PrintFooter :verification-url="verificationUrl" />
         <button type="button" onclick="window.print()" class="fixed bottom-6 right-6 rounded-xl bg-teal-700 px-5 py-3 font-bold text-white print:hidden">Cetak Kwitansi</button>

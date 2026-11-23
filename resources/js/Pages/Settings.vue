@@ -399,7 +399,7 @@ const save = () =>
                             <h2 class="font-black">Format Nomor Dokumen</h2>
                             <p class="mt-1 text-sm text-slate-500">
                                 Prefix berlaku untuk dokumen baru. Format nomor:
-                                PREFIX/ddmmyyyy/nomor urut.
+                                Invoice dan quotation: nomor urut/kode/bulan Romawi/tahun. Berkas: PREFIX/ddmmyyyy/nomor urut.
                             </p>
                         </div>
                     </div>

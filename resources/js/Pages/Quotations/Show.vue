@@ -108,15 +108,15 @@ const downloadPdf = async () => {
         if (y > 238) { pdf.addPage(); y = 20; }
         const QRCode = await import("qrcode");
         const qr = await QRCode.toDataURL(props.verificationUrl, { margin: 2, width: 240, errorCorrectionLevel: "M" });
-        pdf.addImage(qr, "PNG", 90, y + 2, 30, 30);
+        pdf.addImage(qr, "PNG", 165, y + 2, 30, 30);
         pdf.setFontSize(8);
-        pdf.text("Pindai untuk verifikasi dokumen", 105, y + 35, { align: "center" });
+        pdf.text("Pindai untuk verifikasi", 180, y + 35, { align: "center" });
         for (let pageNumber = 1; pageNumber <= pdf.getNumberOfPages(); pageNumber++) {
             pdf.setPage(pageNumber);
             pdf.setFont("helvetica", "normal");
             pdf.setFontSize(8);
             pdf.setTextColor(100);
-            pdf.text(pdf.splitTextToSize(footer, 180), 105, 285, { align: "center" });
+            pdf.text(pdf.splitTextToSize(footer, 140), 14, 285);
         }
         pdf.save(`Quotation-${String(q.quotationNumber).replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`);
     } catch (error) {
