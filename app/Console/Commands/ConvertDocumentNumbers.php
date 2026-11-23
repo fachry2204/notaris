@@ -24,10 +24,14 @@ class ConvertDocumentNumbers extends Command
                 foreach ($records as $record) {
                     $old = (string) $record->{$column};
                     $target = $old;
-                    if (preg_match('/^([A-Za-z]+)\/(\d{8})\/(\d+)$/', $old, $match)) {
+                    if (preg_match('/^([A-Za-z]+)\/(\d{8})\/(\d+)$/', $old, $match) || preg_match('/^([A-Za-z]+)-(\d{4})-(\d+)$/', $old, $match)) {
                         $date = substr((string) $record->{$dateColumn}, 0, 10);
                         if (! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $parts) || ! checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1])) {
                             $problems[] = "$table $old: tanggal tidak valid";
+                            continue;
+                        }
+                        if (strlen($match[2]) === 4 && $match[2] !== $parts[1]) {
+                            $problems[] = "$table $old: tahun nomor berbeda dari tanggal dokumen $date";
                             continue;
                         }
                         $target = sprintf('%04d/%s/%s/%s', (int) $match[3], strtoupper($match[1]), $months[(int) $parts[2]], $parts[1]);
