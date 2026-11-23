@@ -17,6 +17,7 @@ import {
     Users,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 const p = defineProps<{ settings: any; admins: any[]; initialTab?: string }>();
 const defaults = [
     {
@@ -134,8 +135,34 @@ const f = useForm({
             p.settings.whatsapp?.endpointUrl || "https://api.fonnte.com/send",
         apiToken: p.settings.whatsapp?.apiToken || "",
     },
+    notificationTemplates: p.settings.notificationTemplates as Record<string, { subject: string; email: string; whatsapp: string }>,
 });
 const tab = ref(p.initialTab || "system");
+const templateType = ref<'quotation' | 'invoice' | 'job'>('quotation');
+const templateChannel = ref<'email' | 'whatsapp'>('email');
+const templateTypes = [{ id: 'quotation', label: 'Quotation' }, { id: 'invoice', label: 'Invoice' }, { id: 'job', label: 'Progres Berkas' }] as const;
+const templateFields: Record<string, string> = { nama_client: 'Nama penerima', nomor: 'Nomor dokumen', perihal: 'Judul pekerjaan atau dokumen', tautan: 'Tautan dokumen atau pelacakan', pic: 'Nama PIC atau tim', total: 'Total tagihan atau penawaran', jatuh_tempo: 'Tanggal jatuh tempo invoice', status: 'Status invoice atau berkas' };
+const placeholders: Record<string, string[]> = { quotation: ['nama_client', 'nomor', 'perihal', 'total', 'tautan', 'pic'], invoice: ['nama_client', 'nomor', 'perihal', 'total', 'jatuh_tempo', 'status', 'tautan', 'pic'], job: ['nama_client', 'nomor', 'perihal', 'status', 'tautan', 'pic'] };
+const insertPlaceholder = (name: string) => { f.notificationTemplates[templateType.value][templateChannel.value] += `{${name}}`; };
+const testRecipient = ref({ email: '', whatsapp: '' });
+const testResult = ref<Record<string, { message: string; ok: boolean } | null>>({ email: null, whatsapp: null });
+const testSending = ref('');
+const sendTest = async (channel: 'email' | 'whatsapp') => {
+    testResult.value[channel] = null;
+    testSending.value = channel;
+    try {
+        const token = (document.querySelector('meta[name=csrf-token]') as HTMLMetaElement)?.content;
+        const response = await fetch('/dashboard/settings/test-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-TOKEN': token },
+            body: JSON.stringify({ channel, recipient: testRecipient.value[channel].trim() }),
+        });
+        const result = await response.json();
+        testResult.value[channel] = { ok: response.ok, message: result.errors?.recipient?.[0] || result.message || 'Pengiriman gagal.' };
+    } catch {
+        testResult.value[channel] = { ok: false, message: 'Tidak dapat menghubungi server. Periksa koneksi dan coba lagi.' };
+    } finally { testSending.value = ''; }
+};
 const uploading = ref("");
 const upload = async (type: "logo" | "favicon", e: Event) => {
     const file = (e.target as HTMLInputElement).files?.[0];
@@ -185,13 +212,7 @@ const save = () =>
 <template>
     <Head title="Pengaturan" /><AppLayout
         ><main class="mx-auto max-w-7xl space-y-6 p-4">
-            <div>
-                <h1 class="text-2xl font-black">Pengaturan Sistem</h1>
-                <p class="text-sm text-slate-500">
-                    Konfigurasi kantor, rekening, role, administrator, dan
-                    WhatsApp.
-                </p>
-            </div>
+            <PageHeader hide-mobile-icon title="Pengaturan Sistem" section="Manajemen Sistem / Pengaturan" description="Konfigurasi kantor, rekening, role, administrator, dan WhatsApp." />
             <nav class="flex flex-wrap gap-2 rounded-2xl border bg-white p-2">
                 <button
                     v-for="x in [
@@ -199,6 +220,7 @@ const save = () =>
                         { id: 'frontend', l: 'Halaman Depan', i: Monitor },
                         { id: 'numbers', l: 'Nomor Dokumen', i: Hash },
                         { id: 'email', l: 'Email SMTP', i: Mail },
+                        { id: 'templates', l: 'Template Notifikasi', i: MessageSquare },
                         { id: 'admins', l: 'Administrator', i: Users },
                         { id: 'roles', l: 'Role & Akses', i: Shield },
                         { id: 'whatsapp', l: 'WhatsApp', i: MessageSquare },
@@ -586,6 +608,13 @@ const save = () =>
                                 />
                             </label>
                         </div>
+                        <div class="space-y-2 border-t border-slate-200 pt-4">
+                            <label for="test-email" class="input-label">Email tujuan uji</label>
+                            <input id="test-email" v-model="testRecipient.email" type="email" placeholder="nama@example.com" class="field" />
+                            <p class="text-xs text-slate-500">Menggunakan pengaturan yang sudah disimpan. Simpan perubahan sebelum menguji.</p>
+                            <button type="button" :disabled="!!testSending || !testRecipient.email.trim()" @click="sendTest('email')" class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">{{ testSending === 'email' ? 'Mengirim...' : 'Kirim Email Uji' }}</button>
+                            <p v-if="testResult.email" role="status" class="text-sm font-semibold" :class="testResult.email.ok ? 'text-emerald-500' : 'text-rose-500'">{{ testResult.email.message }}</p>
+                        </div>
                     </div>
                     <div class="space-y-5 rounded-3xl border bg-white p-6">
                         <div>
@@ -720,6 +749,23 @@ const save = () =>
                     </div>
                 </section>
                 <div
+                    v-else-if="tab === 'templates'"
+                    class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]"
+                >
+                    <section class="space-y-5 rounded-3xl border bg-white p-6">
+                        <div><h2 class="text-lg font-black">Template Notifikasi</h2><p class="mt-1 text-sm text-slate-500">Pilih notifikasi dan kanal, lalu sesuaikan pesan untuk client. Klik Simpan Pengaturan untuk menerapkan perubahan.</p></div>
+                        <div class="flex flex-wrap gap-2" aria-label="Jenis notifikasi">
+                            <button v-for="item in templateTypes" :key="item.id" type="button" @click="templateType = item.id" :aria-pressed="templateType === item.id" class="rounded-xl border px-4 py-2 text-sm font-bold" :class="templateType === item.id ? 'border-amber-500 bg-amber-500 text-black' : 'border-slate-400 text-slate-500'">{{ item.label }}</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2" aria-label="Kanal notifikasi">
+                            <button v-for="channel in (['email', 'whatsapp'] as const)" :key="channel" type="button" @click="templateChannel = channel" :aria-pressed="templateChannel === channel" class="rounded-xl border px-4 py-2 text-sm font-bold" :class="templateChannel === channel ? 'border-amber-500 bg-amber-500 text-black' : 'border-slate-400 text-slate-500'">{{ channel === 'email' ? 'Email' : 'WhatsApp' }}</button>
+                        </div>
+                        <label v-if="templateChannel === 'email'" class="block"><span class="input-label">Subjek Email</span><input v-model="f.notificationTemplates[templateType].subject" maxlength="200" class="field" /><span v-if="f.errors[`notificationTemplates.${templateType}.subject`]" class="text-sm text-rose-500">{{ f.errors[`notificationTemplates.${templateType}.subject`] }}</span></label>
+                        <label class="block"><span class="input-label">Isi Pesan {{ templateChannel === 'email' ? 'Email' : 'WhatsApp' }}</span><textarea v-model="f.notificationTemplates[templateType][templateChannel]" rows="12" maxlength="10000" class="field min-h-52 resize-y"></textarea><span v-if="f.errors[`notificationTemplates.${templateType}.${templateChannel}`]" class="text-sm text-rose-500">{{ f.errors[`notificationTemplates.${templateType}.${templateChannel}`] }}</span></label>
+                    </section>
+                    <aside class="space-y-3 rounded-3xl border bg-white p-6"><h2 class="font-black">Placeholder yang tersedia</h2><p class="text-sm text-slate-500">Placeholder akan diganti otomatis dengan data sebenarnya. Klik untuk menambahkannya di akhir isi pesan.</p><button v-for="name in placeholders[templateType]" :key="name" type="button" @click="insertPlaceholder(name)" class="flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 px-3 py-2 text-left text-sm"><code class="font-bold text-amber-500">{{ '{' + name + '}' }}</code><span class="text-xs text-slate-500">{{ templateFields[name] }}</span></button><p class="text-xs text-slate-500">Untuk WhatsApp, gunakan tanda * di sekitar kata untuk membuat teks tebal.</p></aside>
+                </div>
+                <div
                     v-else-if="tab === 'whatsapp'"
                     class="grid gap-6 lg:grid-cols-2"
                 >
@@ -799,6 +845,13 @@ const save = () =>
                             class="field"
                             :class="{ 'opacity-50': !f.whatsapp.enabled }"
                         />
+                        <div class="space-y-2 border-t border-slate-200 pt-4">
+                            <label for="test-whatsapp" class="input-label">Nomor WhatsApp tujuan uji</label>
+                            <input id="test-whatsapp" v-model="testRecipient.whatsapp" type="tel" inputmode="tel" placeholder="628123456789" class="field" />
+                            <p class="text-xs text-slate-500">Menggunakan pengaturan yang sudah disimpan. Simpan perubahan sebelum menguji.</p>
+                            <button type="button" :disabled="!!testSending || !testRecipient.whatsapp.trim()" @click="sendTest('whatsapp')" class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">{{ testSending === 'whatsapp' ? 'Mengirim...' : 'Kirim Pesan Uji' }}</button>
+                            <p v-if="testResult.whatsapp" role="status" class="text-sm font-semibold" :class="testResult.whatsapp.ok ? 'text-emerald-500' : 'text-rose-500'">{{ testResult.whatsapp.message }}</p>
+                        </div>
                     </section>
                     <section class="space-y-5 rounded-3xl border bg-white p-6">
                         <div>

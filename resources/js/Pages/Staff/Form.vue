@@ -31,7 +31,7 @@ const input =
 <template>
     <Head :title="staff ? 'Edit Pegawai' : 'Tambah Pegawai'" /><AppLayout
         ><main class="mx-auto max-w-4xl space-y-6 p-4 pb-20">
-            <div class="flex items-center gap-4">
+            <div class="ds-detail-heading flex items-center gap-4">
                 <Link
                     :href="
                         staff

@@ -67,8 +67,6 @@ class TaskController extends Controller
             )
             ->when($userId, fn ($q) => $q->where('task.userId', $userId))
             ->when($taskType, fn ($q) => $q->where('task.taskType', $taskType))
-            ->when($paymentStatus === 'paid', fn ($q) => $q->where('task.isPaid', true))
-            ->when($paymentStatus === 'unpaid', fn ($q) => $q->where('task.isPaid', false))
             ->when($startDate, fn ($q) => $q->whereDate('task.createdAt', '>=', $startDate))
             ->when($endDate, fn ($q) => $q->whereDate('task.createdAt', '<=', $endDate))
             ->when($search, fn ($q) => $q->where(fn ($sub) => $sub->where('bh.title', 'like', "%{$search}%")
@@ -87,6 +85,9 @@ class TaskController extends Controller
         $totalFee = (float) (clone $clonedQuery)->sum('task.fee');
         $paidFee = (float) (clone $clonedQuery)->where('task.isPaid', true)->sum('task.fee');
         $unpaidFee = (float) (clone $clonedQuery)->where('task.isPaid', false)->sum('task.fee');
+
+        $query->when($paymentStatus === 'paid', fn ($q) => $q->where('task.isPaid', true))
+            ->when($paymentStatus === 'unpaid', fn ($q) => $q->where('task.isPaid', false));
 
         $staffList = $canManageFee
             ? DB::table('user')

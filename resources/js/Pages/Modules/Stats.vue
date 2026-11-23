@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
 import { Head, Link } from "@inertiajs/vue3";
 import {
     AlertTriangle,
@@ -69,8 +69,25 @@ const props = defineProps<{
     deadlines: JobRow[];
     overdueJobs: JobRow[];
     recentCompleted: JobRow[];
+    recentJobs: (JobRow & { createdAt: string })[];
+    todayActivities: Array<{ description: string | null; statusAfter: string | null; createdAt: string }>;
 }>();
 
+const recentSearch = ref("");
+const recentSort = ref("newest");
+const recentPage = ref(1);
+const filteredRecent = computed(() => {
+    const query = recentSearch.value.trim().toLowerCase();
+    return [...props.recentJobs].filter((job) => [job.trackingCode, job.title, job.clientName].some((value) => String(value || "").toLowerCase().includes(query))).sort((a, b) => recentSort.value === "oldest" ? String(a.createdAt).localeCompare(String(b.createdAt)) : String(b.createdAt).localeCompare(String(a.createdAt)));
+});
+const recentPages = computed(() => Math.max(1, Math.ceil(filteredRecent.value.length / 5)));
+const recentVisible = computed(() => filteredRecent.value.slice((recentPage.value - 1) * 5, recentPage.value * 5));
+watch([recentSearch, recentSort], () => { recentPage.value = 1; });
+const reportUrl = computed(() => {
+    const params = new URLSearchParams();
+    if (props.filters.start_date && props.filters.end_date) { params.set("from", props.filters.start_date); params.set("to", props.filters.end_date); }
+    return `/dashboard/reports${params.size ? `?${params}` : ""}`;
+});
 const maxMonth = computed(() =>
     Math.max(
         1,
@@ -111,7 +128,7 @@ const topCards = computed(() => [
         note: `${props.stats.PENDING} pending · ${props.stats.processing} diproses`,
         icon: CircleGauge,
         tone: "bg-sky-50 text-sky-700",
-        href: "/dashboard/jobs?status=PROSES",
+        href: "/dashboard/jobs?status=AKTIF",
     },
     {
         label: "Tingkat Penyelesaian",
@@ -127,7 +144,7 @@ const topCards = computed(() => [
         note: props.summary.overdue ? "Perlu segera ditindaklanjuti" : "Tidak ada pekerjaan terlambat",
         icon: AlertTriangle,
         tone: "bg-red-50 text-red-700",
-        href: "/dashboard/jobs",
+        href: "/dashboard/jobs?status=TERLAMBAT",
     },
 ]);
 
@@ -169,15 +186,15 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
 
 <template>
     <Head title="Statistik Pekerjaan" />
-    <AppLayout>
-        <main class="mx-auto max-w-7xl space-y-5">
+    <AppLayout dashboard-theme>
+        <main class="stats-luxury mx-auto max-w-7xl space-y-5">
             <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
                     <p class="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">Analitik Operasional</p>
                     <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Statistik Pekerjaan</h1>
                     <p class="mt-1 text-sm text-slate-500">Pantau kinerja, progres, dan risiko pekerjaan kantor dalam satu tampilan.</p>
                 </div>
-                <Link href="/dashboard/reports" class="inline-flex h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-xs font-black text-white shadow-md">
+                <Link :href="reportUrl" class="inline-flex h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-xs font-black text-white shadow-md">
                     <FileBarChart class="h-4 w-4" /> Buka Laporan
                 </Link>
             </header>
@@ -266,18 +283,18 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
                             <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Selesai</span>
                         </div>
                     </div>
-                    <div class="mt-7 flex h-60 items-end gap-3 border-b border-slate-200 px-1 sm:gap-6">
-                        <div v-for="month in months" :key="month.key" class="group flex h-full flex-1 items-end justify-center gap-1.5">
-                            <div class="relative w-2/5 rounded-t-lg bg-amber-500 transition group-hover:bg-amber-600" :style="{ height: `${Math.max(4, (Number(month.total) / maxMonth) * 88)}%` }">
+                    <div class="mt-7 flex h-60 items-end gap-3 overflow-x-auto border-b border-slate-200 px-1 sm:gap-6">
+                        <div v-for="month in months" :key="month.key" class="group flex h-full min-w-[2rem] flex-1 items-end justify-center gap-1.5">
+                            <div class="relative w-2/5 rounded-t-lg bg-amber-500 transition group-hover:bg-amber-600" :style="{ height: `${(Number(month.total) / maxMonth) * 88}%` }">
                                 <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-600">{{ month.total }}</span>
                             </div>
-                            <div class="relative w-2/5 rounded-t-lg bg-emerald-500 transition group-hover:bg-emerald-600" :style="{ height: `${Math.max(4, (Number(month.completed) / maxMonth) * 88)}%` }">
+                            <div class="relative w-2/5 rounded-t-lg bg-emerald-500 transition group-hover:bg-emerald-600" :style="{ height: `${(Number(month.completed) / maxMonth) * 88}%` }">
                                 <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-black text-slate-600">{{ month.completed }}</span>
                             </div>
                         </div>
                     </div>
-                    <div class="mt-3 grid grid-cols-6 text-center">
-                        <div v-for="month in months" :key="month.key">
+                    <div class="mt-3 flex overflow-x-auto text-center">
+                        <div v-for="month in months" :key="month.key" class="min-w-[2rem] flex-1">
                             <p class="text-xs font-black text-slate-600">{{ month.name }}</p>
                             <p class="text-[9px] text-slate-400">{{ month.year }}</p>
                         </div>
@@ -309,6 +326,11 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
                         </div>
                     </div>
                 </article>
+            </section>
+
+            <section class="grid gap-5 xl:grid-cols-3">
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2"><div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-lg font-black text-slate-950">Pekerjaan Terbaru</h2><p class="text-xs text-slate-500">Maksimal 30 pekerjaan terbaru dalam periode pilihan.</p></div><Link href="/dashboard/jobs" class="text-xs font-bold text-amber-500">Lihat semua →</Link></div><div class="mt-4 flex flex-wrap gap-2"><input v-model="recentSearch" aria-label="Cari pekerjaan terbaru" placeholder="Cari berkas, client, atau pekerjaan" class="min-w-0 flex-1 rounded-xl border p-2 text-sm"/><select v-model="recentSort" aria-label="Urutkan pekerjaan terbaru" class="rounded-xl border p-2 text-sm"><option value="newest">Terbaru</option><option value="oldest">Terlama</option></select></div><div class="mt-3 divide-y divide-slate-100"><Link v-for="job in recentVisible" :key="`${job.jobType}-${job.id}`" :href="jobUrl(job)" class="flex items-center justify-between gap-3 py-3"><span class="min-w-0"><strong class="block truncate text-sm">{{ job.title }}</strong><span class="text-xs text-slate-400">{{ job.trackingCode }} · {{ job.clientName || 'Tanpa client' }} · {{ formatDate(job.createdAt) }}</span></span><span class="shrink-0 rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-800">{{ job.status }}</span></Link><p v-if="!recentVisible.length" class="py-6 text-sm text-slate-400">Tidak ada pekerjaan yang cocok.</p></div><div v-if="recentPages > 1" class="mt-3 flex items-center justify-between text-xs"><button :disabled="recentPage <= 1" @click="recentPage--" class="rounded border px-3 py-2 disabled:opacity-40">Sebelumnya</button><span>Halaman {{ recentPage }} / {{ recentPages }}</span><button :disabled="recentPage >= recentPages" @click="recentPage++" class="rounded border px-3 py-2 disabled:opacity-40">Berikutnya</button></div></article>
+                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><h2 class="text-lg font-black text-slate-950">Aktivitas Hari Ini</h2><p class="mt-1 text-xs text-slate-500">Pembaruan progres berkas yang tercatat.</p><div class="mt-4 space-y-3"><div v-for="(activity, index) in todayActivities" :key="index" class="rounded-xl bg-slate-50 p-3"><p class="text-xs font-bold text-amber-500">{{ new Date(activity.createdAt).toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) }} · {{ activity.statusAfter || 'Pembaruan' }}</p><p class="mt-1 text-sm">{{ activity.description || 'Status berkas diperbarui' }}</p></div><p v-if="!todayActivities.length" class="py-6 text-sm text-slate-400">Belum ada aktivitas hari ini.</p></div></article>
             </section>
 
             <section class="grid gap-5 xl:grid-cols-2">
@@ -421,3 +443,15 @@ const jobUrl = (job: JobRow) => `/dashboard/jobs/${job.jobType}/${job.id}`;
         </main>
     </AppLayout>
 </template>
+
+<style scoped>
+@media (min-width: 1024px) {
+.stats-luxury { color:#fff; }
+.stats-luxury :deep(.bg-white), .stats-luxury :deep(article), .stats-luxury :deep(.bg-slate-50) { background:#171717; border-color:rgba(212,175,55,.25); }
+.stats-luxury :deep([class*="text-slate-9"]), .stats-luxury :deep([class*="text-slate-8"]), .stats-luxury :deep([class*="text-slate-7"]) { color:#fff; }
+.stats-luxury :deep([class*="text-slate-5"]), .stats-luxury :deep([class*="text-slate-4"]) { color:#a5a5a5; }
+.stats-luxury :deep([class*="border-slate-"]) { border-color:rgba(212,175,55,.25); }
+.stats-luxury :deep(input), .stats-luxury :deep(select) { background:#202020; border-color:rgba(212,175,55,.25); color:#fff; color-scheme:dark; }
+.stats-luxury > header { padding:1.5rem; border:1px solid rgba(212,175,55,.25); border-radius:1rem; background:linear-gradient(110deg,#18140c,#2a2110 55%,#111); }
+}
+</style>

@@ -13,8 +13,11 @@ import {
     Tag,
     ChevronRight,
     AlertTriangle,
+    FileSignature,
+    FileClock,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
 const p = defineProps<{
     jobs: any;
@@ -153,32 +156,22 @@ const feeStatusInfo = (job: any) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-black text-slate-900">{{ pageTitle }}</h1>
-                    <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">{{ pageDescription }}</p>
-                </div>
-                <Link
-                    href="/dashboard/jobs/new"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-                >
-                    <FilePlus2 class="h-4 w-4" />
-                    <span>Berkas Baru</span>
-                </Link>
-            </div>
+            <PageHeader hide-mobile-icon :title="pageTitle" section="Operasional / Berkas" :description="pageDescription"><template #icon><BriefcaseBusiness class="h-6 w-6" /></template><template #summary><button type="button" @click="filter('')" :aria-pressed="st === ''" class="rounded-xl border border-amber-500/40 bg-amber-50 px-5 py-2 text-left text-amber-950"><span class="block text-[10px] font-black uppercase tracking-wider">Total Berkas</span><span class="text-xl font-black">{{ stats.all }}</span></button></template><template #actions><Link href="/dashboard/jobs/new" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition hover:opacity-90"><FilePlus2 class="h-4 w-4" /> Berkas Baru</Link></template></PageHeader>
 
             <!-- Stats filters -->
-            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
                 <button
                     v-for="x in [
-                        { s: '', l: 'Total Berkas', v: stats.all, i: BriefcaseBusiness, color: 'bg-pink-50/80 border-pink-200/90 text-pink-950 hover:bg-pink-100/70' },
                         { s: 'PENDING', l: 'Menunggu', v: stats.PENDING, i: Clock3, color: 'bg-amber-50/80 border-amber-200/90 text-amber-950 hover:bg-amber-100/70' },
                         { s: 'PROSES', l: 'Dalam Proses', v: stats.PROSES, i: Settings2, color: 'bg-sky-50/80 border-sky-200/90 text-sky-950 hover:bg-sky-100/70' },
                         { s: 'SELESAI', l: 'Selesai', v: stats.SELESAI, i: CheckCircle2, color: 'bg-emerald-50/80 border-emerald-200/90 text-emerald-950 hover:bg-emerald-100/70' },
                         { s: 'TERLAMBAT', l: 'Berkas Terlambat', v: stats.TERLAMBAT, i: AlertTriangle, color: 'bg-rose-50 border-rose-200 text-rose-950 hover:bg-rose-100' },
+                        { s: 'SIGNED', l: 'Sudah Ditandatangani', v: stats.SIGNED, i: FileSignature, color: 'bg-emerald-50 border-emerald-200 text-emerald-950 hover:bg-emerald-100' },
+                        { s: 'UNSIGNED', l: 'Belum Ditandatangani', v: stats.UNSIGNED, i: FileClock, color: 'bg-amber-50 border-amber-200 text-amber-950 hover:bg-amber-100' },
                     ]"
                     :key="x.s"
                     @click="filter(x.s)"
+                    :aria-pressed="st === x.s"
                     class="relative overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition-all"
                     :class="[
                         x.color,
@@ -209,6 +202,9 @@ const feeStatusInfo = (job: any) => {
                 >
                     <option value="">Semua Status</option>
                     <option value="TERLAMBAT">Terlambat</option>
+                    <option value="AKTIF">Aktif</option>
+                    <option value="SIGNED">Sudah Ditandatangani</option>
+                    <option value="UNSIGNED">Belum Ditandatangani</option>
                     <option v-for="s in ['PENDING', 'PROSES', 'REVISI', 'VERIFIKASI', 'SELESAI', 'CANCELLED']" :key="s">
                         {{ s }}
                     </option>
@@ -249,6 +245,7 @@ const feeStatusInfo = (job: any) => {
                     </div>
                     <div class="mt-3">
                         <h3 class="font-bold text-sm leading-snug line-clamp-2">{{ j.title }}</h3>
+                        <p class="mt-1 text-xs font-semibold">{{ j.deedSignedDate ? 'Akta sudah ditandatangani' : 'Akta belum ditandatangani' }}</p>
                     </div>
                     <div class="mt-3 grid grid-cols-2 gap-2 text-xs opacity-90 border-t border-black/5 pt-3">
                         <div class="flex items-center gap-1.5 truncate">
@@ -316,6 +313,7 @@ const feeStatusInfo = (job: any) => {
                                 </td>
                                 <td class="max-w-[280px] font-bold text-slate-800">
                                     <span class="line-clamp-2">{{ j.title }}</span>
+                                    <span class="mt-1 block text-xs font-semibold" :class="j.deedSignedDate ? 'text-emerald-600' : 'text-amber-600'">{{ j.deedSignedDate ? 'Akta sudah ditandatangani' : 'Akta belum ditandatangani' }}</span>
                                 </td>
                                 <td class="font-medium text-slate-700">{{ j.clientName || '-' }}</td>
                                 <td>

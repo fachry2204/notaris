@@ -92,6 +92,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/quotation/{id}/edit', [QuotationController::class, 'edit'])->name('quotations.edit');
     Route::put('/dashboard/quotation/{id}', [QuotationController::class, 'update'])->name('quotations.update');
     Route::post('/dashboard/quotation/{id}/publish', [QuotationController::class, 'publish'])->name('quotations.publish');
+    Route::post('/dashboard/quotation/{id}/notify', [QuotationController::class, 'notify'])->name('quotations.notify');
     Route::post('/dashboard/quotation/{id}/cancel', [QuotationController::class, 'cancel'])->name('quotations.cancel');
     Route::delete('/dashboard/quotation/{id}', [QuotationController::class, 'destroy'])->name('quotations.destroy');
     Route::get('/dashboard/finance', [FinanceController::class, 'index'])->name('finance.index');
@@ -129,6 +130,7 @@ Route::middleware('legacy.auth')->group(function () {
         Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('/dashboard/settings', [SettingsController::class, 'update'])->name('settings.update');
         Route::post('/dashboard/settings/upload', [SettingsController::class, 'upload'])->name('settings.upload');
+        Route::post('/dashboard/settings/test-notification', [SettingsController::class, 'testNotification'])->middleware('throttle:10,1')->name('settings.test-notification');
     });
     Route::get('/dashboard/reports', [ReportController::class, 'index'])->name('reports.index');
     Route::get('/dashboard/reports/export', [ReportController::class, 'export'])->name('reports.export');

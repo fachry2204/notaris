@@ -15,6 +15,7 @@ import {
     XCircle,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
 const props = defineProps<{
     accounts: any;
@@ -79,23 +80,7 @@ const visibleFrom = computed(() => props.accounts.from || 0);
     <Head title="User Login" />
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-5">
-            <header class="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                <div>
-                    <p class="text-xs font-black uppercase tracking-[0.18em] text-[var(--primary)]">
-                        Manajemen Sistem
-                    </p>
-                    <h1 class="mt-1 text-2xl font-black text-slate-950">User Login</h1>
-                    <p class="mt-1 text-sm text-slate-500">
-                        Kelola seluruh akun, hak akses, dan status login sistem.
-                    </p>
-                </div>
-                <Link
-                    href="/dashboard/system/users/new"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-md transition hover:-translate-y-0.5"
-                >
-                    <Plus class="h-4 w-4" /> Tambah User Login
-                </Link>
-            </header>
+            <PageHeader hide-mobile-icon title="User Login" section="Manajemen Sistem / User Login" description="Kelola seluruh akun, hak akses, dan status login sistem."><template #actions><Link href="/dashboard/system/users/new" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-md"><Plus class="h-4 w-4" /> Tambah User Login</Link></template></PageHeader>
 
             <div
                 v-if="page.props.flash?.success"

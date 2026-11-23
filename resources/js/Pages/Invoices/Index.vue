@@ -12,6 +12,9 @@ import {
     ChevronRight,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
+import StatCard from "@/Components/DesignSystem/StatCard.vue";
+import EmptyState from "@/Components/DesignSystem/EmptyState.vue";
 
 const p = defineProps<{
     invoices: any;
@@ -74,49 +77,17 @@ const badgeStyle = (status: string) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div class="flex items-center gap-3">
-                    <span class="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)] shrink-0">
-                        <Receipt class="h-6 w-6" />
-                    </span>
-                    <div>
-                        <h1 class="text-xl sm:text-2xl font-black text-slate-900">Invoice</h1>
-                        <p class="text-xs sm:text-sm font-medium text-slate-500">Kelola tagihan dan pembayaran client.</p>
-                    </div>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <a
-                        href="/dashboard/reports/export"
-                        class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all shadow-sm"
-                    >
-                        <Download class="h-4 w-4" />
-                        <span>Export CSV</span>
-                    </a>
-                    <Link
-                        href="/dashboard/invoice/new"
-                        class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-                    >
-                        <Plus class="h-4 w-4" />
-                        <span>Buat Invoice</span>
-                    </Link>
-                </div>
-            </div>
+            <PageHeader title="Invoice" section="Billing / Invoice" description="Kelola tagihan dan pembayaran client."><template #icon><Receipt class="h-6 w-6" /></template><template #actions><a href="/dashboard/reports/export" class="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm"><Download class="h-4 w-4" /> Export CSV</a><Link href="/dashboard/invoice/new" class="inline-flex h-11 items-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md"><Plus class="h-4 w-4" /> Buat Invoice</Link></template></PageHeader>
 
             <!-- Stats section -->
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div
+                <StatCard
                     v-for="x in [
-                        { l: 'Sudah Lunas', v: stats.paid, i: CircleDollarSign },
-                        { l: 'Pembayaran DP', v: stats.dp, i: WalletCards },
-                        { l: 'Belum Dibayar', v: stats.unpaid, i: Clock },
+                        { l: 'Sudah Lunas', v: stats.paid, i: CircleDollarSign, status: 'Lunas' },
+                        { l: 'Pembayaran DP', v: stats.dp, i: WalletCards, status: 'DP Bayar' },
+                        { l: 'Belum Dibayar', v: stats.unpaid, i: Clock, status: 'Belum Bayar' },
                     ]"
-                    :key="x.l"
-                    class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">{{ x.l }}</p>
-                    <p class="mt-1 text-xl sm:text-2xl font-black text-slate-800">{{ money(x.v) }}</p>
-                    <component :is="x.i" class="absolute -bottom-2 -right-2 h-14 w-14 text-slate-400/15" />
-                </div>
+                    :key="x.l" :label="x.l" :value="money(x.v)" :icon="x.i" interactive :selected="st === x.status" @activate="st = st === x.status ? '' : x.status; filter()" />
             </div>
 
             <!-- Search & Filter section -->
@@ -200,7 +171,7 @@ const badgeStyle = (status: string) => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-if="!invoices.data.length">
-                                <td colspan="7" class="py-16 text-center text-slate-500">Belum ada invoice.</td>
+                                <td colspan="7"><EmptyState title="Belum ada invoice" description="Invoice yang tersedia akan tampil di sini." /></td>
                             </tr>
                             <tr
                                 v-for="x in invoices.data"

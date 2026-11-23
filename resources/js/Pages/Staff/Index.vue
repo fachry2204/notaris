@@ -3,22 +3,18 @@ import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { CheckCircle2, Eye, Mail, Plus, Search, Shield, Trash2, User, XCircle, ChevronRight } from '@lucide/vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
-const p = defineProps<{ staff: any; search: string; stats: any }>();
+const p = defineProps<{ staff: any; search: string; stats: any; status?: string }>();
 const q = ref(p.search);
-const filter = ref<'all' | 'active' | 'inactive'>('all');
+const filter = ref<'all' | 'active' | 'inactive'>(p.status === 'active' || p.status === 'inactive' ? p.status : 'all');
 
-const list = computed(() =>
-    p.staff.data.filter(
-        (x: any) =>
-            filter.value === 'all' || (filter.value === 'active' ? x.isActive : !x.isActive)
-    )
-);
+const list = computed(() => p.staff.data);
 
 const find = () =>
     router.get(
         '/dashboard/pegawai/data',
-        { search: q.value },
+        { search: q.value, status: filter.value === 'all' ? '' : filter.value },
         { preserveState: true, replace: true }
     );
 
@@ -35,19 +31,7 @@ const roleName = (x: string) =>
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-black text-slate-900">Data Pegawai</h1>
-                    <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">Kelola informasi dan hak akses seluruh staff kantor.</p>
-                </div>
-                <Link
-                    href="/dashboard/pegawai/new"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-                >
-                    <Plus class="h-4 w-4" />
-                    <span>Tambah Pegawai</span>
-                </Link>
-            </div>
+            <PageHeader hide-mobile-icon title="Data Pegawai" section="Pegawai / Data Pegawai" description="Kelola informasi dan hak akses seluruh staff kantor."><template #icon><User class="h-6 w-6" /></template><template #actions><Link href="/dashboard/pegawai/new" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90"><Plus class="h-4 w-4" /> Tambah Pegawai</Link></template></PageHeader>
 
             <!-- Stats filters -->
             <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -58,7 +42,7 @@ const roleName = (x: string) =>
                         { id: 'inactive', l: 'Pegawai Non-Aktif', v: stats.inactive, i: XCircle, c: 'bg-rose-600 text-white' },
                     ]"
                     :key="x.id"
-                    @click="filter = x.id as any"
+                    @click="filter = x.id as any; find()"
                     class="group relative overflow-hidden rounded-2xl p-4 text-left transition-all border border-slate-200"
                     :class="filter === x.id ? `${x.c} shadow-md` : 'bg-white hover:bg-slate-50 text-slate-800'"
                 >

@@ -24,7 +24,10 @@ class DocumentEditHistory
         foreach ($after as $field => $value) {
             $old = $before->{$field} ?? null;
             $numeric = in_array($field, ['amount', 'subtotal', 'discount', 'taxPercent', 'taxAmount', 'grandTotal'], true);
-            if ($numeric ? (float) $old !== (float) $value : (string) ($old ?? '') !== (string) ($value ?? '')) {
+            $date = in_array($field, ['date', 'dueDate', 'quotationDate', 'validUntil'], true);
+            $oldComparable = $date && $old ? substr((string) $old, 0, 10) : (string) ($old ?? '');
+            $newComparable = $date && $value ? substr((string) $value, 0, 10) : (string) ($value ?? '');
+            if ($numeric ? (float) $old !== (float) $value : $oldComparable !== $newComparable) {
                 $changes[] = ['field' => $field, 'before' => $old, 'after' => $value];
             }
         }
@@ -52,6 +55,24 @@ class DocumentEditHistory
     {
         return DB::table('document_edit_history')->where('document_type', $type)->where('document_id', $id)->orderByDesc('id')->get()->each(function ($entry) {
             $entry->changes = json_decode($entry->changes, true) ?: [];
+            $entry->changes = array_values(array_filter(array_map(function ($change) {
+                if (($change['field'] ?? null) !== 'items' || ! is_array($change['before'] ?? null) || ! is_array($change['after'] ?? null)) return $change;
+                $before = array_values($change['before']);
+                $after = array_values($change['after']);
+                $key = fn ($item) => json_encode([(string) ($item['description'] ?? ''), (float) ($item['quantity'] ?? 0), (string) ($item['unit'] ?? ''), (float) ($item['unitPrice'] ?? 0)], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+                foreach ($before as $index => $item) {
+                    foreach ($after as $afterIndex => $candidate) {
+                        if ($key($item) === $key($candidate)) {
+                            unset($before[$index], $after[$afterIndex]);
+                            break;
+                        }
+                    }
+                }
+                if (! $before && ! $after) return null;
+                $change['before'] = array_values($before);
+                $change['after'] = array_values($after);
+                return $change;
+            }, $entry->changes)));
         });
     }
 }

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { Head, Link, router, usePage } from "@inertiajs/vue3";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 import {
     Search,
     Filter,
@@ -196,20 +197,11 @@ const getRowNumber = (index: number | string) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-black text-slate-900">
-                        Data Tugas Karyawan
-                    </h1>
-                    <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">
-                        Pantau penugasan karyawan, rincian fee terbayar & belum terbayar, dan filter riwayat penugasan.
-                    </p>
-                </div>
-            </div>
+            <PageHeader hide-mobile-icon title="Data Tugas Karyawan" section="Pegawai / Data Tugas" description="Pantau penugasan karyawan dan riwayat penugasan."><template #icon><ClipboardList class="h-6 w-6" /></template></PageHeader>
 
             <!-- Stats Overview Cards -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+                <button type="button" @click="form.paymentStatus = ''; applyFilters()" :aria-pressed="form.paymentStatus === ''" class="text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Tugas</p>
                         <h3 class="mt-1 text-2xl font-black text-slate-900">{{ stats.totalTasks }}</h3>
@@ -218,9 +210,9 @@ const getRowNumber = (index: number | string) => {
                     <div class="grid h-12 w-12 place-items-center rounded-2xl bg-blue-50 text-blue-600">
                         <ClipboardList class="h-6 w-6" />
                     </div>
-                </div>
+                </button>
 
-                <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
+                <button type="button" @click="form.paymentStatus = ''; applyFilters()" :aria-pressed="form.paymentStatus === ''" class="text-left rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-slate-400">Total Fee Pegawai</p>
                         <h3 class="mt-1 text-2xl font-black text-slate-900">{{ formatCurrency(stats.totalFee) }}</h3>
@@ -229,9 +221,9 @@ const getRowNumber = (index: number | string) => {
                     <div class="grid h-12 w-12 place-items-center rounded-2xl bg-slate-100 text-slate-700">
                         <DollarSign class="h-6 w-6" />
                     </div>
-                </div>
+                </button>
 
-                <div class="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm flex items-center justify-between">
+                <button type="button" @click="form.paymentStatus = 'paid'; applyFilters()" :aria-pressed="form.paymentStatus === 'paid'" class="task-paid text-left rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">Fee Terbayar</p>
                         <h3 class="mt-1 text-2xl font-black text-emerald-600">{{ formatCurrency(stats.paidFee) }}</h3>
@@ -240,9 +232,9 @@ const getRowNumber = (index: number | string) => {
                     <div class="grid h-12 w-12 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
                         <CheckCircle2 class="h-6 w-6" />
                     </div>
-                </div>
+                </button>
 
-                <div class="rounded-2xl border border-rose-200 bg-rose-50/40 p-5 shadow-sm flex items-center justify-between">
+                <button type="button" @click="form.paymentStatus = 'unpaid'; applyFilters()" :aria-pressed="form.paymentStatus === 'unpaid'" class="task-unpaid text-left rounded-2xl border border-rose-200 bg-rose-50/40 p-5 shadow-sm flex items-center justify-between">
                     <div>
                         <p class="text-xs font-bold uppercase tracking-wider text-rose-700">Fee Belum Terbayar</p>
                         <h3 class="mt-1 text-2xl font-black text-rose-600">{{ formatCurrency(stats.unpaidFee) }}</h3>
@@ -251,7 +243,7 @@ const getRowNumber = (index: number | string) => {
                     <div class="grid h-12 w-12 place-items-center rounded-2xl bg-rose-100 text-rose-700">
                         <Clock class="h-6 w-6" />
                     </div>
-                </div>
+                </button>
             </div>
 
             <!-- Filter Panel -->

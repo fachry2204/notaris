@@ -13,7 +13,7 @@ use RuntimeException;
 
 class QuotationController extends Controller
 {
-    private const STATUSES = ['Draft', 'Dikirim', 'Disetujui', 'Ditolak', 'Kedaluwarsa', 'Dibatalkan', 'Invoice Terbuat'];
+    private const STATUSES = ['Draft', 'Diterbitkan', 'Dikirim', 'Disetujui', 'Ditolak', 'Kedaluwarsa', 'Dibatalkan', 'Invoice Terbuat'];
 
     public function __construct(private readonly DocumentNumberService $numbers) {}
 
@@ -21,6 +21,7 @@ class QuotationController extends Controller
     {
         $search = trim((string) $request->query('search'));
         $status = (string) $request->query('status');
+        $group = in_array($request->query('group'), ['pending', 'approved'], true) ? $request->query('group') : '';
         $query = DB::table('quotation as q')
             ->leftJoin('client as c', 'c.id', '=', 'q.clientId')
             ->leftJoin('user as u', 'u.id', '=', 'q.picUserId')
@@ -32,15 +33,17 @@ class QuotationController extends Controller
                     ->orWhere('c.name', 'like', "%{$search}%")
                     ->orWhere('u.fullName', 'like', "%{$search}%");
             }))
-            ->when(in_array($status, self::STATUSES, true), fn ($builder) => $builder->where('q.status', $status));
+            ->when(in_array($status, self::STATUSES, true), fn ($builder) => $builder->where('q.status', $status))
+            ->when($group, fn ($builder) => $builder->whereIn('q.status', $group === 'pending' ? ['Draft', 'Diterbitkan', 'Dikirim'] : ['Disetujui', 'Invoice Terbuat']));
 
         return Inertia::render('Quotations/Index', [
             'quotations' => $query->orderByDesc('q.quotationDate')->orderByDesc('q.createdAt')->paginate(20)->withQueryString(),
             'search' => $search,
             'status' => $status,
+            'group' => $group,
             'stats' => [
                 'total' => DB::table('quotation')->count(),
-                'pending' => DB::table('quotation')->whereIn('status', ['Draft', 'Dikirim'])->count(),
+                'pending' => DB::table('quotation')->whereIn('status', ['Draft', 'Diterbitkan', 'Dikirim'])->count(),
                 'approved' => DB::table('quotation')->whereIn('status', ['Disetujui', 'Invoice Terbuat'])->count(),
                 'value' => DB::table('quotation')->whereIn('status', ['Disetujui', 'Invoice Terbuat'])->sum('grandTotal'),
             ],
@@ -55,6 +58,7 @@ class QuotationController extends Controller
     public function store(Request $request)
     {
         $data = $this->validated($request);
+        $data['status'] = 'Draft';
         $id = DB::transaction(function () use ($data, $request) {
             $id = 'quo-'.Str::lower(Str::random(16));
             $number = $this->numbers->next('quotation', $data['quotationDate']);
@@ -126,6 +130,7 @@ class QuotationController extends Controller
             $before = DB::table('quotation')->where('id', $id)->lockForUpdate()->first();
             abort_unless($before, 404);
             $payload = $this->quotationPayload($data, $this->totals($data));
+            $payload['status'] = $before->status;
             $oldItems = DB::table('quotation_item')->where('quotationId', $id)->orderBy('sortOrder')->get();
             app(\App\Services\DocumentEditHistory::class)->record($request, 'quotation', $id, $before, $payload, $oldItems, $data['items'], $reason);
             DB::table('quotation')->where('id', $id)->update([
@@ -158,12 +163,8 @@ class QuotationController extends Controller
     public function publish(Request $request, string $id, QuotationPublisher $publisher)
     {
         $quotation = $this->findQuotation($id);
-        $data = $request->validate([
-            'publishWithoutNotification' => 'required|boolean',
-        ]);
-
         try {
-            $message = $publisher->publish($quotation, $data['publishWithoutNotification']);
+            $message = $publisher->publish($quotation);
         } catch (RuntimeException $exception) {
             return back()->withErrors(['publish' => $exception->getMessage()]);
         }
@@ -171,6 +172,21 @@ class QuotationController extends Controller
         app(\App\Services\DocumentEditHistory::class)->activity($request, 'quotation', $id, 'Quotation diterbitkan. '.$message);
 
         return back()->with('success', $message);
+    }
+
+    public function notify(Request $request, string $id, QuotationPublisher $publisher)
+    {
+        $quotation = $this->findQuotation($id);
+        try {
+            $sent = $publisher->notify($quotation);
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            return back()->withErrors($exception->errors());
+        } catch (\Throwable $exception) {
+            report($exception);
+            return back()->withErrors(['notification' => 'Pengiriman pesan gagal. Periksa konfigurasi notifikasi dan data kontak client.']);
+        }
+        app(\App\Services\DocumentEditHistory::class)->activity($request, 'quotation', $id, 'Pesan quotation dikirim melalui '.implode(' dan ', $sent).'.');
+        return back()->with('success', 'Pesan quotation dikirim melalui '.implode(' dan ', $sent).'.');
     }
 
     public function cancel(Request $request, string $id)

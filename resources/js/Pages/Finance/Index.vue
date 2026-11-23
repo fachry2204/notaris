@@ -15,6 +15,7 @@ import {
     Receipt,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
 const props = defineProps<{
     income: number;
@@ -144,35 +145,7 @@ const getRowNumber = (index: number | string) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header -->
-            <div class="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                <div>
-                    <h1 class="text-2xl font-black text-slate-900">Monitoring Jurnal Keuangan</h1>
-                    <p class="mt-1 text-xs sm:text-sm text-slate-500 font-medium">
-                        Kelola jurnal Uang Masuk, Uang Keluar, dan saldo kas kantor Notaris.
-                    </p>
-                </div>
-
-                <!-- Top Header Action Buttons -->
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <button
-                        type="button"
-                        @click="showIncomeModal = true"
-                        class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 active:scale-95 cursor-pointer"
-                    >
-                        <TrendingUp class="h-4 w-4" />
-                        <span>+ Tambah Uang Masuk</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        @click="showExpenseModal = true"
-                        class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:bg-rose-700 active:scale-95 cursor-pointer"
-                    >
-                        <TrendingDown class="h-4 w-4" />
-                        <span>- Tambah Uang Keluar</span>
-                    </button>
-                </div>
-            </div>
+            <PageHeader hide-mobile-icon title="Monitoring Jurnal Keuangan" section="Billing / Keuangan" description="Kelola jurnal uang masuk, uang keluar, dan saldo kas kantor Notaris."><template #icon><Wallet class="h-6 w-6" /></template><template #actions><button type="button" @click="showIncomeModal = true" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700"><TrendingUp class="h-4 w-4" /> + Tambah Uang Masuk</button><button type="button" @click="showExpenseModal = true" class="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700"><TrendingDown class="h-4 w-4" /> - Tambah Uang Keluar</button></template></PageHeader>
 
             <!-- Date Filter Panel -->
             <div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -203,7 +176,7 @@ const getRowNumber = (index: number | string) => {
 
             <!-- Stat Summary Cards -->
             <section class="grid gap-4 md:grid-cols-3">
-                <article class="flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm">
+                <button type="button" @click="filterType('INCOME')" :aria-pressed="dateFilter.entryType === 'INCOME'" class="finance-income text-left flex items-center gap-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-5 shadow-sm">
                     <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-emerald-100 text-emerald-700">
                         <TrendingUp class="h-6 w-6" />
                     </span>
@@ -213,9 +186,9 @@ const getRowNumber = (index: number | string) => {
                             {{ money(income) }}
                         </p>
                     </div>
-                </article>
+                </button>
 
-                <article class="flex items-center gap-4 rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
+                <button type="button" @click="filterType('EXPENSE')" :aria-pressed="dateFilter.entryType === 'EXPENSE'" class="finance-expense text-left flex items-center gap-4 rounded-2xl border border-rose-200 bg-rose-50/50 p-5 shadow-sm">
                     <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-rose-100 text-rose-700">
                         <TrendingDown class="h-6 w-6" />
                     </span>
@@ -225,9 +198,9 @@ const getRowNumber = (index: number | string) => {
                             {{ money(expense) }}
                         </p>
                     </div>
-                </article>
+                </button>
 
-                <article class="flex items-center gap-4 rounded-2xl border border-sky-200 bg-sky-50/50 p-5 shadow-sm">
+                <button type="button" @click="filterType('ALL')" :aria-pressed="dateFilter.entryType === 'ALL'" class="finance-balance text-left flex items-center gap-4 rounded-2xl border border-sky-200 bg-sky-50/50 p-5 shadow-sm">
                     <span class="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-sky-100 text-sky-700">
                         <Wallet class="h-6 w-6" />
                     </span>
@@ -237,7 +210,7 @@ const getRowNumber = (index: number | string) => {
                             {{ money(balance) }}
                         </p>
                     </div>
-                </article>
+                </button>
             </section>
 
             <!-- Arus Kas Chart Section -->

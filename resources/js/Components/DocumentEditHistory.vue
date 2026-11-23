@@ -20,14 +20,22 @@ const date = (input: string) => {
         <p v-if="!entries.length" class="mt-3 text-sm text-slate-500">Belum ada perubahan yang tercatat.</p>
         <div v-for="(entry, index) in entries" :key="entry.id" class="relative ml-2 border-l-2 border-slate-200 pb-2 pl-6 last:border-transparent">
             <span class="absolute -left-[7px] top-6 h-3 w-3 rounded-full border-2 border-white" :class="index === 0 ? 'bg-orange-500 ring-2 ring-orange-300' : 'bg-slate-300'" />
-            <div class="mt-2 rounded-xl p-4 text-sm" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
+            <div class="document-history-entry mt-2 rounded-xl p-4 text-sm" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
             <div class="flex flex-wrap items-center justify-between gap-2"><strong class="flex items-center gap-2"><span class="grid h-9 w-9 place-items-center rounded-xl border border-orange-200 bg-white"><Pencil class="h-4 w-4 text-orange-600" /></span>{{ entry.actor_name }}</strong><time class="flex items-center gap-1 text-slate-500"><CalendarDays class="h-4 w-4" />{{ date(entry.created_at) }}</time></div>
-            <p class="mt-2 whitespace-pre-wrap"><strong>Aktivitas / alasan:</strong> {{ entry.reason }}</p>
+            <p v-if="!entry.changes?.length" class="mt-2 whitespace-pre-wrap"><strong>Aktivitas:</strong> {{ entry.reason }}</p>
             <div v-for="(change, index) in entry.changes" :key="index" class="mt-3 border-t pt-3">
                 <p class="font-bold">{{ labels[change.field] || change.field }}</p>
                 <div class="mt-1 grid gap-2 sm:grid-cols-2"><p class="whitespace-pre-wrap break-words"><span class="text-slate-500">Sebelumnya: </span>{{ value(change.before) }}</p><p class="whitespace-pre-wrap break-words"><span class="text-slate-500">Sesudah: </span>{{ value(change.after) }}</p></div>
+                <p class="mt-2 whitespace-pre-wrap break-words"><strong>Alasan perubahan:</strong> {{ entry.reason || 'Tidak dicatat' }}</p>
             </div>
             </div>
         </div>
     </section>
 </template>
+
+<style scoped>
+@media screen and (min-width: 1024px) {
+    .document-history-entry.bg-orange-50,
+    .document-history-entry.bg-orange-50 :is(p, strong, time) { color: #302414 !important; }
+}
+</style>

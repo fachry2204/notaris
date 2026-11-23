@@ -41,30 +41,45 @@ class ClientController extends Controller
     public function index(Request $request)
     {
         $search = trim((string) $request->query('search'));
+        $type = in_array($request->query('type'), ['individual', 'corporate'], true) ? $request->query('type') : '';
         $clients = DB::table('client')->when($search, fn ($q) => $q->where(fn ($q) => $q
             ->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")->orWhere('phone', 'like', "%{$search}%")))
-            ->orderBy('name')->paginate(20)->withQueryString();
+            ->when($type, fn ($q) => $q->where('type', $type))->orderBy('name')->paginate(20)->withQueryString();
         $stats = [
             'total' => DB::table('client')->count(),
             'individual' => DB::table('client')->where('type', 'individual')->count(),
             'corporate' => DB::table('client')->where('type', 'corporate')->count(),
         ];
 
-        return Inertia::render('Clients/Index', compact('clients', 'search', 'stats'));
+        return Inertia::render('Clients/Index', compact('clients', 'search', 'stats', 'type'));
     }
 
     public function store(Request $request)
     {
         $data = $this->validated($request);
         $sourceInvoiceId = $data['sourceInvoiceId'] ?? null;
-        unset($data['sourceInvoiceId']);
+        $sourceQuotationId = $data['sourceQuotationId'] ?? null;
+        if ($sourceInvoiceId && $sourceQuotationId) {
+            throw \Illuminate\Validation\ValidationException::withMessages(['sourceQuotationId' => 'Pilih satu sumber pendaftaran client.']);
+        }
+        unset($data['sourceInvoiceId'], $data['sourceQuotationId']);
         $next = ((int) DB::table('client')->max('indexNo')) + 1;
         $clientId = 'client-'.Str::lower(Str::random(12));
-        DB::transaction(function () use ($data, $next, $clientId, $sourceInvoiceId) {
-            DB::table('client')->insert([...$data, 'indexNo' => $next, 'id' => $clientId, 'createdAt' => now(), 'updatedAt' => now()]);
+        DB::transaction(function () use ($data, $next, $clientId, $sourceInvoiceId, $sourceQuotationId) {
+            $quotationId = $sourceQuotationId;
             if ($sourceInvoiceId) {
-                $quotationId = DB::table('invoice')->where('id', $sourceInvoiceId)->value('quotationId');
+                $quotationId = DB::table('invoice')->where('id', $sourceInvoiceId)->lockForUpdate()->value('quotationId');
                 abort_unless($quotationId, 422, 'Invoice bukan berasal dari Quotation.');
+            }
+            if ($quotationId) {
+                $quotation = DB::table('quotation')->where('id', $quotationId)->lockForUpdate()->first();
+                abort_unless($quotation, 404);
+                if ($quotation->clientId && DB::table('client')->where('id', $quotation->clientId)->exists()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([$sourceInvoiceId ? 'sourceInvoiceId' : 'sourceQuotationId' => 'Client sudah terdaftar. Muat ulang halaman untuk melihat status terbaru.']);
+                }
+            }
+            DB::table('client')->insert([...$data, 'indexNo' => $next, 'id' => $clientId, 'createdAt' => now(), 'updatedAt' => now()]);
+            if ($quotationId) {
                 DB::table('quotation')->where('id', $quotationId)->update([
                     'clientId' => $clientId,
                     'updatedAt' => now(),
@@ -73,6 +88,9 @@ class ClientController extends Controller
         });
         if ($sourceInvoiceId) {
             return redirect()->route('invoices.show', $sourceInvoiceId)->with('success', 'Data client berhasil di-upload. Silakan lanjutkan membuat berkas.');
+        }
+        if ($sourceQuotationId) {
+            return redirect()->route('invoices.create', ['quotation' => $sourceQuotationId])->with('success', 'Client berhasil didaftarkan.');
         }
 
         return redirect()->route('clients.index')->with('success', 'Client berhasil ditambahkan.');
@@ -98,7 +116,7 @@ class ClientController extends Controller
     public function update(Request $request, string $id)
     {
         $data = $this->validated($request);
-        unset($data['sourceInvoiceId']);
+        unset($data['sourceInvoiceId'], $data['sourceQuotationId']);
         DB::table('client')->where('id', $id)->update([...$data, 'updatedAt' => now()]);
 
         return redirect()->route('clients.show', $id)->with('success', 'Client berhasil diperbarui.');
@@ -125,6 +143,7 @@ class ClientController extends Controller
             'village' => 'nullable|string|max:100', 'gender' => 'nullable|string|max:30', 'citizenship' => 'nullable|string|max:30',
             'picName' => 'nullable|string|max:255', 'npwp' => 'nullable|string|max:100', 'birthday' => 'nullable|date',
             'sourceInvoiceId' => 'nullable|string|exists:invoice,id',
+            'sourceQuotationId' => 'nullable|string|exists:quotation,id',
         ]);
     }
 }

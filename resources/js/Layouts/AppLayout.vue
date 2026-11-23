@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Link, usePage } from "@inertiajs/vue3";
-import { computed, nextTick, onMounted, watch } from "vue";
+import { Link, router, usePage } from "@inertiajs/vue3";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import {
     LayoutDashboard,
     PieChart,
@@ -20,8 +20,20 @@ import {
     Search,
     Bell,
     UserCog,
+    Menu,
+    FolderOpen,
+    Fingerprint,
 } from "@lucide/vue";
-defineProps<{ hideMobileHeader?: boolean }>();
+defineProps<{ hideMobileHeader?: boolean; dashboardTheme?: boolean }>();
+const sidebarCollapsed = ref(false);
+const searchQuery = ref("");
+const searchModule = ref("jobs");
+const submitSearch = () => {
+    const query = searchQuery.value.trim();
+    if (!query) return;
+    const destinations: Record<string, string> = { jobs: "/dashboard/jobs", clients: "/dashboard/clients", deeds: "/dashboard/akta", invoices: "/dashboard/invoice" };
+    router.get(destinations[searchModule.value] || destinations.jobs, { search: query });
+};
 const page = usePage();
 const user = computed(() => (page.props.auth as any)?.user);
 const profilePhoto = computed(() => (page.props.auth as any)?.photoUrl || "");
@@ -231,19 +243,20 @@ onMounted(() => {
 watch([() => page.url, appName, faviconUrl], queueBrowserBrandingSync);
 watch(primaryColor, (newColor) => applyPrimaryColor(newColor));
 const mobile = computed(() => [
-    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: "/icons/mobile/folder.png" },
-    { label: "Data Akta", href: "/dashboard/akta", icon: "/icons/mobile/contract.png" },
-    { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: "/icons/mobile/fingerprint.png" },
-    { label: "Data Tugas", href: "/dashboard/tasks", icon: "/icons/mobile/contract.png" },
-    { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: "/icons/mobile/attendance.png" },
+    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: FolderOpen, color: 'text-amber-600' },
+    { label: "Data Akta", href: "/dashboard/akta", icon: FileText, color: 'text-emerald-600' },
+    { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: Fingerprint, color: 'text-white' },
+    { label: "Data Tugas", href: "/dashboard/tasks", icon: ClipboardList, color: 'text-blue-600' },
+    { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: Clock, color: 'text-violet-600' },
 ]);
 
 </script>
 <template>
     <div
-        class="flex h-screen overflow-hidden bg-[var(--background)] pb-16 text-[var(--foreground)] md:pb-0"
+        class="desktop-workspace flex h-screen overflow-hidden bg-[var(--background)] pb-16 text-[var(--foreground)] md:pb-0" :class="{ 'dashboard-shell': dashboardTheme }"
     >
         <aside
+            v-show="!sidebarCollapsed"
             class="relative z-50 hidden h-screen w-64 flex-col border-r border-[var(--sidebar-border)] bg-[var(--sidebar)] text-sm shadow-xl md:flex"
         >
             <div class="flex min-h-20 items-center px-5 py-3">
@@ -339,13 +352,9 @@ const mobile = computed(() => [
             <header
                 class="hidden h-20 items-center justify-between border-b border-[var(--border)] bg-[#fffdf8]/95 px-8 shadow-sm backdrop-blur md:flex"
             >
-                <div class="relative w-full max-w-lg">
-                    <Search
-                        class="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted-foreground)]"
-                    /><input
-                        placeholder="Search..."
-                        class="h-11 w-full rounded-xl border-0 bg-[color-mix(in_srgb,var(--muted)_30%,transparent)] pl-12 text-sm focus:ring-2 focus:ring-[var(--primary)]"
-                    />
+                <div class="flex w-full max-w-lg items-center gap-3">
+                    <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-slate-100" :aria-label="sidebarCollapsed ? 'Buka menu' : 'Tutup menu'" :aria-expanded="!sidebarCollapsed" @click="sidebarCollapsed = !sidebarCollapsed"><Menu class="h-5 w-5" /></button>
+                    <form class="flex min-w-0 flex-1 items-center gap-2" role="search" @submit.prevent="submitSearch"><select v-model="searchModule" aria-label="Modul pencarian" class="h-11 max-w-28 rounded-xl border px-2 text-xs"><option value="jobs">Berkas</option><option v-if="role !== 'OB'" value="clients">Client</option><option value="deeds">Akta</option><option value="invoices">Invoice</option></select><div class="relative min-w-0 flex-1"><Search class="absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-[var(--muted-foreground)]" /><input v-model="searchQuery" aria-label="Cari data" placeholder="Cari nomor atau nama..." class="h-11 w-full rounded-xl border-0 bg-[color-mix(in_srgb,var(--muted)_30%,transparent)] pl-12 text-sm focus:ring-2 focus:ring-[var(--primary)]" /></div><button type="submit" class="sr-only">Cari</button></form>
                 </div>
                 <div class="flex items-center gap-2">
                     <button
@@ -375,13 +384,23 @@ const mobile = computed(() => [
                 class="flex-1 overflow-y-auto bg-[var(--background)] p-4 md:p-8"
             >
                 <slot />
-                <details class="mb-6 mt-5 text-center text-[10px] text-slate-500 md:hidden"><summary class="cursor-pointer">Kredit ikon</summary><p class="mt-2 leading-relaxed">Ikon oleh <a href="https://www.flaticon.com/free-icon/folder_4723004" class="underline">Berkahicon</a>, <a href="https://www.flaticon.com/free-icon/contract_7607632" class="underline">manshagraphics</a>, <a href="https://www.flaticon.com/free-icon/fingerprint_6772347" class="underline">nawicon</a>, dan <a href="https://www.flaticon.com/free-icon/attendance_9928186" class="underline">VectorPortal</a> dari <a href="https://www.flaticon.com/" class="underline">Flaticon</a>.</p></details>
             </main>
         </div>
         <nav aria-label="Navigasi mobile" class="fixed inset-x-0 bottom-0 z-50 flex items-end justify-around rounded-t-3xl border-t border-[#e7e2da] bg-[#fffefa] px-1 pt-2 shadow-[0_-4px_20px_rgba(0,0,0,.08)] md:hidden" style="padding-bottom:max(.5rem,env(safe-area-inset-bottom))">
             <Link v-for="(item, index) in mobile" :key="index" :href="item.href" class="flex min-h-14 w-1/5 flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold leading-tight text-slate-700" :class="active(item.href) ? 'text-emerald-700' : ''">
-                <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><img :src="item.icon" alt="" aria-hidden="true" :class="index === 2 ? 'h-8 w-8 object-contain' : 'h-7 w-7 object-contain'" /></span><span>{{ item.label }}</span>
+                <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><component :is="item.icon" aria-hidden="true" :class="[item.color, index === 2 ? 'h-8 w-8' : 'h-7 w-7']" /></span><span>{{ item.label }}</span>
             </Link>
         </nav>
     </div>
 </template>
+
+<style scoped>
+@media (min-width: 1024px) {
+.dashboard-shell { background:#0b0b0b; color:#f5f5f5; }
+.dashboard-shell > aside { background:#111; border-color:rgba(212,175,55,.25); }
+.dashboard-shell > div > header.hidden { background:#151515; border-color:rgba(212,175,55,.25); color:#f5f5f5; }
+.dashboard-shell > div > main { background:#0b0b0b; }
+.dashboard-shell > div > header input { color:#f5f5f5; background:#242424; }
+.dashboard-shell > div > header button { color:#d4af37; }
+}
+</style>

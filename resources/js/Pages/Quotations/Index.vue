@@ -13,21 +13,26 @@ import {
     ChevronRight,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
+import StatCard from "@/Components/DesignSystem/StatCard.vue";
+import EmptyState from "@/Components/DesignSystem/EmptyState.vue";
 
 const props = defineProps<{
     quotations: any;
     search: string;
     status: string;
+    group?: string;
     stats: any;
 }>();
 
 const query = ref(props.search);
 const selectedStatus = ref(props.status);
+const selectedGroup = ref(props.group || "");
 
 const filter = () =>
     router.get(
         "/dashboard/quotation",
-        { search: query.value, status: selectedStatus.value },
+        { search: query.value, status: selectedStatus.value, group: selectedGroup.value },
         { preserveState: true, replace: true }
     );
 
@@ -51,6 +56,7 @@ const statusCardStyle = (status: string) => {
         case "Disetujui":
         case "Invoice Terbuat":
             return "bg-emerald-50/90 border-emerald-200 text-emerald-950 shadow-sm";
+        case "Diterbitkan":
         case "Dikirim":
             return "bg-sky-50/90 border-sky-200 text-sky-950 shadow-sm";
         case "Ditolak":
@@ -66,6 +72,7 @@ const badgeStyle = (status: string) => {
         case "Disetujui":
         case "Invoice Terbuat":
             return "bg-emerald-100 text-emerald-800 border border-emerald-300";
+        case "Diterbitkan":
         case "Dikirim":
             return "bg-sky-100 text-sky-800 border border-sky-300";
         case "Ditolak":
@@ -82,65 +89,34 @@ const badgeStyle = (status: string) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <header class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div class="flex items-center gap-3">
-                    <span
-                        class="grid h-11 w-11 place-items-center rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)] shrink-0"
-                    >
-                        <FileSignature class="h-6 w-6" />
-                    </span>
-                    <div>
-                        <h1 class="text-xl sm:text-2xl font-black text-slate-900">Quotation</h1>
-                        <p class="text-xs sm:text-sm font-medium text-slate-500">
-                            Kelola penawaran harga untuk client.
-                        </p>
-                    </div>
-                </div>
-                <Link
-                    href="/dashboard/quotation/new"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-                >
-                    <Plus class="h-4 w-4" /> <span>Buat Quotation</span>
-                </Link>
-            </header>
+            <PageHeader title="Quotation" section="Billing / Quotation" description="Kelola penawaran harga untuk client."><template #icon><FileSignature class="h-6 w-6" /></template><template #actions><Link href="/dashboard/quotation/new" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition hover:opacity-90"><Plus class="h-4 w-4" /> Buat Quotation</Link></template></PageHeader>
 
             <!-- Stats section -->
             <section class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
-                <article
+                <StatCard
                     v-for="card in [
                         {
-                            label: 'Total Quotation',
+                            label: 'Total Quotation', group: '',
                             value: stats.total,
                             icon: FileSignature,
                         },
                         {
-                            label: 'Menunggu',
+                            label: 'Menunggu', group: 'pending',
                             value: stats.pending,
                             icon: Clock3,
                         },
                         {
-                            label: 'Disetujui',
+                            label: 'Disetujui', group: 'approved',
                             value: stats.approved,
                             icon: BadgeCheck,
                         },
                         {
-                            label: 'Nilai Disetujui',
+                            label: 'Nilai Disetujui', group: 'approved',
                             value: money(stats.value),
                             icon: CircleDollarSign,
                         },
                     ]"
-                    :key="card.label"
-                    class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                >
-                    <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                        {{ card.label }}
-                    </p>
-                    <p class="mt-1 text-xl sm:text-2xl font-black text-slate-800 truncate">{{ card.value }}</p>
-                    <component
-                        :is="card.icon"
-                        class="absolute -bottom-2 -right-2 h-12 w-12 text-slate-400/15"
-                    />
-                </article>
+                    :key="card.label" :label="card.label" :value="card.value" :icon="card.icon" interactive :selected="selectedGroup === card.group && !selectedStatus" @activate="selectedStatus = ''; selectedGroup = card.group; filter()" />
             </section>
 
             <!-- Filters section -->
@@ -157,11 +133,12 @@ const badgeStyle = (status: string) => {
                 </form>
                 <select
                     v-model="selectedStatus"
-                    @change="filter"
+                    @change="selectedGroup = ''; filter()"
                     class="h-11 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700 focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20"
                 >
                     <option value="">Semua Status</option>
                     <option>Draft</option>
+                    <option>Diterbitkan</option>
                     <option>Dikirim</option>
                     <option>Disetujui</option>
                     <option>Invoice Terbuat</option>
@@ -233,12 +210,7 @@ const badgeStyle = (status: string) => {
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             <tr v-if="!quotations.data.length">
-                                <td
-                                    colspan="7"
-                                    class="py-16 text-center text-slate-500"
-                                >
-                                    Belum ada quotation.
-                                </td>
+                                <td colspan="7"><EmptyState title="Belum ada quotation" description="Quotation yang tersedia akan tampil di sini." /></td>
                             </tr>
                             <tr
                                 v-for="quotation in quotations.data"

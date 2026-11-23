@@ -883,10 +883,15 @@ const address =
                             class="relative ml-3 border-l-2 border-slate-200 pl-7 pb-2 last:border-transparent"
                         >
                             <span class="absolute -left-[7px] top-5 h-3 w-3 rounded-full border-2 border-white" :class="index === 0 ? 'bg-orange-500 ring-2 ring-orange-300' : 'bg-slate-300'" />
-                            <div class="flex flex-wrap items-start gap-3 rounded-xl p-3" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
+                            <div class="job-history-entry flex flex-wrap items-start gap-3 rounded-xl p-3" :class="index === 0 ? 'bg-orange-50' : 'border-b border-slate-100'">
                                 <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-orange-200 bg-white text-orange-600"><History class="h-5 w-5" /></span>
                                 <div class="min-w-0 flex-1"><p class="whitespace-pre-line break-words text-sm font-bold text-slate-800">{{ item.description || 'Pembaruan berkas' }}</p>
-                                <p class="mt-1 text-xs text-slate-500">{{ activityDate(item.createdAt) }}</p>
+                                <p class="mt-1 text-xs text-slate-500">{{ activityDate(item.createdAt) }} · {{ item.actorName || 'Pelaku tidak tercatat' }}</p>
+                                <p v-if="item.editReason" class="mt-2 whitespace-pre-wrap break-words text-xs"><strong>Alasan / keterangan:</strong> {{ item.editReason }}</p>
+                                <div v-for="(change, changeIndex) in item.changes || []" :key="changeIndex" class="mt-2 border-t border-amber-200/40 pt-2 text-xs">
+                                    <strong>{{ change.field }}</strong>
+                                    <div class="mt-1 grid gap-1 sm:grid-cols-2"><p class="whitespace-pre-wrap break-words">Sebelumnya: {{ change.before || '—' }}</p><p class="whitespace-pre-wrap break-words">Sesudah: {{ change.after || '—' }}</p></div>
+                                </div>
                                 <div v-if="item.photos?.length" class="mt-3 flex flex-wrap gap-2"><button v-for="photo in item.photos" :key="photo.id" type="button" @click="openPreview(photo)" :aria-label="`Lihat ${photo.fileName}`" class="overflow-hidden rounded-lg border focus:ring-2 focus:ring-teal-600"><img :src="photo.filePath" :alt="photo.fileName" loading="lazy" class="h-20 w-20 object-cover" /></button></div></div>
                                 <span class="rounded-full border border-amber-200 bg-amber-100 px-3 py-1 text-xs font-bold text-amber-900">
                                     <template v-if="item.statusBefore && item.statusBefore !== item.statusAfter && item.statusBefore !== 'BARU'">

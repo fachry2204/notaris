@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Head, router } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from '@/Components/DesignSystem/PageHeader.vue';
 import { reactive } from 'vue';
 import { Download, Filter, FileText, TrendingUp, TrendingDown, Users } from '@lucide/vue';
 
@@ -44,12 +45,7 @@ const statusBadge = (s: string) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-black text-slate-900">Laporan & Analisis</h1>
-                    <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">Ringkasan performa operasional dan keuangan kantor.</p>
-                </div>
-
+            <PageHeader hide-mobile-icon title="Laporan & Analisis" section="Manajemen Sistem / Laporan" description="Ringkasan performa operasional dan keuangan kantor."><template #icon><FileText class="h-6 w-6" /></template><template #actions>
                 <form @submit.prevent="router.get('/dashboard/reports', f)" class="flex flex-wrap items-center gap-2">
                     <input
                         v-model="f.from"
@@ -78,7 +74,7 @@ const statusBadge = (s: string) => {
                         <span>Ekspor CSV</span>
                     </a>
                 </form>
-            </div>
+            </template></PageHeader>
 
             <!-- Stats Overview Cards -->
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">

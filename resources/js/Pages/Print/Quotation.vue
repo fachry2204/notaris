@@ -4,7 +4,7 @@ import { computed } from "vue";
 import PrintFooter from "@/Components/PrintFooter.vue";
 
 defineProps<{ quotation: any; items: any[]; verificationUrl: string }>();
-const branding = computed(() => (usePage().props.branding || {}) as { officeName?: string; officeAddress?: string });
+const branding = computed(() => (usePage().props.branding || {}) as { officeName?: string; officeAddress?: string; logoUrl?: string | null });
 const money = (value: any) =>
     new Intl.NumberFormat("id-ID", {
         style: "currency",
@@ -22,7 +22,9 @@ const date = (value: any) =>
     <Head :title="quotation.quotationNumber" />
     <main class="mx-auto min-h-screen max-w-4xl bg-white p-10 text-slate-900">
         <header class="flex justify-between border-b-2 border-pink-500 pb-6">
-            <div>
+            <div class="flex min-w-0 items-start gap-4 pr-4">
+                <img v-if="branding.logoUrl" :src="branding.logoUrl" :alt="`Logo ${branding.officeName || 'kantor'}`" class="h-16 w-16 shrink-0 object-contain" />
+                <div>
                 <p
                     class="text-xs font-black uppercase tracking-[0.2em] text-pink-600"
                 >
@@ -31,6 +33,7 @@ const date = (value: any) =>
                 <p v-if="branding.officeAddress" class="mt-2 max-w-md whitespace-pre-line text-sm text-slate-600">{{ branding.officeAddress }}</p>
                 <h1 class="mt-2 text-3xl font-black">QUOTATION</h1>
                 <p class="mt-1 text-sm text-slate-500">Penawaran Harga</p>
+                </div>
             </div>
             <div class="text-right">
                 <p class="font-mono font-black text-pink-600">

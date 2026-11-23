@@ -21,6 +21,7 @@ import {
 import AppLayout from "@/Layouts/AppLayout.vue";
 import JobDateFilter from "@/Components/JobDateFilter.vue";
 import MobileDashboard from "@/Components/MobileDashboard.vue";
+import DocumentProgress from "@/Components/Dashboard/DocumentProgress.vue";
 
 type DashboardJob = {
     id: string;
@@ -37,6 +38,7 @@ type DashboardJob = {
 const props = defineProps<{
     filters: { start_date: string | null; end_date: string | null };
     stats: Record<string, number>;
+    categoryCounts: Record<string, number>;
     deadlines: DashboardJob[];
     overdueJobs: DashboardJob[];
     recentJobs: DashboardJob[];
@@ -173,7 +175,7 @@ const time = (value: string | null) =>
 
 <template>
     <Head title="Dashboard" />
-    <AppLayout :hide-mobile-header="staffLanding">
+    <AppLayout :hide-mobile-header="staffLanding" :dashboard-theme="!staffLanding">
         <MobileDashboard v-if="staffLanding" :user="user" :photo="staffPhoto" :today-attendance="todayAttendance" :staff-work="staffWork" />
         <main v-if="staffLanding" class="hidden md:block mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
             <section
@@ -275,7 +277,7 @@ const time = (value: string | null) =>
             </section>
         </main>
 
-        <main v-if="!staffLanding" class="space-y-5 p-2 sm:p-4">
+        <main v-if="!staffLanding" class="luxury-dashboard space-y-5 p-2 sm:p-4">
             <section v-if="attendanceNotifications" aria-label="Notifikasi absensi hari ini" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div><h2 class="flex items-center gap-2 text-base font-black text-amber-950"><AlertTriangle class="h-5 w-5" /> Notifikasi absensi hari ini</h2><p class="mt-1 text-xs text-amber-800">Berdasarkan check-in hari ini untuk akun pegawai aktif.</p></div>
@@ -299,7 +301,7 @@ const time = (value: string | null) =>
                     <p class="text-xs font-bold uppercase tracking-[0.18em]" :style="{ color: 'var(--primary)' }">
                         Ringkasan Operasional
                     </p>
-                    <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Dashboard Overview</h1>
+                    <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Selamat datang, {{ user?.fullName || 'Pengguna' }}</h1>
                     <p class="mt-1 text-sm text-slate-500">
                         Pantau operasional kantor dan hal yang membutuhkan perhatian.
                     </p>
@@ -337,7 +339,7 @@ const time = (value: string | null) =>
             </section>
 
             <section class="grid gap-3 md:grid-cols-2" :class="canViewFinance ? 'xl:grid-cols-4' : 'xl:grid-cols-3'">
-                <Link href="/dashboard/jobs" class="rounded-2xl border border-red-200 bg-red-50 p-4 transition hover:shadow-md">
+                <Link href="/dashboard/jobs?status=TERLAMBAT" class="rounded-2xl border border-red-200 bg-red-50 p-4 transition hover:shadow-md">
                     <div class="flex items-center justify-between">
                         <div>
                             <p class="text-[11px] font-bold uppercase tracking-wider text-red-600">Deadline Terlewat</p>
@@ -399,10 +401,10 @@ const time = (value: string | null) =>
                     </div>
                     <div class="mt-6 flex h-52 items-end gap-2 border-b border-slate-200 sm:gap-5">
                         <div v-for="month in months" :key="month.key" class="group flex h-full flex-1 items-end justify-center gap-1.5">
-                            <div class="relative w-2/5 rounded-t-lg bg-amber-500 transition-all group-hover:bg-amber-600" :style="{ height: `${Math.max(5, (Number(month.incoming) / maxMonth) * 88)}%` }">
+                            <div class="relative w-2/5 rounded-t-lg bg-amber-500 transition-all group-hover:bg-amber-600" :style="{ height: `${(Number(month.incoming) / maxMonth) * 88}%` }">
                                 <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-600">{{ month.incoming }}</span>
                             </div>
-                            <div class="relative w-2/5 rounded-t-lg bg-emerald-500 transition-all group-hover:bg-emerald-600" :style="{ height: `${Math.max(5, (Number(month.completed) / maxMonth) * 88)}%` }">
+                            <div class="relative w-2/5 rounded-t-lg bg-emerald-500 transition-all group-hover:bg-emerald-600" :style="{ height: `${(Number(month.completed) / maxMonth) * 88}%` }">
                                 <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-600">{{ month.completed }}</span>
                             </div>
                         </div>
@@ -443,6 +445,8 @@ const time = (value: string | null) =>
                     </Link>
                 </article>
             </section>
+
+            <DocumentProgress :stats="stats" :categories="categoryCounts" />
 
             <section class="grid gap-5 xl:grid-cols-2">
                 <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -595,3 +599,16 @@ const time = (value: string | null) =>
         </main>
     </AppLayout>
 </template>
+
+<style scoped>
+@media (min-width: 1024px) {
+.luxury-dashboard { color:#f5f5f5; }
+.luxury-dashboard :deep(.bg-white), .luxury-dashboard :deep(article), .luxury-dashboard :deep(.bg-slate-50), .luxury-dashboard :deep(.bg-slate-50\/50) { background:#191919; border-color:rgba(212,175,55,.25); }
+.luxury-dashboard :deep([class*="text-slate-9"]), .luxury-dashboard :deep([class*="text-slate-8"]), .luxury-dashboard :deep([class*="text-slate-7"]) { color:#f5f5f5; }
+.luxury-dashboard :deep([class*="text-slate-5"]), .luxury-dashboard :deep([class*="text-slate-4"]) { color:#a3a3a3; }
+.luxury-dashboard :deep([class*="border-slate-"]) { border-color:rgba(212,175,55,.25); }
+.luxury-dashboard :deep(input), .luxury-dashboard :deep(select) { color:#f5f5f5; background:#242424; border-color:rgba(212,175,55,.25); color-scheme:dark; }
+.luxury-dashboard :deep(a:hover) { filter:brightness(1.12); }
+.luxury-dashboard > header { border:1px solid rgba(212,175,55,.25); border-radius:1rem; padding:1.5rem; background:linear-gradient(110deg,#18140c,#2a2110 55%,#111); }
+}
+</style>

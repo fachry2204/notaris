@@ -33,14 +33,14 @@ class InvoiceController extends Controller
         if ($quotationId) {
             $quotation = DB::table('quotation as q')
                 ->leftJoin('client as c', 'c.id', '=', 'q.clientId')
-                ->select('q.*', 'c.name as legacyClientName', 'c.phone as legacyClientPhone', 'c.email as legacyClientEmail')
+                ->select('q.*', 'c.id as registeredClientId', 'c.name as legacyClientName', 'c.phone as legacyClientPhone', 'c.email as legacyClientEmail')
                 ->where('q.id', $quotationId)
                 ->first();
             abort_unless($quotation, 404);
             if ($invoiceId = DB::table('invoice')->where('quotationId', $quotationId)->value('id')) {
                 return redirect()->route('invoices.show', $invoiceId);
             }
-            abort_unless(in_array($quotation->status, ['Dikirim', 'Disetujui'], true), 422, 'Quotation harus diterbitkan sebelum dijadikan Invoice.');
+            abort_unless(in_array($quotation->status, ['Diterbitkan', 'Dikirim', 'Disetujui'], true), 422, 'Quotation harus diterbitkan sebelum dijadikan Invoice.');
             $quotation->clientName = $quotation->clientName ?: $quotation->legacyClientName;
             $quotation->clientPhone = $quotation->clientPhone ?: $quotation->legacyClientPhone;
             $quotation->clientEmail = $quotation->clientEmail ?: $quotation->legacyClientEmail;
@@ -62,7 +62,7 @@ class InvoiceController extends Controller
         if (! $jobId && ! $jobType) {
             $quotations = DB::table('quotation as q')
                 ->leftJoin('client as c', 'c.id', '=', 'q.clientId')
-                ->whereIn('q.status', ['Dikirim', 'Disetujui'])
+                ->whereIn('q.status', ['Diterbitkan', 'Dikirim', 'Disetujui'])
                 ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('invoice as i')->whereColumn('i.quotationId', 'q.id'))
                 ->select('q.id', 'q.quotationNumber', 'q.subject', 'q.clientName', 'c.name as legacyClientName')
                 ->orderByDesc('q.quotationDate')->orderByDesc('q.createdAt')->get();
@@ -106,7 +106,7 @@ class InvoiceController extends Controller
         }
         if (! empty($d['quotationId'])) {
             $quotationStatus = DB::table('quotation')->where('id', $d['quotationId'])->value('status');
-            if (! in_array($quotationStatus, ['Dikirim', 'Disetujui'], true)) {
+            if (! in_array($quotationStatus, ['Diterbitkan', 'Dikirim', 'Disetujui'], true)) {
                 return back()->withErrors(['quotationId' => 'Quotation harus diterbitkan sebelum dijadikan Invoice.']);
             }
             if (DB::table('invoice')->where('quotationId', $d['quotationId'])->exists()) {
@@ -114,6 +114,12 @@ class InvoiceController extends Controller
             }
         }
         $id = DB::transaction(function () use ($d, $amount, $r) {
+            if (! empty($d['quotationId'])) {
+                $quotation = DB::table('quotation')->where('id', $d['quotationId'])->lockForUpdate()->first();
+                if (! $quotation || ! in_array($quotation->status, ['Diterbitkan', 'Dikirim', 'Disetujui'], true) || DB::table('invoice')->where('quotationId', $d['quotationId'])->exists()) {
+                    throw ValidationException::withMessages(['quotationId' => 'Quotation tidak tersedia atau sudah memiliki invoice.']);
+                }
+            }
             if (empty($d['quotationId'])) {
                 $job = DB::table($d['jobType'])->where('id', $d['jobId'])->lockForUpdate()->first();
                 if (! $job) {
@@ -160,7 +166,7 @@ class InvoiceController extends Controller
         [$type,$jobId] = $this->invoiceJob($invoice);
         $job = $this->sourceDocument($type, $jobId);
 
-        $masterClient = $type === 'quotation' && ($job->clientId ?? null)
+        $masterClient = ($job->clientId ?? null)
             ? DB::table('client')->where('id', $job->clientId)->first()
             : null;
 
@@ -317,7 +323,7 @@ class InvoiceController extends Controller
             }
             DB::table('invoice')->where('id', $id)->delete();
             if ($type === 'quotation') {
-                DB::table('quotation')->where('id', $jobId)->update(['status' => 'Dikirim', 'updatedAt' => now()]);
+                DB::table('quotation')->where('id', $jobId)->update(['status' => 'Diterbitkan', 'updatedAt' => now()]);
             } else {
                 DB::table($type)->where('id', $jobId)->update(['invoiceStatus' => 'PENDING', 'updatedAt' => now()]);
             }
@@ -368,7 +374,7 @@ class InvoiceController extends Controller
 
         return DB::table($type.' as j')
             ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
-            ->select('j.id', 'j.title', 'j.trackingCode', 'c.name as clientName', 'c.phone as clientPhone', 'c.email as clientEmail', 'c.address as clientAddress')
+            ->select('j.id', 'j.clientId', 'j.title', 'j.trackingCode', 'c.name as clientName', 'c.phone as clientPhone', 'c.email as clientEmail', 'c.address as clientAddress')
             ->where('j.id', $id)
             ->first();
     }

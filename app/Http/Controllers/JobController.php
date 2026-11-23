@@ -66,20 +66,29 @@ class JobController extends Controller
                     'filledFeeTaskCount',
                 ))
                 ->selectRaw('? as category, ? as jobType', [$category, $table])
+                ->selectSub(fn ($q) => $q->from('signed_deeds')->select('signed_date')->whereColumn('job_id', 'j.id')->where('job_type', $table)->limit(1), 'deedSignedDate')
                 ->when($search, fn ($query) => $query->where(fn ($query) => $query
                     ->where('j.title', 'like', "%{$search}%")
                     ->orWhere('j.trackingCode', 'like', "%{$search}%")
                     ->orWhere('c.name', 'like', "%{$search}%")))
                 ->when($status === 'TERLAMBAT', fn ($query) => $query->whereNotNull('j.deadline')->whereDate('j.deadline', '<', today())->whereNotIn('j.status', ['SELESAI', 'CANCELLED']))
-                ->when($status && $status !== 'TERLAMBAT', fn ($query) => $query->where('j.status', $status));
+                ->when($status === 'AKTIF', fn ($query) => $query->whereIn('j.status', ['PENDING', 'PROSES', 'REVISI', 'REVISI_PROSES', 'VERIFIKASI']))
+                ->when(in_array($status, ['SIGNED', 'UNSIGNED'], true), function ($query) use ($status, $table) {
+                    $method = $status === 'SIGNED' ? 'whereExists' : 'whereNotExists';
+                    $query->$method(fn ($q) => $q->selectRaw('1')->from('signed_deeds')->whereColumn('job_id', 'j.id')->where('job_type', $table));
+                })
+                ->when($status && ! in_array($status, ['TERLAMBAT', 'AKTIF', 'SIGNED', 'UNSIGNED'], true), fn ($query) => $query->where('j.status', $status));
         });
         $query = $parts->shift();
         foreach ($parts as $part) {
             $query->unionAll($part);
         }
-        $stats = ['all' => 0, 'PENDING' => 0, 'PROSES' => 0, 'SELESAI' => 0, 'TERLAMBAT' => 0];
+        $stats = ['all' => 0, 'PENDING' => 0, 'PROSES' => 0, 'SELESAI' => 0, 'TERLAMBAT' => 0, 'SIGNED' => 0, 'UNSIGNED' => 0];
         foreach (array_keys(self::TABLES) as $table) {
             $stats['all'] += DB::table($table)->count();
+            $signed = DB::table($table.' as j')->whereExists(fn ($q) => $q->selectRaw('1')->from('signed_deeds')->whereColumn('job_id', 'j.id')->where('job_type', $table))->count();
+            $stats['SIGNED'] += $signed;
+            $stats['UNSIGNED'] += DB::table($table)->count() - $signed;
             $stats['TERLAMBAT'] += DB::table($table)->whereNotNull('deadline')->whereDate('deadline', '<', today())->whereNotIn('status', ['SELESAI', 'CANCELLED'])->count();
             foreach (['PENDING', 'PROSES', 'SELESAI'] as $key) {
                 $stats[$key] += DB::table($table)->where('status', $key)->count();
@@ -278,8 +287,13 @@ class JobController extends Controller
         }
 
         $progressPhotos = DB::table('job_progress_photos')->whereIn('progress_id', $progress->pluck('id'))->orderBy('id')->get()->groupBy('progress_id');
-        $progress->each(function ($item) use ($progressPhotos, $type, $id) {
+        $editDetails = DB::table('document_edit_history')->where('document_type', 'job_progress')->whereIn('document_id', $progress->pluck('id'))->get()->keyBy('document_id');
+        $progress->each(function ($item) use ($progressPhotos, $editDetails, $type, $id) {
             $item->photos = ($progressPhotos[$item->id] ?? collect())->map(fn ($photo) => ['id' => $photo->id, 'fileName' => $photo->file_name, 'filePath' => route('jobs.progress-photo', [$type, $id, $photo->id]), 'fileType' => 'image/jpeg'])->values();
+            $detail = $editDetails->get($item->id);
+            $item->actorName = $detail->actor_name ?? null;
+            $item->editReason = $detail->reason ?? null;
+            $item->changes = $detail ? (json_decode($detail->changes, true) ?: []) : [];
         });
         $signedDeed = DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->first();
         if ($signedDeed) {
@@ -430,13 +444,15 @@ class JobController extends Controller
                 $foreignKey => $id,
                 'createdAt' => now(),
             ]);
+            $statusChanges = $job->status === $data['status'] ? [] : [['field' => 'Status', 'before' => $job->status, 'after' => $data['status']]];
+            app(\App\Services\DocumentEditHistory::class)->activity($request, 'job_progress', $progressId, $data['description'], $statusChanges);
             foreach ($data['photos'] ?? [] as $photo) {
                 $path = $photo->store('job-progress-photos', 'local');
                 if (! $path) { throw new \RuntimeException('Gagal menyimpan foto progres.'); }
                 $paths[] = $path;
                 DB::table('job_progress_photos')->insert(['progress_id' => $progressId, 'file_path' => $path, 'file_name' => Str::limit($photo->getClientOriginalName(), 240, ''), 'created_at' => now()]);
             }
-            $this->log($request, 'UPDATE_JOB_PROGRESS', "Memperbarui progress berkas {$id}");
+            $this->log($request, 'UPDATE_JOB_PROGRESS', "Berkas {$job->trackingCode} ({$id})\nStatus: {$job->status} → {$data['status']}\nKeterangan: {$data['description']}\nFoto: ".count($data['photos'] ?? []));
         });
         } catch (Throwable $exception) {
             Storage::disk('local')->delete($paths);
@@ -536,6 +552,7 @@ class JobController extends Controller
     public function update(Request $request, string $type, string $id)
     {
         abort_unless(isset(self::TABLES[$type]), 404);
+        $request->validate(['description' => ['required', 'string', 'max:2000', function ($attribute, $value, $fail) { if (trim($value) === '') $fail('Alasan perubahan wajib diisi.'); }]]);
         $data = $this->validated($request, false);
         $manualNumber = $this->validateTrackingCode($request, $type, $id);
         if ($manualNumber !== null) {
@@ -561,6 +578,9 @@ class JobController extends Controller
         DB::transaction(function () use ($data, $founders, $employeeTasks, $attachments, $attachmentDescriptions, $attachmentDeposits, $savedAttachmentDeposits, $actorUserId, $request, $type, $id, $old, $fk, $invoiceAction, $sourceInvoiceId) {
             $lockedJob = DB::table($type)->where('id', $id)->lockForUpdate()->first();
             abort_unless($lockedJob, 404);
+            $oldFounders = DB::table('founder')->where($fk, $id)->orderBy('name')->get(['name', 'position', 'phone', 'email']);
+            $oldTasks = DB::table('job_employee_task as t')->leftJoin('user as u', 'u.id', '=', 't.userId')->where("t.$fk", $id)->orderBy('u.fullName')->orderBy('t.taskType')->get(['u.fullName', 't.taskType', 't.customTask']);
+            $oldDeposits = DB::table('attachment')->where($fk, $id)->get(['id', 'fileName', 'isPhysicalDeposited'])->keyBy('id');
             $linked = DB::table('invoice')->where(fn ($query) => $query->where($fk, $id)
                 ->when($lockedJob->sourceInvoiceId ?? null, fn ($query, $source) => $query->orWhere('id', $source)))->lockForUpdate()->first();
             if ($invoiceAction !== 'none' && $linked) {
@@ -605,11 +625,36 @@ class JobController extends Controller
                 $changes[] = "Status diubah dari {$old->status} ke {$data['status']}";
             }
 
-            $userDesc = $request->input('description');
-            $finalDesc = $userDesc ?: ($changes ? implode('; ', $changes) : 'Informasi berkas diperbarui');
+            $finalDesc = 'Informasi berkas diperbarui';
+            $detailChanges = [];
+            $fieldLabels = ['trackingCode' => 'Kode berkas', 'clientId' => 'Client', 'staffId' => 'PIC', 'title' => 'Pekerjaan', 'type' => 'Jenis pekerjaan', 'pengurusanUntuk' => 'Pengurusan untuk', 'companyName' => 'Nama badan usaha', 'status' => 'Status', 'priority' => 'Prioritas', 'deadline' => 'Deadline', 'saksi' => 'Saksi', 'notes' => 'Catatan'];
+            foreach ($fieldLabels as $field => $fieldLabel) {
+                if (! array_key_exists($field, $data)) continue;
+                $before = $lockedJob->{$field} ?? null;
+                $after = $data[$field];
+                $oldValue = $field === 'deadline' && $before ? substr((string) $before, 0, 10) : (string) ($before ?? '');
+                $newValue = $field === 'deadline' && $after ? substr((string) $after, 0, 10) : (string) ($after ?? '');
+                if ($oldValue === $newValue) continue;
+                if ($field === 'clientId') { $before = DB::table('client')->where('id', $before)->value('name') ?? $before; $after = DB::table('client')->where('id', $after)->value('name') ?? $after; }
+                if ($field === 'staffId') { $before = DB::table('user')->where('id', $before)->value('fullName') ?? $before; $after = DB::table('user')->where('id', $after)->value('fullName') ?? $after; }
+                $detailChanges[] = ['field' => $fieldLabel, 'before' => $before, 'after' => $after];
+            }
+            $founderText = fn ($items) => collect($items)->map(fn ($f) => implode(' · ', array_filter([(string) data_get($f, 'name'), (string) data_get($f, 'position'), (string) data_get($f, 'phone'), (string) data_get($f, 'email')])))->filter()->sort()->implode("\n");
+            $beforeFounders = $founderText($oldFounders);
+            $afterFounders = $founderText($founders);
+            if ($beforeFounders !== $afterFounders) $detailChanges[] = ['field' => 'Pendiri', 'before' => $beforeFounders, 'after' => $afterFounders];
+            $taskText = fn ($items) => collect($items)->map(fn ($t) => trim((string) data_get($t, 'fullName').' · '.(string) data_get($t, 'taskType').' '.(string) data_get($t, 'customTask')))->sort()->implode("\n");
+            $newTasks = DB::table('job_employee_task as t')->leftJoin('user as u', 'u.id', '=', 't.userId')->where("t.$fk", $id)->get(['u.fullName', 't.taskType', 't.customTask']);
+            if ($taskText($oldTasks) !== $taskText($newTasks)) $detailChanges[] = ['field' => 'Tugas pegawai', 'before' => $taskText($oldTasks), 'after' => $taskText($newTasks)];
+            foreach ($savedAttachmentDeposits as $attachmentId => $deposited) {
+                $attachment = $oldDeposits->get($attachmentId);
+                if ($attachment && (bool) $attachment->isPhysicalDeposited !== (bool) $deposited) $detailChanges[] = ['field' => 'Berkas fisik: '.$attachment->fileName, 'before' => $attachment->isPhysicalDeposited ? 'Dititipkan' : 'Tidak dititipkan', 'after' => $deposited ? 'Dititipkan' : 'Tidak dititipkan'];
+            }
+            if (count($attachments)) $detailChanges[] = ['field' => 'Lampiran baru', 'before' => null, 'after' => collect($attachments)->map(fn ($file) => $file->getClientOriginalName())->implode("\n")];
+            $progressId = 'PROG-'.Str::random(12);
 
             DB::table('jobprogress')->insert([
-                'id' => 'PROG-'.Str::random(12),
+                'id' => $progressId,
                 'userId' => $actorUserId,
                 'statusBefore' => $old->status,
                 'statusAfter' => $data['status'] ?? $old->status,
@@ -617,8 +662,16 @@ class JobController extends Controller
                 $fk => $id,
                 'createdAt' => now(),
             ]);
+            app(\App\Services\DocumentEditHistory::class)->activity($request, 'job_progress', $progressId, trim($request->input('description')), $detailChanges);
         });
-        $this->log($request, 'UPDATE_JOB', "Memperbarui berkas {$id}");
+        $labels = ['trackingCode' => 'Kode berkas', 'title' => 'Pekerjaan', 'status' => 'Status', 'priority' => 'Prioritas', 'deadline' => 'Deadline', 'pengurusanUntuk' => 'Pengurusan untuk', 'companyName' => 'Nama badan usaha', 'clientId' => 'Client', 'staffId' => 'PIC'];
+        $changedFields = [];
+        foreach ($labels as $field => $label) {
+            if (array_key_exists($field, $data) && (string) ($old->{$field} ?? '') !== (string) ($data[$field] ?? '')) {
+                $changedFields[] = $label;
+            }
+        }
+        $this->log($request, 'UPDATE_JOB', "Memperbarui berkas {$old->trackingCode} ({$id})\nKolom berubah: ".($changedFields ? implode(', ', $changedFields) : 'Tidak ada perubahan pada kolom utama')."\nLampiran baru: ".count($attachments));
 
         if ($invoiceAction === 'new') {
             return redirect()->route('invoices.create', ['job' => $id, 'type' => $type])->with('success', 'Berkas diperbarui. Lengkapi invoice baru.');
@@ -635,6 +688,7 @@ class JobController extends Controller
         $deedPaths = DB::table('signed_deed_photos')->whereIn('deed_id', $deedIds)->pluck('file_path')->all();
         $photoPaths = DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->pluck('file_path')->all();
         DB::transaction(function () use ($type, $id, $fk, $request, $deedIds) {
+            DB::table('document_edit_history')->where('document_type', 'job_progress')->whereIn('document_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->delete();
             DB::table('signed_deed_photos')->whereIn('deed_id', $deedIds)->delete();
             DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->delete();
             DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->delete();

@@ -4,6 +4,7 @@ import { ref } from "vue";
 import {
     ArrowLeft,
     Edit3,
+    Download,
     FilePlus2,
     FileText,
     Mail,
@@ -18,6 +19,8 @@ import {
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import DocumentEditHistory from "@/Components/DocumentEditHistory.vue";
+import RegisterClientModal from "@/Components/RegisterClientModal.vue";
+import { downloadPrintPdf } from "@/Utils/downloadPrintPdf";
 
 const props = defineProps<{
     invoice: any;
@@ -36,6 +39,19 @@ const form = useForm({
     proofs: [] as File[],
 });
 const proofInput = ref<HTMLInputElement | null>(null);
+const showPaymentModal = ref(false);
+const downloadingPdf = ref(false);
+const downloadInvoice = async () => {
+    if (downloadingPdf.value) return;
+    downloadingPdf.value = true;
+    try {
+        await downloadPrintPdf(`/print/invoice/${encodeURIComponent(props.invoice.id)}`, `Invoice-${String(props.invoice.invoiceNumber).replace(/[^a-zA-Z0-9_-]/g, '-')}.pdf`);
+    } catch (error) {
+        console.error('Gagal membuat PDF invoice', error);
+        alert('PDF belum dapat dibuat. Silakan gunakan tombol Cetak dan pilih Simpan sebagai PDF.');
+    } finally { downloadingPdf.value = false; }
+};
+const showClientModal = ref(false);
 const previewProof = ref<{ url: string; name: string } | null>(null);
 const proofError = ref("");
 const selectProofs = (event: Event) => {
@@ -81,6 +97,23 @@ const paid = () =>
         .filter((x) => x.type === "INCOME")
         .reduce((sum, x) => sum + Number(x.amount), 0);
 const remaining = () => Math.max(0, Number(props.invoice.amount) - paid());
+const formatPaymentAmount = (amount: number) => amount ? new Intl.NumberFormat('id-ID').format(amount) : '';
+const updatePaymentAmount = (event: Event) => {
+    const input = event.target as HTMLInputElement;
+    const digitsBeforeCaret = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/\D/g, '').length;
+    const digits = input.value.replace(/\D/g, '');
+    form.amount = digits ? Number(digits) : 0;
+    const formatted = formatPaymentAmount(form.amount);
+    input.value = formatted;
+    let cursor = 0;
+    let seen = 0;
+    while (cursor < formatted.length && seen < digitsBeforeCaret) {
+        if (/\d/.test(formatted[cursor])) seen++;
+        cursor++;
+    }
+    input.setSelectionRange(cursor, cursor);
+    input.setCustomValidity(form.amount > remaining() ? 'Nominal tidak boleh melebihi sisa tagihan.' : (digits && form.amount < 1 ? 'Nominal minimal Rp 1.' : ''));
+};
 const remove = () =>
     confirm("Hapus invoice ini dan reset status tagihan berkas?") &&
     router.delete(`/dashboard/invoice/${props.invoice.id}`);
@@ -91,7 +124,7 @@ const remove = () =>
     <AppLayout>
         <main class="mx-auto max-w-5xl space-y-6 p-4">
             <div
-                class="flex flex-col justify-between gap-4 md:flex-row md:items-center"
+                class="ds-detail-heading flex flex-col justify-between gap-4 md:flex-row md:items-center"
             >
                 <div class="flex items-center gap-4">
                     <Link
@@ -112,6 +145,7 @@ const remove = () =>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <button v-if="invoice.status !== 'Lunas'" type="button" @click="showPaymentModal = true" class="flex h-10 items-center gap-2 rounded-xl bg-amber-500 px-4 text-sm font-bold text-black"><Plus class="h-4 w-4" /> Catat Pembayaran</button>
                     <button
                         :disabled="notificationForm.processing"
                         @click="sendNotification"
@@ -127,8 +161,9 @@ const remove = () =>
                         :href="`/print/invoice/${invoice.id}`"
                         target="_blank"
                         class="flex h-10 items-center gap-2 rounded-xl border bg-white px-4 font-bold"
-                        ><Printer class="h-4 w-4" />Cetak</a
-                    ><a
+                        ><Printer class="h-4 w-4" />Cetak</a>
+                    <button type="button" @click="downloadInvoice" :disabled="downloadingPdf" class="flex h-10 items-center gap-2 rounded-xl border bg-white px-4 text-sm font-bold disabled:opacity-50"><Download class="h-4 w-4" />{{ downloadingPdf ? 'Menyiapkan PDF...' : 'Download PDF' }}</button>
+                    <a
                         v-if="invoice.status === 'Lunas'"
                         :href="`/dashboard/invoice/${invoice.id}/kwitansi`"
                         target="_blank"
@@ -167,7 +202,9 @@ const remove = () =>
                         <Receipt class="text-pink-500" />
                         <h2 class="font-black">Tagihan Kepada</h2>
                     </div>
-                    <h3 class="mt-5 text-xl font-black">
+                    <div class="mt-5 grid items-start gap-4 sm:grid-cols-2">
+                    <div class="min-w-0">
+                    <h3 class="text-xl font-black break-words">
                         {{ job?.clientName || "Klien Umum" }}
                     </h3>
                     <p
@@ -180,33 +217,22 @@ const remove = () =>
                     >
                         <Mail class="h-4 w-4" />{{ job?.clientEmail || "-" }}
                     </p>
-                    <div
-                        v-if="jobType === 'quotation'"
-                        class="mt-5 border-t border-slate-100 pt-5"
-                    >
+                    </div>
+                    <div class="min-w-0 sm:justify-self-end">
+                        <p class="mb-3 inline-flex rounded-full px-3 py-1 text-xs font-bold" :class="masterClient ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">{{ masterClient ? 'Client terdaftar di database' : 'Client belum terdaftar' }}</p>
+                        <div>
+                        <button v-if="!masterClient && jobType === 'quotation'" type="button" @click="showClientModal = true" class="inline-flex h-10 items-center gap-2 rounded-xl bg-pink-500 px-4 text-sm font-bold text-white"><UserPlus class="h-4 w-4" /> Daftarkan Client</button>
                         <Link
-                            v-if="!masterClient"
-                            :href="`/dashboard/clients/new?invoice=${invoice.id}`"
-                            class="inline-flex h-10 items-center gap-2 rounded-xl bg-pink-500 px-4 text-sm font-bold text-white"
-                        >
-                            <UserPlus class="h-4 w-4" />
-                            Upload Data Client
-                        </Link>
-                        <Link
-                            v-else
+                            v-else-if="masterClient && jobType === 'quotation'"
                             :href="`/dashboard/jobs/new?client=${masterClient.id}&invoice=${invoice.id}`"
                             class="inline-flex h-10 items-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-bold text-white"
                         >
                             <FilePlus2 class="h-4 w-4" />
                             Tambahkan Berkas
                         </Link>
-                        <p class="mt-2 text-xs text-slate-500">
-                            {{
-                                masterClient
-                                    ? "Client sudah tersimpan. Lanjutkan registrasi berkas baru."
-                                    : "Simpan data client Quotation sebelum membuat berkas."
-                            }}
-                        </p>
+                        </div>
+                        <p v-if="!masterClient && jobType !== 'quotation'" class="mt-2 text-xs text-slate-500">Data client yang terhubung ke berkas tidak ditemukan.</p>
+                    </div>
                     </div>
                 </article>
                 <article
@@ -338,8 +364,9 @@ const remove = () =>
                         <div class="flex items-center gap-3"><b class="text-emerald-700">{{ money(item.amount) }}</b><span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Tercatat</span></div></div>
                     </div>
                 </section>
+                <Teleport to="body">
+                <div v-if="showPaymentModal && invoice.status !== 'Lunas'" role="dialog" aria-modal="true" aria-labelledby="payment-title" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" @click.self="!form.processing && (showPaymentModal = false)" @keydown.esc="!form.processing && (showPaymentModal = false)">
                 <form
-                    v-if="invoice.status !== 'Lunas'"
                     @submit.prevent="
                         form.post(`/dashboard/invoice/${invoice.id}/payment`, {
                             forceFormData: true,
@@ -347,24 +374,27 @@ const remove = () =>
                                 form.reset('amount', 'description', 'paymentMethod', 'proofs');
                                 proofError = '';
                                 if (proofInput) proofInput.value = '';
+                                showPaymentModal = false;
                             },
                         })
                     "
-                    class="order-1 rounded-3xl border border-slate-200 bg-white p-6"
+                    class="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 text-[#1d1a15] shadow-xl"
                 >
-                    <h2 class="font-black">Catat Pembayaran</h2>
+                    <div class="flex items-center justify-between gap-4"><h2 id="payment-title" class="font-black">Catat Pembayaran</h2><button type="button" @click="showPaymentModal = false" :disabled="form.processing" aria-label="Tutup formulir pembayaran" class="rounded-lg p-2"><X class="h-5 w-5" /></button></div>
                     <p class="mt-1 text-sm text-slate-500">
                         Sisa tagihan: <b>{{ money(remaining()) }}</b>
                     </p>
                     <input
-                        v-model.number="form.amount"
-                        type="number"
-                        min="1"
-                        :max="remaining()"
+                        :value="formatPaymentAmount(form.amount)"
+                        aria-label="Nominal pembayaran"
+                        type="text"
+                        inputmode="numeric"
+                        autocomplete="off"
+                        @input="updatePaymentAmount"
                         required
                         placeholder="Nominal"
                         class="mt-4 w-full rounded-xl border-slate-200"
-                    /><label class="mt-3 block text-sm font-bold">Cara Pembayaran
+                    /><span v-if="form.errors.amount" class="block text-xs text-red-600">{{ form.errors.amount }}</span><label class="mt-3 block text-sm font-bold">Cara Pembayaran
                         <select v-model="form.paymentMethod" required class="mt-1 w-full rounded-xl border-slate-200">
                             <option value="">Pilih cara pembayaran</option>
                             <option value="Transfer">Transfer</option>
@@ -373,11 +403,13 @@ const remove = () =>
                         <span v-if="form.errors.paymentMethod" class="text-xs text-red-600">{{ form.errors.paymentMethod }}</span>
                     </label><input
                         v-model="form.date"
+                        aria-label="Tanggal pembayaran"
                         type="date"
                         required
                         class="mt-3 w-full rounded-xl border-slate-200"
-                    /><input
+                    /><span v-if="form.errors.date" class="block text-xs text-red-600">{{ form.errors.date }}</span><input
                         v-model="form.description"
+                        aria-label="Keterangan pembayaran"
                         placeholder="Keterangan"
                         class="mt-3 w-full rounded-xl border-slate-200"
                     /><div class="mt-3 block text-sm font-bold">Bukti Pembayaran (opsional)
@@ -403,8 +435,10 @@ const remove = () =>
                         Simpan Pembayaran
                     </button>
                 </form>
+                </div>
+                </Teleport>
                 <section
-                    v-else
+                    v-if="invoice.status === 'Lunas'"
                     class="order-1 grid place-items-center rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center"
                 >
                     <div>
@@ -419,6 +453,7 @@ const remove = () =>
             </div>
             <DocumentEditHistory title="Riwayat Perubahan Invoice" :entries="editHistory" />
         </main>
+        <RegisterClientModal v-if="showClientModal" :open="showClientModal" :source-invoice-id="invoice.id" :client="job" @close="showClientModal = false" />
         <Teleport to="body">
             <div v-if="previewProof" role="dialog" aria-modal="true" aria-label="Pratinjau bukti pembayaran" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" @click.self="previewProof = null" @keydown.esc="previewProof = null">
                 <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">

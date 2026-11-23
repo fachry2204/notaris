@@ -19,6 +19,7 @@ import {
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import DocumentEditHistory from "@/Components/DocumentEditHistory.vue";
+import { downloadPrintPdf } from "@/Utils/downloadPrintPdf";
 
 const props = defineProps<{
     editHistory: any[];
@@ -51,90 +52,20 @@ const downloadPdf = async () => {
     if (downloadingPdf.value) return;
     downloadingPdf.value = true;
     try {
-        const [{ jsPDF }, { default: autoTable }] = await Promise.all([
-            import("jspdf"),
-            import("jspdf-autotable"),
-        ]);
-        const pdf = new jsPDF();
-        const q = props.quotation;
-        const branding = (page.props.branding || {}) as { appName?: string; officeName?: string; officeAddress?: string };
-        pdf.setFontSize(15);
-        pdf.setFont("helvetica", "bold");
-        const nameLines: string[] = pdf.splitTextToSize(branding.officeName || "Kantor Notaris", 180);
-        pdf.text(nameLines, 14, 18);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(10);
-        const headerLines: string[] = branding.officeAddress ? pdf.splitTextToSize(branding.officeAddress, 180) : [];
-        const addressStart = 25 + (nameLines.length - 1) * 6;
-        if (headerLines.length) pdf.text(headerLines, 14, addressStart);
-        const headerEnd = addressStart + 5 + headerLines.length * 5;
-        pdf.setFont("helvetica", "bold");
-        pdf.setFontSize(16);
-        pdf.text("QUOTATION", 14, headerEnd);
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(10);
-        pdf.text(`Nomor: ${q.quotationNumber}`, 14, headerEnd + 8);
-        pdf.text(`Tanggal: ${date(q.quotationDate)}`, 14, headerEnd + 14);
-        pdf.text(`Kepada: ${q.clientName || "-"}`, 14, headerEnd + 24);
-        const addressLines: string[] = q.clientAddress ? pdf.splitTextToSize(q.clientAddress, 110) : [];
-        if (addressLines.length) pdf.text(addressLines, 14, headerEnd + 30);
-        pdf.text(`PIC: ${q.picName || "-"}`, 130, headerEnd + 24);
-        autoTable(pdf, {
-            startY: headerEnd + Math.max(37, 36 + addressLines.length * 4),
-            margin: { bottom: 20 },
-            head: [["No.", "Deskripsi", "Qty", "Harga", "Jumlah"]],
-            body: props.items.map((item, index) => [
-                String(index + 1), item.description, `${Number(item.quantity)} ${item.unit || ""}`,
-                money(item.unitPrice), money(item.total),
-            ]),
-            headStyles: { fillColor: [15, 145, 132] },
-        });
-        let y = (pdf as any).lastAutoTable.finalY + 10;
-        const line = (text: string, bold = false) => {
-            const lines = pdf.splitTextToSize(text, 180);
-            for (const part of lines) {
-                if (y > 270) { pdf.addPage(); y = 20; }
-                pdf.setFont("helvetica", bold ? "bold" : "normal");
-                pdf.text(part, 14, y);
-                y += 6;
-            }
-        };
-        line(`Perihal: ${q.subject || "-"}`, true);
-        line(`Subtotal: ${money(q.subtotal)}`);
-        line(`Diskon: ${money(q.discount)}`);
-        line(`Pajak (${Number(q.taxPercent || 0)}%): ${money(q.taxAmount)}`);
-        line(`Total Penawaran: ${money(q.grandTotal)}`, true);
-        if (q.terms) { y += 4; line("Syarat dan Ketentuan", true); line(q.terms); }
-        if (q.notes) { y += 4; line("Catatan", true); line(q.notes); }
-        const footer = `Dicetak Melalui : ${branding.appName || "Notaris Digital"} | ${branding.officeName || "Kantor Notaris"}`;
-        if (y > 238) { pdf.addPage(); y = 20; }
-        const QRCode = await import("qrcode");
-        const qr = await QRCode.toDataURL(props.verificationUrl, { margin: 2, width: 240, errorCorrectionLevel: "M" });
-        pdf.addImage(qr, "PNG", 165, y + 2, 30, 30);
-        pdf.setFontSize(8);
-        pdf.text("Pindai untuk verifikasi", 180, y + 35, { align: "center" });
-        for (let pageNumber = 1; pageNumber <= pdf.getNumberOfPages(); pageNumber++) {
-            pdf.setPage(pageNumber);
-            pdf.setFont("helvetica", "normal");
-            pdf.setFontSize(8);
-            pdf.setTextColor(100);
-            pdf.text(pdf.splitTextToSize(footer, 140), 14, 285);
-        }
-        pdf.save(`Quotation-${String(q.quotationNumber).replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`);
+        await downloadPrintPdf(`/print/quotation/${encodeURIComponent(props.quotation.id)}`, `Quotation-${String(props.quotation.quotationNumber).replace(/[^a-zA-Z0-9_-]/g, "-")}.pdf`);
     } catch (error) {
         console.error("Gagal membuat PDF quotation", error);
-        alert("PDF belum dapat dibuat. Silakan coba lagi.");
-    } finally {
-        downloadingPdf.value = false;
-    }
+        alert("PDF belum dapat dibuat. Silakan gunakan tombol Cetak dan pilih Simpan sebagai PDF.");
+    } finally { downloadingPdf.value = false; }
 };
 const remove = () =>
     confirm("Hapus quotation ini?") &&
     router.delete(`/dashboard/quotation/${props.quotation.id}`);
-const publishForm = useForm({
-    publish: "",
-    publishWithoutNotification: false,
-});
+const publishForm = useForm({ publish: '' });
+const notificationForm = useForm({ notification: '' });
+const notifyClient = () => {
+    if (confirm('Kirim pesan quotation kepada client melalui kanal notifikasi yang aktif?')) notificationForm.post(`/dashboard/quotation/${props.quotation.id}/notify`, { preserveScroll: true });
+};
 const showCancelDialog = ref(false);
 const cancelForm = useForm({
     cancellationReason: "",
@@ -163,15 +94,7 @@ const cancelQuotation = () => {
     });
 };
 const publish = () => {
-    const notificationsDisabled =
-        !props.notificationChannels.email &&
-        !props.notificationChannels.whatsapp;
-    const message = notificationsDisabled
-        ? "PERINGATAN: Google SMTP dan Fonnte WhatsApp tidak aktif. Quotation akan diterbitkan tanpa mengirim Email atau WhatsApp ke client. Tetap lanjutkan?"
-        : "Terbitkan quotation dan kirim melalui layanan Email/WhatsApp yang aktif ke client?";
-    if (!confirm(message)) return;
-
-    publishForm.publishWithoutNotification = notificationsDisabled;
+    if (!confirm('Terbitkan quotation agar dapat digunakan untuk membuat invoice?')) return;
     publishForm.post(`/dashboard/quotation/${props.quotation.id}/publish`, {
         preserveScroll: true,
     });
@@ -182,7 +105,7 @@ const publish = () => {
     <Head :title="quotation.quotationNumber" />
     <AppLayout>
         <main class="mx-auto max-w-6xl space-y-6 p-4">
-            <header class="flex flex-col gap-3">
+            <header class="ds-detail-heading flex flex-col gap-3">
                 <div class="flex min-w-0 items-start gap-3">
                     <Link
                         href="/dashboard/quotation"
@@ -203,7 +126,7 @@ const publish = () => {
                 </div>
                 <div class="flex flex-wrap items-center gap-1.5 sm:justify-end">
                     <button
-                        v-if="!publication?.publishedAt && !convertedInvoice"
+                        v-if="quotation.status === 'Draft' && !convertedInvoice"
                         :disabled="publishForm.processing"
                         @click="publish"
                         class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-500 px-3 text-xs font-bold text-white shadow-sm hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60"
@@ -212,21 +135,19 @@ const publish = () => {
                         {{
                             publishForm.processing
                                 ? "Menerbitkan..."
-                                : publication?.emailSentAt ||
-                                    publication?.whatsappSentAt
-                                  ? "Lanjutkan Terbitkan"
-                                  : "Terbitkan"
+                                : "Terbitkan"
                         }}
                     </button>
                     <span
-                        v-else-if="publication?.publishedAt"
+                        v-else-if="['Diterbitkan', 'Dikirim', 'Disetujui', 'Invoice Terbuat'].includes(quotation.status)"
                         class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700"
                     >
                         <Send class="h-3.5 w-3.5" /> Sudah Diterbitkan
                     </span>
+                    <button v-if="['Diterbitkan', 'Dikirim', 'Disetujui', 'Invoice Terbuat'].includes(quotation.status)" type="button" :disabled="notificationForm.processing" @click="notifyClient" class="inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-bold text-white disabled:opacity-50"><Send class="h-3.5 w-3.5" />{{ notificationForm.processing ? 'Mengirim...' : 'Kirim Pesan' }}</button>
                     <button
                         v-if="
-                            publication?.publishedAt &&
+                            ['Diterbitkan', 'Dikirim', 'Disetujui'].includes(quotation.status) &&
                             quotation.status !== 'Dibatalkan' &&
                             !convertedInvoice
                         "
@@ -243,7 +164,7 @@ const publish = () => {
                     </button>
                     <Link
                         v-if="
-                            publication?.publishedAt &&
+                            ['Diterbitkan', 'Dikirim', 'Disetujui'].includes(quotation.status) &&
                             quotation.status !== 'Dibatalkan' &&
                             !convertedInvoice
                         "
@@ -298,6 +219,10 @@ const publish = () => {
                     </button>
                 </div>
             </header>
+            <div
+                v-if="notificationForm.errors.notification"
+                class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700"
+            >{{ notificationForm.errors.notification }}</div>
             <div
                 v-if="convertedInvoice"
                 class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-blue-800"
@@ -361,7 +286,7 @@ const publish = () => {
             </div>
             <div
                 v-if="
-                    !publication?.publishedAt &&
+                    quotation.status !== 'Draft' &&
                     !convertedInvoice &&
                     !notificationChannels.email &&
                     !notificationChannels.whatsapp
@@ -369,9 +294,7 @@ const publish = () => {
                 class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
             >
                 <strong>Notifikasi tidak aktif.</strong>
-                Quotation tetap dapat diterbitkan. Saat tombol Terbitkan diklik,
-                sistem akan meminta konfirmasi untuk melanjutkan tanpa Email dan
-                WhatsApp.
+                Aktifkan email atau WhatsApp di Pengaturan untuk mengirim pesan kepada client.
             </div>
 
             <section class="grid gap-5 md:grid-cols-3">

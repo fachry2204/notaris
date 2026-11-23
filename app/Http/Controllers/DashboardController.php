@@ -14,6 +14,7 @@ class DashboardController extends Controller
         $range = JobDateRange::fromRequest($request);
         $tables = ['badan_hukum', 'non_badan_hukum', 'ppat'];
         $stats = ['total' => 0, 'pending' => 0, 'processing' => 0, 'completed' => 0];
+        $categoryCounts = [];
         $overdueCount = 0;
         $feeIncompleteCount = 0;
         $canViewFee = in_array(strtoupper((string) $request->session()->get('auth_user.role', '')), ['ADMINISTRATOR', 'PIMPINAN'], true);
@@ -32,6 +33,7 @@ class DashboardController extends Controller
                 SUM(status IN ('PROSES','REVISI','REVISI_PROSES','VERIFIKASI')) processing,
                 SUM(status='SELESAI') completed"
             )->first();
+            $categoryCounts[$table] = (int) ($counts->total ?? 0);
             foreach ($stats as $key => $value) {
                 $stats[$key] += (int) ($counts->{$key} ?? 0);
             }
@@ -223,6 +225,7 @@ class DashboardController extends Controller
         return Inertia::render('Dashboard', [
             'filters' => $range->filters(),
             'stats' => $stats,
+            'categoryCounts' => $categoryCounts,
             'deadlines' => $deadlines->orderBy('deadline')->limit(8)->get(),
             'overdueJobs' => $overdueJobs->orderBy('deadline')->limit(6)->get(),
             'recentJobs' => $recentJobs->orderByDesc('createdAt')->limit(6)->get(),

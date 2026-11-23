@@ -3,6 +3,7 @@ import { reactive } from "vue";
 import { Head, Link, router } from "@inertiajs/vue3";
 import { FileText, ChevronRight } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
 const p = defineProps<{
     jobs: any;
@@ -39,12 +40,7 @@ const number = (value: number) =>
     <Head title="Daftar Akta" />
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-4">
-            <div>
-                <h1 class="text-2xl font-black">Daftar Akta</h1>
-                <p class="text-sm text-slate-500">
-                    Daftar akta yang telah ditandatangani berdasarkan client dan PIC.
-                </p>
-            </div>
+            <PageHeader hide-mobile-icon title="Daftar Akta" section="Operasional / Akta" description="Daftar akta yang telah ditandatangani berdasarkan client dan PIC."><template #icon><FileText class="h-6 w-6" /></template></PageHeader>
 
             <button type="button" @click="resetFilters"
                 class="relative w-full overflow-hidden rounded-3xl border border-amber-200 bg-white p-6 text-left shadow-sm"

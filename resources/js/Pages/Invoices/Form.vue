@@ -9,8 +9,10 @@ import {
     Save,
     Trash2,
     User,
+    Search,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import RegisterClientModal from "@/Components/RegisterClientModal.vue";
 
 const props = defineProps<{
     invoice: any | null;
@@ -113,6 +115,15 @@ const choose = () => {
     form.jobId = id || "";
 };
 const selectedQuotation = ref('');
+const showClientModal = ref(false);
+const quotationSearch = ref('');
+const matchingQuotations = computed(() => {
+    const words = quotationSearch.value.toLocaleLowerCase('id-ID').trim().split(/\s+/).filter(Boolean);
+    return (props.quotations || []).filter((item) => {
+        const searchable = [item.quotationNumber, item.clientName, item.legacyClientName, item.subject].filter(Boolean).join(' ').toLocaleLowerCase('id-ID');
+        return words.every((word) => searchable.includes(word));
+    });
+});
 const chooseQuotation = () => {
     if (selectedQuotation.value) router.get('/dashboard/invoice/new', { quotation: selectedQuotation.value });
 };
@@ -139,7 +150,7 @@ const backUrl = computed(() => {
     <Head :title="invoice ? 'Edit Invoice' : 'Buat Invoice Baru'" />
     <AppLayout>
         <main class="mx-auto max-w-6xl space-y-6 p-4">
-            <div class="flex items-center gap-4">
+            <div class="ds-detail-heading flex items-center gap-4">
                 <Link
                     :href="backUrl"
                     class="grid h-11 w-11 place-items-center rounded-full hover:bg-pink-50"
@@ -191,26 +202,11 @@ const backUrl = computed(() => {
                 v-if="!invoice && !job && !sourceQuotation"
                 class="rounded-3xl border bg-white p-6"
             >
-                <label>
-                    <span class="label">Pilih Quotation</span>
-                    <select
-                        v-model="selectedQuotation"
-                        @change="chooseQuotation"
-                        required
-                        class="field"
-                    >
-                        <option value="">
-                            Pilih quotation yang belum memiliki invoice
-                        </option>
-                        <option
-                            v-for="item in quotations || []"
-                            :key="item.id"
-                            :value="item.id"
-                        >
-                            {{ item.quotationNumber }} — {{ item.clientName || item.legacyClientName || 'Client' }} — {{ item.subject }}
-                        </option>
-                    </select>
-                </label>
+                <label><span class="label">Cari Quotation</span><span class="relative block"><Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input v-model="quotationSearch" class="field pl-10" placeholder="Cari nomor, nama client, atau perihal" autocomplete="off" /></span></label>
+                <div v-if="matchingQuotations.length" class="mt-3 max-h-72 overflow-y-auto rounded-xl border border-slate-200">
+                    <button v-for="item in matchingQuotations" :key="item.id" type="button" @click="selectedQuotation = item.id; chooseQuotation()" class="block w-full border-b border-slate-200 p-3 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{{ item.quotationNumber }}</strong><span class="mt-1 block text-xs text-slate-500">{{ item.clientName || item.legacyClientName || 'Client' }} · {{ item.subject }}</span></button>
+                </div>
+                <p v-else-if="quotations?.length" class="mt-4 text-sm text-slate-500">Tidak ada quotation yang cocok dengan pencarian.</p>
                 <p v-if="!quotations?.length" class="mt-4 text-sm text-amber-600">
                     Belum ada quotation diterbitkan yang tersedia untuk dibuatkan invoice.
                 </p>
@@ -221,6 +217,10 @@ const backUrl = computed(() => {
                 class="rounded-3xl border bg-white p-6"
             >
                 <h2 class="mb-4 font-black">Informasi Client</h2>
+                <div v-if="sourceQuotation" class="mb-4 flex flex-wrap items-center gap-3">
+                    <span class="rounded-full px-3 py-1 text-xs font-bold" :class="sourceQuotation.registeredClientId ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-900'">{{ sourceQuotation.registeredClientId ? 'Client terdaftar di database' : 'Client belum terdaftar' }}</span>
+                    <button v-if="!sourceQuotation.registeredClientId" type="button" @click="showClientModal = true" class="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-black">Daftarkan Client</button>
+                </div>
                 <div class="grid gap-4 md:grid-cols-2">
                     <div class="flex gap-3">
                         <User class="h-5 w-5 text-pink-500" />
@@ -471,6 +471,7 @@ const backUrl = computed(() => {
                 </div>
             </form>
         </main>
+        <RegisterClientModal v-if="showClientModal && sourceQuotation" :open="showClientModal" :source-quotation-id="sourceQuotation.id" :client="sourceQuotation" @close="showClientModal = false" />
     </AppLayout>
 </template>
 

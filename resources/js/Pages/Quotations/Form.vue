@@ -108,7 +108,7 @@ const save = () =>
     <Head :title="quotation ? 'Edit Quotation' : 'Buat Quotation'" />
     <AppLayout>
         <main class="mx-auto max-w-6xl space-y-6 p-4">
-            <header class="flex items-center gap-4">
+            <header class="ds-detail-heading flex items-center gap-4">
                 <Link
                     :href="
                         quotation
@@ -330,10 +330,12 @@ const save = () =>
                             <span class="label">Status</span>
                             <select
                                 v-model="form.status"
+                                disabled
                                 required
                                 class="field"
                             >
                                 <option>Draft</option>
+                                <option>Diterbitkan</option>
                                 <option>Dikirim</option>
                                 <option>Disetujui</option>
                                 <option>Ditolak</option>

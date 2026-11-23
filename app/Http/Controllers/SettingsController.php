@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\DocumentNumberService;
+use App\Services\NotificationGateway;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
@@ -19,6 +20,7 @@ class SettingsController extends Controller
             'settings' => array_replace_recursive(
                 [
                     'documentNumbers' => $numbers->prefixes(),
+                    'notificationTemplates' => NotificationGateway::templateDefaults(),
                     'email' => [
                         'enabled' => false,
                         'host' => 'smtp.gmail.com',
@@ -101,7 +103,26 @@ class SettingsController extends Controller
             'whatsapp.enabled' => 'required|boolean',
             'whatsapp.endpointUrl' => 'required_if:whatsapp.enabled,true|nullable|url|max:500',
             'whatsapp.apiToken' => 'required_if:whatsapp.enabled,true|nullable|string|max:1000',
+            'notificationTemplates' => 'sometimes|array',
+            'notificationTemplates.*.subject' => ['required_with:notificationTemplates', 'string', 'max:200', 'not_regex:/[\r\n]/'],
+            'notificationTemplates.*.email' => 'required_with:notificationTemplates|string|max:10000',
+            'notificationTemplates.*.whatsapp' => 'required_with:notificationTemplates|string|max:10000',
         ]);
+        foreach ($data['notificationTemplates'] ?? [] as $type => $templates) {
+            $allowed = NotificationGateway::templatePlaceholders()[$type] ?? null;
+            if ($allowed === null || ! is_array($templates)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['notificationTemplates' => 'Jenis template tidak dikenal.']);
+            }
+            foreach ($templates as $field => $template) {
+                if (! in_array($field, ['subject', 'email', 'whatsapp'], true) || ! is_string($template)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(['notificationTemplates' => 'Format template tidak dikenal.']);
+                }
+                preg_match_all('/\{([^{}]+)\}/u', $template, $matches);
+                if (array_diff($matches[1], $allowed)) {
+                    throw \Illuminate\Validation\ValidationException::withMessages(["notificationTemplates.$type.$field" => 'Placeholder tidak dikenal atau tidak tersedia untuk jenis notifikasi ini.']);
+                }
+            }
+        }
         $data['documentNumbers'] = collect($data['documentNumbers'])
             ->map(fn (string $prefix) => strtoupper(trim($prefix)))
             ->all();
@@ -131,6 +152,31 @@ class SettingsController extends Controller
         $path = '/'.$request->file('file')->store('uploads/settings', 'public_root');
 
         return response()->json(['url' => $path]);
+    }
+
+    public function testNotification(Request $request, NotificationGateway $gateway)
+    {
+        $data = $request->validate([
+            'channel' => 'required|in:email,whatsapp',
+            'recipient' => $request->input('channel') === 'email'
+                ? 'required|email|max:255'
+                : ['required', 'string', 'regex:/^\+?[0-9]{8,16}$/'],
+        ], ['recipient.regex' => 'Nomor WhatsApp harus terdiri dari 8–16 digit, boleh diawali tanda +.']);
+
+        if (! $gateway->enabledChannels()[$data['channel']]) {
+            return response()->json(['message' => 'Aktifkan kanal dan simpan pengaturan sebelum mengirim pesan uji.'], 422);
+        }
+        try {
+            if ($data['channel'] === 'email') {
+                $gateway->sendEmail('test', ['clientEmail' => $data['recipient']]);
+            } else {
+                $gateway->sendWhatsapp('test', ['clientPhone' => $data['recipient']]);
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+            return response()->json(['message' => 'Pengiriman gagal. Periksa konfigurasi yang tersimpan dan koneksi layanan, lalu coba lagi.'], 422);
+        }
+        return response()->json(['message' => 'Permintaan pengiriman diterima. Periksa kotak masuk penerima untuk memastikan pesan telah sampai.']);
     }
 
     private function read(): array

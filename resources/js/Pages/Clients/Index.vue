@@ -3,12 +3,13 @@ import { computed, ref } from 'vue';
 import { Head, Link, router } from '@inertiajs/vue3';
 import { Building2, Calendar, MapPin, MessageSquare, Search, Trash2, User, UserPlus, Users, ChevronRight } from '@lucide/vue';
 import AppLayout from '@/Layouts/AppLayout.vue';
+import PageHeader from '@/Components/DesignSystem/PageHeader.vue';
 
-const props = defineProps<{ clients: any; search: string; stats: {total:number;individual:number;corporate:number} }>();
+const props = defineProps<{ clients: any; search: string; stats: {total:number;individual:number;corporate:number}; type?: string }>();
 const query = ref(props.search || '');
-const filter = ref<'all'|'individual'|'corporate'>('all');
-const visible = computed(() => filter.value === 'all' ? props.clients.data : props.clients.data.filter((x:any) => x.type === filter.value));
-const find = () => router.get('/dashboard/clients', { search: query.value }, { preserveState: true, replace: true });
+const filter = ref<'all'|'individual'|'corporate'>(props.type === 'individual' || props.type === 'corporate' ? props.type : 'all');
+const visible = computed(() => props.clients.data);
+const find = () => router.get('/dashboard/clients', { search: query.value, type: filter.value === 'all' ? '' : filter.value }, { preserveState: true, replace: true });
 const remove = (id:string) => confirm('Hapus data client ini secara permanen?') && router.delete(`/dashboard/clients/${id}`);
 const clientId = (x:any) => `CL-${String(x.indexNo || 0).padStart(4, '0')}`;
 const birthday = (x:any) => x.birthday ? new Date(x.birthday).toLocaleDateString('id-ID',{day:'numeric',month:'long'}) : '';
@@ -24,26 +25,14 @@ const cards = computed(() => [
   <AppLayout>
     <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
       <!-- Header section -->
-      <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 class="text-xl sm:text-2xl font-black text-slate-900">Data Client</h1>
-          <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">Kelola informasi lengkap client dan riwayat kerjasamanya.</p>
-        </div>
-        <Link
-          href="/dashboard/clients/new"
-          class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-        >
-          <UserPlus class="h-4 w-4"/>
-          <span>Tambah Client</span>
-        </Link>
-      </div>
+      <PageHeader hide-mobile-icon title="Data Client" section="Operasional / Client" description="Kelola informasi lengkap client dan riwayat kerjasamanya."><template #icon><Users class="h-6 w-6" /></template><template #actions><Link href="/dashboard/clients/new" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition hover:opacity-90"><UserPlus class="h-4 w-4" /> Tambah Client</Link></template></PageHeader>
 
       <!-- Stats section -->
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <button
           v-for="card in cards"
           :key="card.id"
-          @click="filter=card.id as any"
+          @click="filter=card.id as any; find()"
           class="group relative overflow-hidden rounded-2xl p-4 text-left transition-all border border-slate-200"
           :class="filter===card.id ? `${card.active} shadow-md` : 'bg-white hover:bg-slate-50 text-slate-800'"
         >

@@ -18,6 +18,7 @@ class AttendanceController extends Controller
     public function index(Request $request)
     {
         $user = $request->session()->get('auth_user');
+        $attendanceFilter = in_array($request->query('filter'), ['present', 'late', 'not_checked_out'], true) ? $request->query('filter') : '';
         $staff = DB::table('staff')->where('userId', $user['id'])->first();
 
         // attendance was created later with utf8mb4_general_ci, while the
@@ -45,6 +46,13 @@ class AttendanceController extends Controller
             }
         }
 
+        if (in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN'], true) && $attendanceFilter) {
+            $query->whereDate('a.date', today());
+            if ($attendanceFilter === 'present') $query->where('a.status', 'Hadir');
+            if ($attendanceFilter === 'late') $query->whereTime('a.checkIn', '>', '08:00:00');
+            if ($attendanceFilter === 'not_checked_out') $query->whereNull('a.checkOut');
+        }
+
         $today = $staff
             ? DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first()
             : null;
@@ -69,7 +77,8 @@ class AttendanceController extends Controller
         }
 
         return Inertia::render('Attendance/Index', [
-            'records' => $query->paginate(30),
+            'records' => $query->paginate(30)->withQueryString(),
+            'attendanceFilter' => $attendanceFilter,
             'today' => $today,
             'hasStaff' => (bool) $staff,
             'isManager' => $isManager,

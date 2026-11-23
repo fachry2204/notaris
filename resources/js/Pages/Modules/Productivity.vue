@@ -3,6 +3,7 @@ import { computed, reactive, ref } from "vue";
 import { Head, Link, router } from "@inertiajs/vue3";
 import { ArrowRight, BriefcaseBusiness, CheckCircle2, ClockAlert, Users } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 const props = defineProps<{ staff: any[]; periodLabel: string; filters: { start_date: string | null; end_date: string | null; sort: string } }>();
 const filter = reactive({ start_date: props.filters.start_date || "", end_date: props.filters.end_date || "", sort: props.filters.sort });
 const error = ref("");
@@ -31,7 +32,7 @@ const rate = (s: any) => s.completed + s.processing ? Math.round(s.completed / (
 </script>
 <template>
     <Head title="Produktivitas Karyawan" /><AppLayout><main class="mx-auto max-w-7xl space-y-6 p-4">
-        <header><p class="text-xs font-black uppercase tracking-[.18em] text-[var(--primary)]">Kinerja tim</p><h1 class="mt-1 text-2xl font-black sm:text-3xl">Produktivitas Karyawan</h1><p class="mt-1 text-sm text-slate-500">{{ filters.start_date ? `Ringkasan periode ${periodLabel}.` : `Berkas PIC dan tugas sepanjang waktu · absensi ${periodLabel}.` }}</p></header>
+        <PageHeader hide-mobile-icon title="Produktivitas Karyawan" section="Pegawai / Produktivitas" :description="filters.start_date ? `Ringkasan periode ${periodLabel}.` : `Berkas PIC dan tugas sepanjang waktu · absensi ${periodLabel}.`" />
         <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 class="font-black">Filter periode dan urutan</h2><p class="mt-1 text-xs text-slate-500">Untuk satu hari, pilih tanggal yang sama pada kedua kolom. Maksimal 24 bulan.</p>
             <form @submit.prevent="submit" class="mt-4 flex flex-wrap items-end gap-3">

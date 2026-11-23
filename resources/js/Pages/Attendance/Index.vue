@@ -12,12 +12,14 @@ import {
     Users,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
 
 const p = defineProps<{
     records: any;
     today: any;
     hasStaff: boolean;
     isManager: boolean;
+    attendanceFilter?: string;
     stats: any;
     personalStats: { present: number; missing: number; leave: number; period: string } | null;
 }>();
@@ -113,29 +115,7 @@ const cardStatusStyle = (x: any) => {
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
             <!-- Header section -->
-            <div class="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-                <div>
-                    <h1 class="text-xl sm:text-2xl font-black text-slate-900">Rekap Absensi</h1>
-                    <p class="mt-1 text-xs sm:text-sm font-medium text-slate-500">
-                        {{ isManager ? 'Pantau kehadiran dan jam kerja seluruh pegawai.' : 'Pantau riwayat kehadiran dan jam kerja Anda.' }}
-                    </p>
-                </div>
-                <button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai">
-                    <UserCheck class="h-4 w-4" /> Absensi Selesai
-                </button>
-                <Link
-                    v-else-if="hasStaff"
-                    :href="today?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'"
-                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-                >
-                    <UserCheck class="h-4 w-4" />
-                    <span>
-                        {{
-                            today?.checkOut ? "Absensi Selesai" : today?.checkIn ? "Absen Pulang" : "Absen Masuk"
-                        }}
-                    </span>
-                </Link>
-            </div>
+            <PageHeader hide-mobile-icon title="Rekap Absensi" section="Pegawai / Absensi" :description="isManager ? 'Pantau kehadiran dan jam kerja seluruh pegawai.' : 'Pantau riwayat kehadiran dan jam kerja Anda.'"><template #icon><Clock3 class="h-6 w-6" /></template><template #actions><button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai"><UserCheck class="h-4 w-4" /> Absensi Selesai</button><Link v-else-if="hasStaff" :href="today?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90"><UserCheck class="h-4 w-4" />{{ today?.checkIn ? 'Absen Pulang' : 'Absen Masuk' }}</Link></template></PageHeader>
 
             <section v-if="today?.checkIn" aria-label="Absensi saya hari ini" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -157,31 +137,31 @@ const cardStatusStyle = (x: any) => {
                 v-if="isManager"
                 class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
             >
-                <div
+                <button type="button"
                     v-for="x in [
                         {
-                            l: 'Total Pegawai',
+                            l: 'Total Pegawai', filter: 'staff',
                             v: stats.totalStaff,
                             i: Users,
                         },
                         {
-                            l: 'Hadir Hari Ini',
+                            l: 'Hadir Hari Ini', filter: 'present',
                             v: stats.present,
                             i: UserCheck,
                         },
                         {
-                            l: 'Datang Terlambat',
+                            l: 'Datang Terlambat', filter: 'late',
                             v: stats.late,
                             i: Clock3,
                         },
                         {
-                            l: 'Belum Check-out',
+                            l: 'Belum Check-out', filter: 'not_checked_out',
                             v: stats.notCheckedOut,
                             i: TimerOff,
                         },
                     ]"
-                    :key="x.l"
-                    class="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    :key="x.l" :aria-pressed="x.filter !== 'staff' && attendanceFilter === x.filter" @click="x.filter === 'staff' ? router.get('/dashboard/pegawai/data') : router.get('/dashboard/pegawai/absensi', { filter: attendanceFilter === x.filter ? '' : x.filter })"
+                    class="text-left relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
                     <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                         {{ x.l }}
@@ -191,7 +171,7 @@ const cardStatusStyle = (x: any) => {
                         :is="x.i"
                         class="absolute -bottom-2 -right-2 h-12 w-12 text-slate-400/15"
                     />
-                </div>
+                </button>
             </div>
 
             <!-- Search bar -->

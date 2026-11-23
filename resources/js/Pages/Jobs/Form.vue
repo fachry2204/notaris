@@ -948,10 +948,12 @@ const deleteSavedAttachment = (id: string) => {
                     </div>
 
                     <label v-if="job" class="mt-5 block text-sm font-bold"
-                        >Keterangan Perubahan<input
+                        >Alasan Perubahan <span class="text-rose-500">*</span><input
                             v-model="f.description"
+                            required maxlength="2000"
+                            placeholder="Jelaskan alasan perubahan berkas"
                             class="mt-2 w-full rounded-xl border-slate-200"
-                    /></label>
+                    /><span v-if="f.errors.description" class="mt-1 block text-xs text-rose-500">{{ f.errors.description }}</span></label>
                 </section>
                 <section class="rounded-2xl border border-slate-200 bg-slate-50 p-5">
                     <h2 class="text-lg font-black">Invoice</h2>

@@ -5,104 +5,32 @@ namespace App\Services;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use RuntimeException;
-use Throwable;
 
 class QuotationPublisher
 {
     public function __construct(private readonly NotificationGateway $notifications) {}
 
-    public function publish(object $quotation, bool $allowWithoutNotification = false): string
+    public function publish(object $quotation): string
     {
-        $channels = $this->notifications->enabledChannels();
-        $notificationsDisabled = ! $channels['email'] && ! $channels['whatsapp'];
-        if ($notificationsDisabled && ! $allowWithoutNotification) {
-            throw ValidationException::withMessages([
-                'publish' => 'SMTP dan WhatsApp tidak aktif. Konfirmasi penerbitan tanpa notifikasi untuk melanjutkan.',
-            ]);
-        }
-        $publication = $this->begin($quotation->id);
-
-        if ($publication->publishedAt) {
-            return 'Quotation sudah pernah diterbitkan.';
-        }
-
-        try {
-            $data = $this->data($quotation);
-            $sent = [];
-
-            if ($channels['email'] && ! $publication->emailSentAt) {
-                $this->notifications->sendEmail('quotation', $data);
-                $this->mark($quotation->id, ['emailSentAt' => now()]);
-                $sent[] = 'Email';
+        return DB::transaction(function () use ($quotation) {
+            $current = DB::table('quotation')->where('id', $quotation->id)->lockForUpdate()->first();
+            if (! $current || $current->status !== 'Draft') {
+                throw ValidationException::withMessages(['publish' => 'Hanya quotation berstatus Draft yang dapat diterbitkan.']);
             }
-
-            if ($channels['whatsapp'] && ! $publication->whatsappSentAt) {
-                $this->notifications->sendWhatsapp('quotation', $data);
-                $this->mark($quotation->id, ['whatsappSentAt' => now()]);
-                $sent[] = 'WhatsApp';
-            }
-
-            DB::transaction(function () use ($quotation) {
-                $now = now();
-                DB::table('quotation_publications')->where('quotationId', $quotation->id)->update([
-                    'publishedAt' => $now,
-                    'processingAt' => null,
-                    'lastError' => null,
-                    'updatedAt' => $now,
-                ]);
-                DB::table('quotation')->where('id', $quotation->id)->update([
-                    'status' => 'Dikirim',
-                    'updatedAt' => $now,
-                ]);
-            });
-
-            return $notificationsDisabled
-                ? 'Quotation berhasil diterbitkan tanpa notifikasi Email dan WhatsApp.'
-                : 'Quotation berhasil diterbitkan'.($sent ? ' dan dikirim melalui '.implode(' serta ', $sent) : '').'.';
-        } catch (Throwable $exception) {
-            $this->mark($quotation->id, [
-                'processingAt' => null,
-                'lastError' => Str::limit($exception->getMessage(), 2000, ''),
-            ]);
-
-            throw new RuntimeException('Pengiriman belum selesai: '.$exception->getMessage(), 0, $exception);
-        }
+            $now = now();
+            DB::table('quotation_publications')->insertOrIgnore(['id' => 'qpub-'.Str::lower(Str::random(16)), 'quotationId' => $quotation->id, 'createdAt' => $now, 'updatedAt' => $now]);
+            DB::table('quotation_publications')->where('quotationId', $quotation->id)->update(['publishedAt' => $now, 'updatedAt' => $now]);
+            DB::table('quotation')->where('id', $quotation->id)->update(['status' => 'Diterbitkan', 'updatedAt' => $now]);
+            return 'Quotation berhasil diterbitkan dan dapat digunakan untuk membuat invoice.';
+        });
     }
 
-    private function begin(string $quotationId): object
+    public function notify(object $quotation): array
     {
-        DB::table('quotation_publications')->insertOrIgnore([
-            'id' => 'qpub-'.Str::lower(Str::random(16)),
-            'quotationId' => $quotationId,
-            'createdAt' => now(),
-            'updatedAt' => now(),
-        ]);
-
-        return DB::transaction(function () use ($quotationId) {
-            $publication = DB::table('quotation_publications')
-                ->where('quotationId', $quotationId)
-                ->lockForUpdate()
-                ->first();
-
-            if ($publication->publishedAt) {
-                return $publication;
-            }
-
-            if ($publication->processingAt && now()->diffInSeconds($publication->processingAt) < 60) {
-                throw ValidationException::withMessages([
-                    'publish' => 'Quotation sedang dalam proses penerbitan. Silakan tunggu sebentar.',
-                ]);
-            }
-
-            DB::table('quotation_publications')->where('quotationId', $quotationId)->update([
-                'processingAt' => now(),
-                'lastError' => null,
-                'updatedAt' => now(),
-            ]);
-
-            return $publication;
-        });
+        if (! in_array($quotation->status, ['Diterbitkan', 'Dikirim', 'Disetujui', 'Invoice Terbuat'], true)) {
+            throw ValidationException::withMessages(['notification' => 'Terbitkan quotation sebelum mengirim pesan.']);
+        }
+        return $this->notifications->notify('quotation', $this->data($quotation));
     }
 
     private function data(object $quotation): array
@@ -120,11 +48,4 @@ class QuotationPublisher
         ];
     }
 
-    private function mark(string $quotationId, array $values): void
-    {
-        DB::table('quotation_publications')->where('quotationId', $quotationId)->update([
-            ...$values,
-            'updatedAt' => now(),
-        ]);
-    }
 }

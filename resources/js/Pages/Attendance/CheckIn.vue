@@ -455,9 +455,6 @@ onMounted(async () => {
                         {{ locating ? "Mendeteksi Lokasi..." : locationResolved ? "Perbarui Lokasi GPS" : "Coba Deteksi Lokasi" }}
                     </button>
                     <button type="button" @click="permissionDialog = true" class="w-full text-center text-xs font-bold text-teal-700 underline">Bantuan izin kamera dan lokasi</button>
-                    <p class="text-center text-[10px] text-[#8c826f]">
-                        Data alamat © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="font-bold text-[#8a611c] underline">OpenStreetMap contributors</a>
-                    </p>
                     <p v-if="f.errors.locationLabel || f.errors.latitude || f.errors.longitude" class="text-sm font-bold text-rose-600">
                         {{ f.errors.locationLabel || f.errors.latitude || f.errors.longitude }}
                     </p>

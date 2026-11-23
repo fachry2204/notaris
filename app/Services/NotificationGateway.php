@@ -16,6 +16,21 @@ class NotificationGateway
 {
     private const SETTINGS_KEY = 'GLOBAL_APP_SETTINGS';
 
+    public static function templateDefaults(): array
+    {
+        return [
+            'quotation' => ['subject' => 'Quotation {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nQuotation {nomor} untuk {perihal} telah diterbitkan.\nTotal penawaran: {total}\n\nLihat quotation: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, quotation *{nomor}* untuk {perihal} telah diterbitkan.\n\nTotal penawaran: *{total}*\n\nLihat quotation: {tautan}\n\nHormat kami,\n{pic}"],
+            'invoice' => ['subject' => 'Invoice {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nInvoice {nomor} untuk {perihal} telah tersedia.\nTotal tagihan: {total}\nJatuh tempo: {jatuh_tempo}\nStatus: {status}\n\nLihat invoice: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, invoice *{nomor}* untuk {perihal} telah tersedia.\n\nTotal: *{total}*\nJatuh tempo: {jatuh_tempo}\nStatus: {status}\n\nLihat invoice: {tautan}\n\nHormat kami,\n{pic}"],
+            'job' => ['subject' => 'Informasi Berkas {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nBerikut pembaruan berkas Anda.\nNomor berkas: {nomor}\nPerihal: {perihal}\nStatus saat ini: {status}\n\nPantau berkas: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, berikut pembaruan berkas Anda.\n\nNomor: *{nomor}*\nPerihal: {perihal}\nStatus: *{status}*\n\nPantau berkas: {tautan}\n\nHormat kami,\n{pic}"],
+        ];
+    }
+
+    public static function templatePlaceholders(): array
+    {
+        $common = ['nama_client', 'nomor', 'perihal', 'tautan', 'pic'];
+        return ['quotation' => [...$common, 'total'], 'invoice' => [...$common, 'total', 'jatuh_tempo', 'status'], 'job' => [...$common, 'status']];
+    }
+
     public function enabledChannels(): array
     {
         $settings = $this->settings();
@@ -148,7 +163,18 @@ class NotificationGateway
             : '-';
         $pic = trim((string) ($data['picName'] ?? 'Tim Notaris'));
 
+        if (array_key_exists($type, self::templateDefaults())) {
+            $templates = array_replace_recursive(self::templateDefaults(), $this->settings()['notificationTemplates'] ?? []);
+            $replacements = ['{nama_client}' => $client, '{nomor}' => $number, '{perihal}' => $title, '{status}' => $status, '{tautan}' => $url, '{total}' => $total ?? '-', '{jatuh_tempo}' => $dueDate, '{pic}' => $pic];
+            return array_map(fn ($template) => strtr($template, $replacements), $templates[$type]);
+        }
+
         return match ($type) {
+            'test' => [
+                'subject' => 'Pesan Uji Notaris Digital',
+                'email' => "Ini adalah pesan uji dari Notaris Digital. Jika Anda menerima pesan ini, pengaturan email berhasil mengirim pesan.",
+                'whatsapp' => 'Ini adalah pesan uji dari Notaris Digital. Jika Anda menerima pesan ini, pengaturan WhatsApp berhasil mengirim pesan.',
+            ],
             'invoice' => [
                 'subject' => "Invoice {$number} - {$title}",
                 'email' => "Yth. {$client},\n\nInvoice {$number} untuk {$title} telah tersedia.\nTotal tagihan: {$total}\nJatuh tempo: {$dueDate}\nStatus: {$status}\n\nLihat invoice: {$url}\n\nHormat kami,\n{$pic}",

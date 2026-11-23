@@ -10,8 +10,9 @@ use Inertia\Inertia;
 
 class ModuleController extends Controller
 {
-    public function audit()
+    public function audit(Request $request)
     {
+        abort_unless(in_array($request->session()->get('auth_user.role'), ['ADMINISTRATOR', 'PIMPINAN'], true), 403);
         return Inertia::render('Modules/Table', [
             'title' => 'Audit Log',
             'columns' => ['userName', 'activity', 'details', 'ipAddress', 'device', 'createdAt'],
@@ -53,6 +54,7 @@ class ModuleController extends Controller
         $deadlines = collect();
         $overdueJobs = collect();
         $recentCompleted = collect();
+        $recentJobs = collect();
         $completionDays = collect();
         $thisMonth = 0;
         $previousMonth = 0;
@@ -120,6 +122,7 @@ class ModuleController extends Controller
                     ->whereDate('j.deadline', '<', today())
                     ->get()
             );
+            $recentJobs = $recentJobs->concat($baseJobQuery()->orderByDesc('j.createdAt')->limit(30)->get());
             $recentCompleted = $recentCompleted->concat(
                 $baseJobQuery()
                     ->where('j.status', 'SELESAI')
@@ -163,6 +166,8 @@ class ModuleController extends Controller
             'deadlines' => $deadlines->sortBy('deadline')->take(6)->values(),
             'overdueJobs' => $overdueJobs->sortBy('deadline')->take(6)->values(),
             'recentCompleted' => $recentCompleted->sortByDesc('updatedAt')->take(6)->values(),
+            'recentJobs' => $recentJobs->sortByDesc('createdAt')->take(30)->values(),
+            'todayActivities' => DB::table('jobprogress')->whereDate('createdAt', today())->orderByDesc('createdAt')->limit(8)->get(['description', 'statusAfter', 'createdAt']),
         ]);
     }
 
