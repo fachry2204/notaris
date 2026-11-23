@@ -9,10 +9,12 @@ import {
     Mail,
     Phone,
     Printer,
+    Plus,
     Receipt,
     Send,
     Trash2,
     UserPlus,
+    X,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 
@@ -32,8 +34,22 @@ const form = useForm({
     proofs: [] as File[],
 });
 const proofInput = ref<HTMLInputElement | null>(null);
+const previewProof = ref<{ url: string; name: string } | null>(null);
+const proofError = ref("");
 const selectProofs = (event: Event) => {
-    form.proofs = Array.from((event.target as HTMLInputElement).files || []);
+    const input = event.target as HTMLInputElement;
+    const files = Array.from(input.files || []);
+    input.value = "";
+    proofError.value = "";
+    if (form.proofs.length + files.length > 10) {
+        proofError.value = "Maksimal 10 gambar. Hapus gambar atau pilih lebih sedikit.";
+        return;
+    }
+    if (files.some((file) => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024)) {
+        proofError.value = "Pilih gambar JPG, PNG, atau WebP dengan ukuran maksimal 5 MB per gambar.";
+        return;
+    }
+    form.proofs.push(...files);
 };
 const notificationForm = useForm({ notification: "" });
 const page = usePage<any>();
@@ -302,8 +318,10 @@ const remove = () =>
                                 {{ paymentDate(item.date) }}
                                 · {{ item.paymentMethod || "Cara pembayaran tidak tercatat" }}
                             </p>
-                            <div v-if="item.proofs?.length" class="mt-2 flex flex-wrap gap-2">
-                                <a v-for="proof in item.proofs" :key="proof.id" :href="proof.url" target="_blank" rel="noopener noreferrer" class="text-xs font-bold text-teal-700 underline">{{ proof.name }}</a>
+                            <div v-if="item.proofs?.length" class="mt-3 flex flex-wrap gap-2">
+                                <button v-for="proof in item.proofs" :key="proof.id" type="button" @click="previewProof = proof" :aria-label="`Lihat ${proof.name}`" class="overflow-hidden rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-2 focus:ring-teal-600">
+                                    <img :src="proof.url" :alt="proof.name" loading="lazy" class="h-20 w-20 object-cover" />
+                                </button>
                             </div>
                         </div>
                         <b class="text-emerald-600">{{ money(item.amount) }}</b>
@@ -316,6 +334,7 @@ const remove = () =>
                             forceFormData: true,
                             onSuccess: () => {
                                 form.reset('amount', 'description', 'paymentMethod', 'proofs');
+                                proofError = '';
                                 if (proofInput) proofInput.value = '';
                             },
                         })
@@ -350,13 +369,23 @@ const remove = () =>
                         v-model="form.description"
                         placeholder="Keterangan"
                         class="mt-3 w-full rounded-xl border-slate-200"
-                    /><label class="mt-3 block text-sm font-bold">Bukti Pembayaran (opsional)
-                        <input ref="proofInput" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectProofs" class="mt-2 block w-full text-sm" />
+                    /><div class="mt-3 block text-sm font-bold">Bukti Pembayaran (opsional)
+                        <input ref="proofInput" type="file" accept="image/jpeg,image/png,image/webp" multiple @change="selectProofs" class="sr-only" tabindex="-1" />
+                        <button type="button" @click="proofInput?.click()" :disabled="form.proofs.length >= 10" class="mt-2 inline-flex items-center gap-2 rounded-xl border border-teal-600 px-4 py-2 font-bold text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50">
+                            <Plus class="h-4 w-4" /> Tambah gambar
+                        </button>
                         <span class="mt-1 block text-xs font-normal text-slate-500">Maksimal 10 gambar JPG, PNG, atau WebP, masing-masing 5 MB.</span>
                         <span v-if="form.proofs.length" class="mt-1 block text-xs font-normal">{{ form.proofs.length }} gambar dipilih</span>
+                        <ul v-if="form.proofs.length" class="mt-2 space-y-2">
+                            <li v-for="(file, index) in form.proofs" :key="index" class="flex items-center justify-between gap-3 rounded-lg bg-slate-50 p-2 text-xs font-normal">
+                                <span class="min-w-0 break-all">{{ file.name }}</span>
+                                <button type="button" @click="form.proofs.splice(index, 1); proofError = ''" :aria-label="`Hapus ${file.name}`" class="shrink-0 rounded p-1 text-rose-600 hover:bg-rose-50"><Trash2 class="h-4 w-4" /></button>
+                            </li>
+                        </ul>
+                        <span v-if="proofError" class="mt-1 block text-xs text-red-600">{{ proofError }}</span>
                         <span v-if="form.errors.proofs" class="text-xs text-red-600">{{ form.errors.proofs }}</span>
                         <span v-for="(message, field) in form.errors" :key="field" class="block text-xs text-red-600">{{ String(field).startsWith('proofs.') ? message : '' }}</span>
-                    </label><button
+                    </div><button
                         :disabled="form.processing"
                         class="mt-4 rounded-xl bg-pink-500 px-5 py-3 font-bold text-white"
                     >
@@ -378,5 +407,16 @@ const remove = () =>
                 </section>
             </div>
         </main>
+        <Teleport to="body">
+            <div v-if="previewProof" role="dialog" aria-modal="true" aria-label="Pratinjau bukti pembayaran" class="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4" @click.self="previewProof = null" @keydown.esc="previewProof = null">
+                <div class="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+                    <div class="flex items-center justify-between gap-4 border-b p-4">
+                        <p class="min-w-0 break-all text-sm font-bold">{{ previewProof.name }}</p>
+                        <button type="button" @click="previewProof = null" aria-label="Tutup pratinjau" class="rounded-lg p-2 hover:bg-slate-100"><X class="h-5 w-5" /></button>
+                    </div>
+                    <div class="min-h-0 overflow-auto bg-slate-100 p-4"><img :src="previewProof.url" :alt="previewProof.name" class="mx-auto max-h-[70vh] max-w-full object-contain" /></div>
+                </div>
+            </div>
+        </Teleport>
     </AppLayout>
 </template>
