@@ -116,12 +116,26 @@ class ApplicationTest extends TestCase
             ->assertOk()->assertInertia(fn (Assert $page) => $page
                 ->component('Modules/ProductivityDetail')
                 ->where('employee.id', $employee->id)
+                ->where('employee.photoPath', DB::table('staff')->where('userId', $employee->id)->value('photoPath'))
                 ->where('employee.totalJobs', $expected)
                 ->has('jobs')->has('tasks')->has('attendance'));
         $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])
             ->get('/dashboard/productivity/'.$employee->id)->assertForbidden();
         $this->withSession(['auth_user' => ['id' => $employee->id, 'role' => 'STAFFADMIN', 'source' => 'user']])
             ->get('/dashboard/productivity/'.$employee->id)->assertOk();
+    }
+
+    public function test_kpi_detail_uses_the_viewed_employees_photo(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        DB::table('user')->insert(['id' => 'kpi-photo-user', 'username' => 'kpi-photo-user', 'email' => 'kpi-photo@example.invalid', 'fullName' => 'Photo Test', 'passwordHash' => 'unused', 'role' => 'STAFFADMIN', 'isActive' => true, 'createdAt' => now(), 'updatedAt' => now()]);
+        DB::table('staff')->insert(['id' => 'kpi-photo-staff', 'userId' => 'kpi-photo-user', 'photoPath' => '/uploads/staff/kpi-photo.jpg', 'createdAt' => now(), 'updatedAt' => now()]);
+        $this->withSession(['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']])
+            ->get('/dashboard/productivity/kpi-photo-user')->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->where('employee.photoPath', '/uploads/staff/kpi-photo.jpg'));
+        $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])
+            ->get('/dashboard/productivity/kpi-photo-user')->assertForbidden();
     }
 
     public function test_employee_kpis_filter_and_sort_the_selected_period(): void

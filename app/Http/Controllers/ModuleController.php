@@ -343,6 +343,7 @@ class ModuleController extends Controller
             ->selectRaw('COALESCE(bh.title, nbh.title, p.title) as jobTitle')
             ->orderBy('t.createdAt', $sort)->limit(10)->get();
         $profile = DB::table('staff')->where('userId', $id)->first();
+        $employee['photoPath'] = $profile?->photoPath;
         $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
             ->whereBetween('date', [$range->start ?? now()->startOfMonth(), ($range->end ?? now()->endOfDay())->min(now()->endOfDay())])
             ->select('date', 'checkIn', 'checkOut')->orderBy('date', $sort)->get() : collect();
