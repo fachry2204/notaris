@@ -7,7 +7,7 @@ import { createApp, DefineComponent, h } from "vue";
 import PwaInstall from "@/Components/PwaInstall.vue";
 import { ZiggyVue } from "../../vendor/tightenco/ziggy";
 
-let appName = import.meta.env.VITE_APP_NAME || "Notaris Digital";
+let appName = "Notaris Digital";
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

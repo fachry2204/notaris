@@ -27,6 +27,20 @@ class ApplicationTest extends TestCase
 {
     use DatabaseTransactions;
 
+    public function test_initial_document_title_uses_configured_branding(): void
+    {
+        config(['app.url' => 'http://localhost', 'app.name' => 'Laravel']);
+        url()->forceRootUrl('http://localhost');
+        $key = 'GLOBAL_APP_SETTINGS';
+        $stored = DB::table('app_settings')->where('settings_key', $key)->first();
+        $settings = json_decode($stored?->settings_value ?: '{}', true) ?: [];
+        $settings['general']['appName'] = 'Kantor Uji Notaris';
+        DB::table('app_settings')->updateOrInsert(['settings_key' => $key], ['id' => $stored?->id ?: 'test-brand-settings', 'settings_value' => json_encode($settings), 'updated_at' => now()]);
+        \Illuminate\Support\Facades\Cache::forget('app.global-branding');
+        $this->get('/login')->assertOk()->assertSee('<title inertia>Kantor Uji Notaris</title>', false);
+        \Illuminate\Support\Facades\Cache::forget('app.global-branding');
+    }
+
     public function test_required_routes_are_registered(): void
     {
         $routes = app('router')->getRoutes();
@@ -123,6 +137,22 @@ class ApplicationTest extends TestCase
             ->get('/dashboard/productivity/'.$employee->id)->assertForbidden();
         $this->withSession(['auth_user' => ['id' => $employee->id, 'role' => 'STAFFADMIN', 'source' => 'user']])
             ->get('/dashboard/productivity/'.$employee->id)->assertOk();
+    }
+
+    public function test_kpi_report_returns_all_records_and_restricts_access(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $employee = DB::table('user')->whereIn('role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])->first();
+        if (! $employee) $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        $path = '/dashboard/productivity/'.$employee->id.'?report=1';
+        $expectedTasks = DB::table('job_employee_task')->where('userId', $employee->id)->count();
+        $expectedJobs = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])->sum(fn ($table) => DB::table($table)->where('staffId', $employee->id)->count());
+        $this->withSession(['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']])
+            ->get($path)->assertOk()->assertJsonCount($expectedTasks, 'tasks')->assertJsonCount($expectedJobs, 'jobs')
+            ->assertJsonPath('employee.email', $employee->email)->assertHeader('Cache-Control', 'no-store, private');
+        $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])
+            ->get($path)->assertForbidden();
     }
 
     public function test_kpi_detail_uses_the_viewed_employees_photo(): void

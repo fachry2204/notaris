@@ -319,6 +319,7 @@ class ModuleController extends Controller
             && $request->session()->get('auth_user.source') === 'user';
         abort_unless(in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true) || $own, 403);
 
+        $report = $request->query('report') === '1';
         $range = JobDateRange::fromRequest($request);
         $sort = $request->validate(['sort' => ['nullable', 'in:asc,desc']])['sort'] ?? 'desc';
         $data = $this->productivityData($range, $id);
@@ -328,7 +329,7 @@ class ModuleController extends Controller
         foreach (['badan_hukum' => 'Badan Hukum/Usaha', 'non_badan_hukum' => 'Non Badan Hukum', 'ppat' => 'PPAT'] as $table => $label) {
             $jobs = $jobs->concat($range->apply(DB::table($table))->where('staffId', $id)
                 ->select('id', 'title', 'trackingCode', 'status', 'deadline', 'createdAt', 'updatedAt')
-                ->orderBy('createdAt', $sort)->limit(10)->get()->map(function ($job) use ($table, $label) {
+                ->orderBy('createdAt', $sort)->when(! $report, fn ($query) => $query->limit(10))->get()->map(function ($job) use ($table, $label) {
                     $job->jobType = $table;
                     $job->category = $label;
                     return $job;
@@ -341,21 +342,27 @@ class ModuleController extends Controller
             ->where('t.userId', $id)
             ->select('t.id', 't.taskType', 't.customTask', 't.createdAt')
             ->selectRaw('COALESCE(bh.title, nbh.title, p.title) as jobTitle')
-            ->orderBy('t.createdAt', $sort)->limit(10)->get();
+            ->orderBy('t.createdAt', $sort)->when(! $report, fn ($query) => $query->limit(10))->get();
         $profile = DB::table('staff')->where('userId', $id)->first();
         $employee['photoPath'] = $profile?->photoPath;
+        if ($report) {
+            $personal = DB::table('user')->where('id', $id)->select('email', 'phone', 'birthday', 'isActive')->first();
+            $employee = [...$employee, ...(array) $personal];
+        }
         $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
             ->whereBetween('date', [$range->start ?? now()->startOfMonth(), ($range->end ?? now()->endOfDay())->min(now()->endOfDay())])
             ->select('date', 'checkIn', 'checkOut')->orderBy('date', $sort)->get() : collect();
 
-        return Inertia::render('Modules/ProductivityDetail', [
+        $payload = [
             'employee' => $employee,
             'periodLabel' => $range->start ? $range->start->translatedFormat('d M Y').' - '.$range->end->translatedFormat('d M Y') : $data['periodLabel'],
             'filters' => [...$range->filters(), 'sort' => $sort],
-            'jobs' => ($sort === 'asc' ? $jobs->sortBy('createdAt') : $jobs->sortByDesc('createdAt'))->take(10)->values(),
+            'jobs' => ($sort === 'asc' ? $jobs->sortBy('createdAt') : $jobs->sortByDesc('createdAt'))->when(! $report, fn ($items) => $items->take(10))->values(),
             'tasks' => $tasks,
             'attendance' => $attendance,
-        ]);
+        ];
+
+        return $report ? response()->json($payload)->header('Cache-Control', 'private, no-store') : Inertia::render('Modules/ProductivityDetail', $payload);
     }
 
     public function deeds(Request $request)

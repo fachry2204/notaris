@@ -13,7 +13,7 @@
         <link rel="apple-touch-icon" href="{{ asset('pwa/icon-180.png') }}">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
+        <title inertia>{{ data_get($page, 'props.branding.appName') ?: 'Notaris Digital' }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
