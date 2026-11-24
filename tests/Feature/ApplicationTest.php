@@ -444,13 +444,14 @@ class ApplicationTest extends TestCase
         $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'sourceInvoiceId' => $invoiceId, 'invoiceStatus' => 'LUNAS']);
         $this->assertDatabaseHas('invoice', ['id' => $invoiceId, 'badanHukumId' => $created->id]);
         $this->withSession($session)->put('/dashboard/invoice/'.$invoiceId, [
+            'editReason' => 'Perbarui status pembayaran',
             'status' => 'DP Bayar', 'date' => today()->toDateString(),
             'items' => [['description' => 'Test', 'quantity' => 1, 'unit' => 'item', 'unitPrice' => 100000]],
         ])->assertSessionHasNoErrors();
         $this->assertDatabaseHas('badan_hukum', ['id' => $created->id, 'invoiceStatus' => 'DP']);
         $this->assertDatabaseHas('badan_hukum', ['id' => $sharedJob->id, 'invoiceStatus' => 'DP']);
         $editTitle = 'QA shared edit '.uniqid();
-        $editJobData = [...$job, 'title' => $editTitle, 'invoiceAction' => 'none', 'sourceInvoiceId' => null];
+        $editJobData = [...$job, 'title' => $editTitle, 'invoiceAction' => 'none', 'sourceInvoiceId' => null, 'description' => 'Perbarui invoice terkait'];
         $this->withSession($session)->post('/dashboard/jobs', $editJobData)->assertSessionHasNoErrors();
         $editJob = DB::table('badan_hukum')->where('title', $editTitle)->first();
         $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$editJob->id, [...$editJobData, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceId])->assertSessionHasNoErrors();
@@ -486,7 +487,7 @@ class ApplicationTest extends TestCase
         $invoiceResponse->assertRedirect(route('invoices.show', $newInvoice->id));
         $invoiceTwo = 'inv-qa-'.uniqid();
         DB::table('invoice')->insert(['id' => $invoiceTwo, 'invoiceNumber' => 'QA-'.uniqid(), 'amount' => 200000, 'status' => 'DP Bayar', 'date' => now(), 'createdAt' => now(), 'updatedAt' => now()]);
-        $update = [...$newJob, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceTwo];
+        $update = [...$newJob, 'invoiceAction' => 'existing', 'sourceInvoiceId' => $invoiceTwo, 'description' => 'Hubungkan invoice'];
         $this->withSession($session)->put('/dashboard/jobs/badan_hukum/'.$createdNew->id, $update)->assertSessionHasNoErrors()->assertRedirect(route('jobs.show', ['badan_hukum', $createdNew->id]));
         $this->assertDatabaseHas('invoice', ['id' => $invoiceTwo, 'badanHukumId' => $createdNew->id]);
         $this->assertDatabaseHas('badan_hukum', ['id' => $createdNew->id, 'sourceInvoiceId' => $invoiceTwo, 'invoiceStatus' => 'DP']);
@@ -708,7 +709,7 @@ class ApplicationTest extends TestCase
         $this->assertMatchesRegularExpression('/^\d{4}\/PAT\/II\/2037$/', $generated[4]);
     }
 
-    public function test_quotation_publish_sends_email_and_whatsapp_once(): void
+    public function test_quotation_publish_and_send_message_are_separate_actions(): void
     {
         $this->withoutExceptionHandling();
         config(['app.url' => 'http://localhost']);
@@ -786,14 +787,17 @@ class ApplicationTest extends TestCase
         $response->assertSessionHas('success');
         $this->assertDatabaseHas('quotation', [
             'id' => $quotation->id,
-            'status' => 'Dikirim',
+            'status' => 'Diterbitkan',
         ]);
         $publication = DB::table('quotation_publications')
             ->where('quotationId', $quotation->id)
             ->first();
-        $this->assertNotNull($publication?->emailSentAt);
-        $this->assertNotNull($publication?->whatsappSentAt);
+        $this->assertNull($publication?->emailSentAt);
+        $this->assertNull($publication?->whatsappSentAt);
         $this->assertNotNull($publication?->publishedAt);
+        Mail::assertNothingSent();
+        Http::assertNothingSent();
+        $this->withSession($session)->post("/dashboard/quotation/{$quotation->id}/notify")->assertSessionHasNoErrors()->assertSessionHas('success');
         Mail::assertSent(SystemNotificationMail::class, fn ($mail) => $mail->hasTo('client.publish@example.com')
             && str_contains($mail->body, (string) $quotation->quotationNumber)
             && str_contains($mail->body, 'Total penawaran'));
@@ -801,11 +805,8 @@ class ApplicationTest extends TestCase
             && $request->hasHeader('Authorization', 'test-fonnte-token')
             && $request['target'] === '081234567890');
 
-        $this->withSession($session)
-            ->post("/dashboard/quotation/{$quotation->id}/publish", [
-                'publishWithoutNotification' => false,
-            ])
-            ->assertSessionHasNoErrors();
+        $this->withExceptionHandling();
+        $this->withSession($session)->post("/dashboard/quotation/{$quotation->id}/publish")->assertSessionHasErrors('publish');
         Mail::assertSentCount(1);
         Http::assertSentCount(1);
 
@@ -826,7 +827,7 @@ class ApplicationTest extends TestCase
         $this->withoutExceptionHandling();
         $this->assertDatabaseHas('quotation', [
             'id' => $quotation->id,
-            'status' => 'Dikirim',
+            'status' => 'Diterbitkan',
         ]);
 
         $this->withSession($session)
@@ -967,78 +968,21 @@ class ApplicationTest extends TestCase
         ]);
     }
 
-    public function test_quotation_can_be_published_without_notifications_after_confirmation(): void
+    public function test_quotation_can_be_published_without_notification_channels(): void
     {
-        $createdQuotationTable = ! Schema::hasTable('quotation');
-        $createdPublicationTable = ! Schema::hasTable('quotation_publications');
-        if ($createdQuotationTable) {
-            Schema::create('quotation', function ($table) {
-                $table->string('id')->primary();
-                $table->string('status');
-                $table->dateTime('updatedAt')->nullable();
-            });
-        }
-        if ($createdPublicationTable) {
-            Schema::create('quotation_publications', function ($table) {
-                $table->string('id')->primary();
-                $table->string('quotationId')->unique();
-                $table->dateTime('emailSentAt')->nullable();
-                $table->dateTime('whatsappSentAt')->nullable();
-                $table->dateTime('publishedAt')->nullable();
-                $table->dateTime('processingAt')->nullable();
-                $table->text('lastError')->nullable();
-                $table->dateTime('createdAt');
-                $table->dateTime('updatedAt');
-            });
-        }
-
-        $quotationId = 'quo-no-channel-'.uniqid();
-        DB::table('quotation')->insert([
-            'id' => $quotationId,
-            'status' => 'Draft',
-            'updatedAt' => now(),
-        ]);
+        $quotation = DB::table('quotation')->first();
+        $this->assertNotNull($quotation);
+        DB::table('quotation_publications')->where('quotationId', $quotation->id)->delete();
+        DB::table('quotation')->where('id', $quotation->id)->update(['status' => 'Draft']);
         $gateway = Mockery::mock(NotificationGateway::class);
-        $gateway->shouldReceive('enabledChannels')
-            ->twice()
-            ->andReturn(['email' => false, 'whatsapp' => false]);
         $publisher = new QuotationPublisher($gateway);
-        $quotation = (object) [
-            'id' => $quotationId,
-            'clientName' => 'Client QA',
-            'clientEmail' => null,
-            'clientPhone' => null,
-            'quotationNumber' => 'QUO/24072026/0099',
-            'subject' => 'QA Tanpa Notifikasi',
-            'grandTotal' => 1000000,
-            'validUntil' => '2026-08-01',
-            'picName' => 'Admin QA',
-        ];
-
-        try {
-            $publisher->publish($quotation, false);
-            $this->fail('Penerbitan tanpa notifikasi harus meminta konfirmasi.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('publish', $exception->errors());
-        }
-
-        $message = $publisher->publish($quotation, true);
-        $this->assertStringContainsString('tanpa notifikasi', $message);
-        $this->assertDatabaseHas('quotation', [
-            'id' => $quotationId,
-            'status' => 'Dikirim',
-        ]);
-        $publication = DB::table('quotation_publications')->where('quotationId', $quotationId)->first();
+        $message = $publisher->publish($quotation);
+        $this->assertStringContainsString('diterbitkan', $message);
+        $this->assertDatabaseHas('quotation', ['id' => $quotation->id, 'status' => 'Diterbitkan']);
+        $publication = DB::table('quotation_publications')->where('quotationId', $quotation->id)->first();
         $this->assertNotNull($publication?->publishedAt);
         $this->assertNull($publication?->emailSentAt);
         $this->assertNull($publication?->whatsappSentAt);
-
-        if ($createdPublicationTable) {
-            Schema::drop('quotation_publications');
-        }
-        if ($createdQuotationTable) {
-            Schema::drop('quotation');
-        }
     }
 
     public function test_published_quotation_can_be_converted_to_invoice(): void
@@ -1144,6 +1088,7 @@ class ApplicationTest extends TestCase
             ],
         ]);
 
+        $request->setLaravelSession(app('session')->driver());
         $response = $controller->store($request);
         $invoice = DB::table('invoice')->where('quotationId', $quotationId)->first();
         $this->assertNotNull($invoice);
@@ -1170,7 +1115,7 @@ class ApplicationTest extends TestCase
         $this->assertDatabaseMissing('invoice', ['id' => $invoice->id]);
         $this->assertDatabaseHas('quotation', [
             'id' => $quotationId,
-            'status' => 'Dikirim',
+            'status' => 'Diterbitkan',
         ]);
 
         if ($createdFinanceTable) {

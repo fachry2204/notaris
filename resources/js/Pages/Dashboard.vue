@@ -1,27 +1,42 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, onMounted, onUnmounted } from "vue";
 import { Head, Link } from "@inertiajs/vue3";
 import {
     AlertTriangle,
     ArrowRight,
-    Banknote,
-    CalendarClock,
+    Calendar,
     CalendarDays,
+    CalendarPlus,
     CheckCircle2,
-    CircleDollarSign,
+    Clock,
     Clock3,
+    Coins,
+    Eye,
+    FileCheck,
+    FileCode,
     FilePlus2,
-    Files,
+    FileSignature,
+    FileText,
+    Fingerprint,
+    Folder,
+    FolderOpen,
+    HelpCircle,
+    Hourglass,
     LayoutDashboard,
-    ReceiptText,
-    UserCheck,
+    Mail,
+    Receipt,
+    RefreshCw,
+    Sparkles,
+    Star,
+    TrendingUp,
     Users,
-    WalletCards,
+    ChevronLeft,
+    ChevronRight,
+    ChevronDown,
+    Check,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
-import JobDateFilter from "@/Components/JobDateFilter.vue";
 import MobileDashboard from "@/Components/MobileDashboard.vue";
-import DocumentProgress from "@/Components/Dashboard/DocumentProgress.vue";
 
 type DashboardJob = {
     id: string;
@@ -72,543 +87,723 @@ const props = defineProps<{
     staffPhoto: string | null;
     todayAttendance: any | null;
     user: any;
-    staffWork: { assigned: number; active: number; completed: number; overdue: number; upcoming: Array<{ id: string; jobType: string; title: string; trackingCode: string; status: string; deadline: string | null }> } | null;
+    staffWork: {
+        assigned: number;
+        active: number;
+        completed: number;
+        overdue: number;
+        upcoming: Array<{
+            id: string;
+            jobType: string;
+            title: string;
+            trackingCode: string;
+            status: string;
+            deadline: string | null;
+        }>;
+    } | null;
 }>();
 
-const maxMonth = computed(() =>
-    Math.max(
-        1,
-        ...props.months.flatMap((month) => [
-            Number(month.incoming),
-            Number(month.completed),
-        ]),
-    ),
-);
-
-const statCards = computed(() => [
-    {
-        label: "Total Berkas",
-        value: props.stats.total ?? 0,
-        note: "Seluruh berkas terdaftar",
-        icon: Files,
-        tone: "text-amber-700 bg-amber-50",
-        href: "/dashboard/jobs",
-    },
-    {
-        label: "Menunggu",
-        value: props.stats.pending ?? 0,
-        note: "Belum mulai diproses",
-        icon: Clock3,
-        tone: "text-orange-700 bg-orange-50",
-        href: "/dashboard/jobs?status=PENDING",
-    },
-    {
-        label: "Dalam Proses",
-        value: props.stats.processing ?? 0,
-        note: "Sedang ditangani",
-        icon: CalendarClock,
-        tone: "text-sky-700 bg-sky-50",
-        href: "/dashboard/jobs?status=PROSES",
-    },
-    {
-        label: "Selesai",
-        value: props.stats.completed ?? 0,
-        note: "Berkas telah selesai",
-        icon: CheckCircle2,
-        tone: "text-emerald-700 bg-emerald-50",
-        href: "/dashboard/jobs?status=SELESAI",
-    },
-]);
-
-const parseDate = (value?: string | null) => {
-    if (!value) return null;
-    return new Date(`${String(value).slice(0, 10)}T00:00:00`);
-};
-
-const formatDate = (value?: string | null, short = false) => {
-    const date = parseDate(value);
-    if (!date || Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleDateString("id-ID", {
-        day: "2-digit",
-        month: short ? "short" : "long",
-        year: "numeric",
+// Live clock WIB
+const currentTime = ref("");
+const currentDateLabel = ref("");
+const updateClock = () => {
+    const now = new Date();
+    currentTime.value = `${now.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" })} WIB`;
+    currentDateLabel.value = now.toLocaleDateString("id-ID", {
+        timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric",
     });
 };
+let timer: any = null;
+onMounted(() => {
+    updateClock();
+    timer = setInterval(updateClock, 30000);
+});
+onUnmounted(() => { if (timer) clearInterval(timer); });
 
-const formatCurrency = (value: number | string | null | undefined) =>
-    new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        maximumFractionDigits: 0,
-    }).format(Number(value ?? 0));
-
-const deadlineDistance = (value?: string | null) => {
-    const deadline = parseDate(value);
-    if (!deadline) return { label: "Tanpa deadline", overdue: false };
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const days = Math.round((deadline.getTime() - today.getTime()) / 86_400_000);
-    if (days < 0) return { label: `${Math.abs(days)} hari terlambat`, overdue: true };
-    if (days === 0) return { label: "Jatuh tempo hari ini", overdue: false };
-    return { label: `${days} hari lagi`, overdue: false };
+// Format currency
+const formatCurrency = (val: number | string | null | undefined) => {
+    return new Intl.NumberFormat("id-ID", {
+        style: "currency", currency: "IDR", maximumFractionDigits: 0,
+    }).format(Number(val ?? 0));
 };
 
-const jobUrl = (job: DashboardJob) =>
-    `/dashboard/jobs/${job.jobType}/${job.id}`;
-
-const statusClass = (status?: string) => {
-    const normalized = String(status ?? "").toUpperCase();
-    if (normalized === "SELESAI") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-    if (["PROSES", "REVISI", "REVISI_PROSES", "VERIFIKASI"].includes(normalized))
-        return "border-sky-200 bg-sky-50 text-sky-700";
-    return "border-amber-200 bg-amber-50 text-amber-700";
+// Format date string to Indonesian locale
+const fmtDate = (d: string | null | undefined) => {
+    if (!d) return "-";
+    return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 };
 
-const time = (value: string | null) =>
-    value
-        ? new Date(value).toLocaleTimeString("id-ID", {
-              hour: "2-digit",
-              minute: "2-digit",
-          })
-        : "-";
+// Summary metrics — real data from props
+const totalBerkas = computed(() => props.stats?.total ?? 0);
+const pekerjaanAktif = computed(() => (props.stats?.pending ?? 0) + (props.stats?.processing ?? 0));
+const dalamProses = computed(() => props.stats?.processing ?? 0);
+const selesai = computed(() => props.stats?.completed ?? 0);
+const deadlineTerlewat = computed(() => props.alerts?.overdueJobs ?? 0);
+const piutangInvoice = computed(() =>
+    props.invoiceSummary?.outstandingAmount
+        ? formatCurrency(props.invoiceSummary.outstandingAmount)
+        : (props.canViewFinance ? "Rp 0" : "-")
+);
+
+// Monthly chart — real data from props.months
+const monthlyChartData = computed(() =>
+    (props.months ?? []).map((m) => ({
+        key: m.key,
+        month: m.label,
+        masuk: m.incoming,
+        selesai: m.completed,
+    }))
+);
+
+const hoveredMonth = ref<any>(null);
+const chartMax = computed(() => Math.max(1, ...monthlyChartData.value.flatMap(m => [m.masuk, m.selesai])));
+
+// Donut — computed from real stats
+const donutStatus = computed(() => {
+    const total = props.stats?.total ?? 1;
+    const pending = props.stats?.pending ?? 0;
+    const proses = props.stats?.processing ?? 0;
+    const done = props.stats?.completed ?? 0;
+    const lainnya = Math.max(0, total - pending - proses - done);
+    const pct = (n: number) => total > 0 ? Math.round((n / total) * 100) + "%" : "0%";
+    const segments = [
+        { label: "Pending", count: pending, pct: pct(pending), color: "#F59E0B" },
+        { label: "Dalam Proses", count: proses, pct: pct(proses), color: "#3B82F6" },
+        { label: "Selesai", count: done, pct: pct(done), color: "#10B981" },
+        { label: "Lainnya", count: lainnya, pct: pct(lainnya), color: "#94A3B8" },
+    ];
+    let offset = 0;
+    return segments.map(segment => {
+        const size = total > 0 ? segment.count / total * 100 : 0;
+        const result = { ...segment, size, offset };
+        offset += size;
+        return result;
+    });
+});
+
+// Calendar — dynamic for current month
+const today = new Date();
+const calMonth = ref(today.getMonth());
+const calYear = ref(today.getFullYear());
+const selectedDate = ref(today.getDate());
+const selectCalendarDate = (cal: any) => {
+    if (cal.currentMonth) selectedDate.value = cal.day;
+};
+const calMonthLabel = computed(() =>
+    new Date(calYear.value, calMonth.value, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" })
+);
+const calendarDays = computed(() => {
+    const firstDay = new Date(calYear.value, calMonth.value, 1).getDay();
+    const offset = firstDay === 0 ? 6 : firstDay - 1; // Monday-first
+    const daysInMonth = new Date(calYear.value, calMonth.value + 1, 0).getDate();
+    const daysInPrev = new Date(calYear.value, calMonth.value, 0).getDate();
+    const days: any[] = [];
+    for (let i = offset; i > 0; i--) {
+        days.push({ day: daysInPrev - i + 1, currentMonth: false });
+    }
+    for (let d = 1; d <= daysInMonth; d++) {
+        days.push({
+            day: d,
+            currentMonth: true,
+            isToday: d === today.getDate() && calMonth.value === today.getMonth() && calYear.value === today.getFullYear(),
+        });
+    }
+    const remaining = 42 - days.length;
+    for (let d = 1; d <= remaining; d++) {
+        days.push({ day: d, currentMonth: false });
+    }
+    return days;
+});
+const prevMonth = () => { if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; } else calMonth.value--; };
+const nextMonth = () => { if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; } else calMonth.value++; };
+
+// Recent Jobs table — real data from props.recentJobs
+const tableTab = ref("Semua");
+const statusMap: Record<string, { label: string; color: string }> = {
+    PENDING: { label: "Pending", color: "yellow" },
+    PROSES: { label: "Dalam Proses", color: "blue" },
+    REVISI: { label: "Revisi", color: "purple" },
+    REVISI_PROSES: { label: "Revisi Proses", color: "purple" },
+    VERIFIKASI: { label: "Verifikasi", color: "blue" },
+    SELESAI: { label: "Selesai", color: "green" },
+    CANCELLED: { label: "Batal", color: "red" },
+};
+const mappedRecentJobs = computed(() =>
+    (props.recentJobs ?? []).map((j) => {
+        const s = statusMap[j.status] ?? { label: j.status, color: "gray" };
+        return {
+            id: j.trackingCode ?? j.id,
+            client: j.clientName ?? "-",
+            jenis: j.title,
+            status: s.label,
+            statusColor: s.color,
+            tanggal: fmtDate(j.createdAt),
+            deadline: fmtDate(j.deadline),
+            url: `/dashboard/jobs/${j.jobType}/${j.id}`,
+        };
+    })
+);
+const filteredJobs = computed(() => {
+    const rows = mappedRecentJobs.value;
+    if (tableTab.value === "Semua") return rows;
+    if (tableTab.value === "Pending") return rows.filter((r) => r.statusColor === "yellow");
+    if (tableTab.value === "Proses") return rows.filter((r) => r.statusColor === "blue" || r.statusColor === "purple");
+    if (tableTab.value === "Selesai") return rows.filter((r) => r.statusColor === "green");
+    return rows;
+});
+
+// Deadlines are scheduled dates, not recorded activities.
+const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
 </script>
 
 <template>
-    <Head title="Dashboard" />
-    <AppLayout :hide-mobile-header="staffLanding" :dashboard-theme="!staffLanding">
-        <MobileDashboard v-if="staffLanding" :user="user" :photo="staffPhoto" :today-attendance="todayAttendance" :staff-work="staffWork" />
-        <main v-if="staffLanding" class="hidden md:block mx-auto max-w-6xl space-y-5 p-3 sm:space-y-6 sm:p-5">
+    <Head title="Dashboard Operasional" />
+    <AppLayout :hide-mobile-header="staffLanding">
+        <!-- Mobile view for staff landing if active -->
+        <MobileDashboard
+            v-if="staffLanding"
+            :user="user"
+            :photo="staffPhoto"
+            :today-attendance="todayAttendance"
+            :staff-work="staffWork"
+        />
+
+        <!-- Desktop Luxury Notary Dashboard Layout -->
+        <div v-else class="space-y-4 max-w-[1600px] mx-auto select-none">
+            <!-- 1. Hero Welcome Banner -->
             <section
-                class="rounded-3xl p-6 text-white shadow-lg"
-                :style="{
-                    background:
-                        'linear-gradient(135deg, var(--primary) 0%, color-mix(in srgb, var(--primary) 72%, black) 100%)',
-                }"
+                class="relative overflow-hidden rounded-2xl border border-[#E8DFC9] bg-gradient-to-r from-[#FFFDF9] via-[#FAF4E6] to-[#F1E4C3] p-5 sm:p-6 shadow-xs"
             >
-                <p class="text-sm font-semibold opacity-90">{{ new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()) }}</p>
-                <p class="mt-4 text-sm font-semibold opacity-90">Selamat datang kembali,</p>
-                <h1 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                    {{ user.fullName }}
-                </h1>
-                <span
-                    class="mt-2 inline-block rounded-full bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-widest"
-                >
-                    {{ user.role }}
-                </span>
+                <!-- Law books and scales of justice graphic on the right -->
+                <div class="pointer-events-none absolute inset-y-0 right-0 w-2/3 md:w-1/2 flex items-center justify-end overflow-hidden">
+                    <img
+                        src="/images/dashboard/law-scale-books.jpg"
+                        alt="Neraca Hukum & Buku Hukum"
+                        class="h-full w-full object-cover object-left opacity-90 mix-blend-multiply"
+                        style="mask-image: linear-gradient(to right, transparent 0%, black 40%); -webkit-mask-image: linear-gradient(to right, transparent 0%, black 40%);"
+                    />
+                </div>
 
-                <div
-                    class="mt-6 grid grid-cols-2 gap-3 rounded-2xl border border-white/20 bg-white/15 p-4 backdrop-blur-sm sm:grid-cols-3 sm:p-5"
-                >
+                <div class="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <!-- Left: Welcome text & Verified badge -->
                     <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Status Absensi</p>
-                        <p class="mt-1 text-base font-black">{{ todayAttendance?.checkOut ? 'Selesai' : todayAttendance?.checkIn ? 'Sudah masuk' : 'Belum masuk' }}</p>
+                        <p class="text-xs sm:text-sm font-medium text-stone-600">Selamat Datang,</p>
+                        <h1 class="mt-0.5 text-xl sm:text-2xl lg:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
+                            <span>{{ user?.fullName || user?.username || 'Pengguna' }}</span>
+                            <!-- Golden Verified Badge -->
+                            <span
+                                class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#F5C344] to-[#C99A3D] text-white shadow-xs"
+                                title="Terverifikasi"
+                            >
+                                <Check class="h-3.5 w-3.5 stroke-[3]" />
+                            </span>
+                        </h1>
+                        <p class="mt-1 text-xs sm:text-sm font-medium text-stone-600">
+                            Dashboard Operasional Kantor Notaris
+                        </p>
                     </div>
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Masuk</p>
-                        <p class="mt-1 text-xl font-black">{{ time(todayAttendance?.checkIn) }}</p>
-                    </div>
-                    <div>
-                        <p class="text-[10px] font-bold uppercase tracking-wider opacity-80">Pulang</p>
-                        <p class="mt-1 text-xl font-black">{{ time(todayAttendance?.checkOut) }}</p>
-                    </div>
-                </div>
 
-                <button v-if="todayAttendance?.checkOut" type="button" disabled aria-label="Absensi hari ini sudah selesai" class="mt-5 flex h-12 w-full cursor-not-allowed items-center justify-center gap-2 rounded-2xl bg-white/50 font-black text-slate-600">
-                    <UserCheck class="h-5 w-5" /> Absensi Selesai
-                </button>
-                <Link
-                    v-else
-                    :href="todayAttendance?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'"
-                    class="mt-5 flex h-12 items-center justify-center gap-2 rounded-2xl bg-white font-black shadow-md transition hover:-translate-y-0.5"
-                    :style="{ color: 'var(--primary)' }"
-                >
-                    <UserCheck class="h-5 w-5" />
-                    {{
-                        todayAttendance?.checkIn
-                            ? todayAttendance?.checkOut
-                                ? "Absensi Selesai"
-                                : "Absen Pulang"
-                            : "Absen Masuk"
-                    }}
-                </Link>
-            </section>
-
-            <section v-if="staffWork" aria-label="Ringkasan pekerjaan saya" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-                <Link v-for="card in [
-                    { label: 'Berkas ditugaskan', value: staffWork.assigned, icon: Files, tone: 'text-teal-700 bg-teal-50' },
-                    { label: 'Berkas aktif', value: staffWork.active, icon: Clock3, tone: 'text-blue-700 bg-blue-50' },
-                    { label: 'Berkas selesai', value: staffWork.completed, icon: CheckCircle2, tone: 'text-emerald-700 bg-emerald-50' },
-                    { label: 'Lewat deadline', value: staffWork.overdue, icon: AlertTriangle, tone: 'text-rose-700 bg-rose-50' },
-                ]" :key="card.label" href="/dashboard/tasks" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-teal-400">
-                    <span class="inline-flex rounded-xl p-2" :class="card.tone"><component :is="card.icon" class="h-5 w-5" /></span>
-                    <p class="mt-3 text-xs font-semibold text-slate-500">{{ card.label }}</p><p class="mt-1 text-2xl font-black text-slate-900">{{ card.value }}</p>
-                </Link>
-            </section>
-
-            <section v-if="staffWork" class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                <div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-lg font-black text-slate-900">Berkas yang perlu ditangani</h2><p class="mt-1 text-xs text-slate-500">Berdasarkan tugas Anda, diurutkan menurut deadline terdekat.</p></div><Link href="/dashboard/tasks" class="text-sm font-bold text-teal-700">Lihat tugas →</Link></div>
-                <p v-if="!staffWork.upcoming.length" class="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Tidak ada berkas aktif yang ditugaskan kepada Anda.</p>
-                <div v-else class="mt-4 divide-y divide-slate-100"><Link v-for="job in staffWork.upcoming" :key="`${job.jobType}-${job.id}`" :href="`/dashboard/jobs/${job.jobType}/${job.id}`" class="flex flex-wrap items-center justify-between gap-3 py-3 hover:text-teal-700"><div class="min-w-0"><p class="break-words text-sm font-bold">{{ job.title }}</p><p class="mt-1 text-xs text-slate-500">{{ job.trackingCode }} · {{ job.status }}</p></div><span class="rounded-lg bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">{{ job.deadline ? 'Deadline ' + String(job.deadline).slice(0, 10).split('-').reverse().join('-') : 'Belum ada deadline' }}</span></Link></div>
-            </section>
-
-            <section class="grid gap-4 sm:grid-cols-2">
-                <Link
-                    href="/dashboard?view=overview"
-                    class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-[var(--primary)] hover:shadow-md"
-                >
-                    <LayoutDashboard class="h-9 w-9" :style="{ color: 'var(--primary)' }" />
-                    <h2 class="mt-4 text-lg font-black text-slate-900">Ringkasan Kantor</h2>
-                    <p class="mt-1 text-sm text-slate-500">Pantau pekerjaan, deadline, dan aktivitas terbaru.</p>
-                    <span class="mt-4 inline-flex items-center gap-2 text-xs font-bold" :style="{ color: 'var(--primary)' }">
-                        Buka Dashboard <ArrowRight class="h-4 w-4" />
-                    </span>
-                </Link>
-                <Link
-                    href="/dashboard/pegawai/absensi"
-                    class="group rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-emerald-500 hover:shadow-md"
-                >
-                    <Clock3 class="h-9 w-9 text-emerald-500" />
-                    <h2 class="mt-4 text-lg font-black text-slate-900">Riwayat Absensi</h2>
-                    <p class="mt-1 text-sm text-slate-500">Lihat check-in, check-out, dan riwayat kehadiran.</p>
-                    <span class="mt-4 inline-flex items-center gap-2 text-xs font-bold text-emerald-600">
-                        Buka Absensi <ArrowRight class="h-4 w-4" />
-                    </span>
-                </Link>
-            </section>
-        </main>
-
-        <main v-if="!staffLanding" class="luxury-dashboard space-y-5 p-2 sm:p-4">
-            <section v-if="attendanceNotifications" aria-label="Notifikasi absensi hari ini" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 shadow-sm sm:p-5">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div><h2 class="flex items-center gap-2 text-base font-black text-amber-950"><AlertTriangle class="h-5 w-5" /> Notifikasi absensi hari ini</h2><p class="mt-1 text-xs text-amber-800">Berdasarkan check-in hari ini untuk akun pegawai aktif.</p></div>
-                    <Link href="/dashboard/pegawai/absensi" class="inline-flex h-9 items-center rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-900">Lihat absensi</Link>
-                </div>
-                <div class="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                    <details v-for="group in [
-                        { key: 'missing', label: 'Belum check-in', names: attendanceNotifications.missing },
-                        { key: 'wfh', label: 'WFH', names: attendanceNotifications.wfh },
-                        { key: 'wfc', label: 'WFC', names: attendanceNotifications.wfc },
-                        { key: 'dinas', label: 'Dinas luar', names: attendanceNotifications.dinas },
-                    ]" :key="group.key" class="rounded-xl border border-amber-100 bg-white p-3">
-                        <summary class="flex cursor-pointer items-center justify-between gap-2 text-xs font-bold text-slate-700"><span>{{ group.label }}</span><span class="rounded-lg bg-amber-50 px-2 py-1 text-sm font-black text-amber-800">{{ group.names.length }}</span></summary>
-                        <ul v-if="group.names.length" class="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600"><li v-for="(name, index) in group.names" :key="index">{{ name }}</li></ul>
-                        <p v-else class="mt-2 text-xs text-slate-400">Tidak ada data.</p>
-                    </details>
-                </div>
-            </section>
-            <header class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-                <div>
-                    <p class="text-xs font-bold uppercase tracking-[0.18em]" :style="{ color: 'var(--primary)' }">
-                        Ringkasan Operasional
-                    </p>
-                    <h1 class="mt-1 text-2xl font-black text-slate-950 sm:text-3xl">Selamat datang, {{ user?.fullName || 'Pengguna' }}</h1>
-                    <p class="mt-1 text-sm text-slate-500">
-                        Pantau operasional kantor dan hal yang membutuhkan perhatian.
-                    </p>
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                    <JobDateFilter :filters="filters" />
-                    <Link
-                        href="/dashboard/jobs/new"
-                        class="flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md transition hover:-translate-y-0.5"
-                        :style="{ backgroundColor: 'var(--primary)' }"
+                    <!-- Right: Date and Time Widget Card -->
+                    <div
+                        class="flex items-center gap-3.5 rounded-2xl border border-amber-200/90 bg-white/95 px-5 py-3 shadow-xs backdrop-blur-md shrink-0"
                     >
-                        <FilePlus2 class="h-4 w-4" /> Berkas Baru
-                    </Link>
-                </div>
-            </header>
-
-            <section class="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <Link
-                    v-for="card in statCards"
-                    :key="card.label"
-                    :href="card.href"
-                    class="group rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-5"
-                >
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-slate-500">{{ card.label }}</p>
-                            <p class="mt-2 text-3xl font-black text-slate-950">{{ card.value }}</p>
+                        <div class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600">
+                            <CalendarDays class="h-5 w-5" />
                         </div>
-                        <span class="grid h-10 w-10 place-items-center rounded-xl" :class="card.tone">
-                            <component :is="card.icon" class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <p class="mt-3 hidden text-xs text-slate-400 sm:block">{{ card.note }}</p>
-                </Link>
-            </section>
-
-            <section class="grid gap-3 md:grid-cols-2" :class="canViewFinance ? 'xl:grid-cols-4' : 'xl:grid-cols-3'">
-                <Link href="/dashboard/jobs?status=TERLAMBAT" class="rounded-2xl border border-red-200 bg-red-50 p-4 transition hover:shadow-md">
-                    <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-red-600">Deadline Terlewat</p>
-                            <p class="mt-1 text-2xl font-black text-red-800">{{ alerts.overdueJobs }}</p>
-                        </div>
-                        <AlertTriangle class="h-7 w-7 text-red-500" />
-                    </div>
-                    <p class="mt-2 text-xs text-red-700">Berkas aktif melewati batas waktu</p>
-                </Link>
-                <Link v-if="canViewFinance" href="/dashboard/jobs" class="rounded-2xl border border-rose-200 bg-rose-50 p-4 transition hover:shadow-md">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-rose-600">Fee Belum Lengkap</p>
-                            <p class="mt-1 text-2xl font-black text-rose-800">{{ alerts.incompleteFees }}</p>
-                        </div>
-                        <CircleDollarSign class="h-7 w-7 text-rose-500" />
-                    </div>
-                    <p class="mt-2 text-xs text-rose-700">Berkas perlu pemeriksaan fee tugas</p>
-                </Link>
-                <Link href="/dashboard/pegawai/absensi" class="rounded-2xl border border-amber-200 bg-amber-50 p-4 transition hover:shadow-md">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-amber-700">Hadir Hari Ini</p>
-                            <p class="mt-1 text-2xl font-black text-amber-900">
-                                {{ attendanceToday.present }}<span class="text-sm font-semibold text-amber-600">/{{ attendanceToday.totalStaff }}</span>
+                            <p class="text-xs font-semibold text-stone-600">{{ currentDateLabel }}</p>
+                            <p class="text-lg font-black text-stone-900 tracking-tight leading-tight">
+                                {{ currentTime }}
                             </p>
                         </div>
-                        <UserCheck class="h-7 w-7 text-amber-600" />
                     </div>
-                    <p class="mt-2 text-xs text-amber-700">{{ attendanceToday.late }} terlambat · {{ attendanceToday.notCheckedOut }} belum pulang</p>
-                </Link>
+                </div>
+            </section>
+
+            <!-- 2. Six Metric Cards -->
+            <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
+                <!-- Card 1: Total Berkas -->
                 <Link
-                    v-if="canViewFinance && invoiceSummary"
-                    href="/dashboard/invoice"
-                    class="rounded-2xl border border-violet-200 bg-violet-50 p-4 transition hover:shadow-md"
+                    href="/dashboard/jobs"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
                 >
-                    <div class="flex items-center justify-between gap-3">
-                        <div class="min-w-0">
-                            <p class="text-[11px] font-bold uppercase tracking-wider text-violet-600">Piutang Invoice</p>
-                            <p class="mt-1 truncate text-xl font-black text-violet-900">{{ formatCurrency(invoiceSummary.outstandingAmount) }}</p>
-                        </div>
-                        <WalletCards class="h-7 w-7 shrink-0 text-violet-500" />
-                    </div>
-                    <p class="mt-2 text-xs text-violet-700">{{ invoiceSummary.outstandingCount }} invoice · {{ invoiceSummary.overdueCount }} lewat tempo</p>
-                </Link>
-            </section>
-
-            <section class="grid gap-5 xl:grid-cols-3">
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
-                    <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Perkembangan Berkas</h2>
-                            <p class="text-xs text-slate-500">Perbandingan berkas masuk dan selesai sesuai periode grafik.</p>
-                        </div>
-                        <div class="flex items-center gap-4 text-[11px] font-bold text-slate-500">
-                            <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-sm bg-amber-500" />Masuk</span>
-                            <span class="flex items-center gap-1.5"><i class="h-2.5 w-2.5 rounded-sm bg-emerald-500" />Selesai</span>
-                        </div>
-                    </div>
-                    <div class="mt-6 flex h-52 items-end gap-2 border-b border-slate-200 sm:gap-5">
-                        <div v-for="month in months" :key="month.key" class="group flex h-full flex-1 items-end justify-center gap-1.5">
-                            <div class="relative w-2/5 rounded-t-lg bg-amber-500 transition-all group-hover:bg-amber-600" :style="{ height: `${(Number(month.incoming) / maxMonth) * 88}%` }">
-                                <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-600">{{ month.incoming }}</span>
-                            </div>
-                            <div class="relative w-2/5 rounded-t-lg bg-emerald-500 transition-all group-hover:bg-emerald-600" :style="{ height: `${(Number(month.completed) / maxMonth) * 88}%` }">
-                                <span class="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-slate-600">{{ month.completed }}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="mt-3 grid grid-cols-6 text-center text-[11px] font-bold text-slate-500">
-                        <span v-for="month in months" :key="month.key">{{ month.label }}</span>
-                    </div>
-                </article>
-
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Kehadiran Hari Ini</h2>
-                            <p class="text-xs text-slate-500">Status absensi pegawai.</p>
-                        </div>
-                        <UserCheck class="h-5 w-5 text-emerald-600" />
-                    </div>
-                    <div class="mt-5 grid grid-cols-2 gap-3">
-                        <div class="rounded-xl bg-emerald-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-emerald-700">Hadir</p>
-                            <p class="mt-1 text-2xl font-black text-emerald-900">{{ attendanceToday.present }}</p>
-                        </div>
-                        <div class="rounded-xl bg-amber-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-amber-700">Terlambat</p>
-                            <p class="mt-1 text-2xl font-black text-amber-900">{{ attendanceToday.late }}</p>
-                        </div>
-                        <div class="rounded-xl bg-sky-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-sky-700">Belum Pulang</p>
-                            <p class="mt-1 text-2xl font-black text-sky-900">{{ attendanceToday.notCheckedOut }}</p>
-                        </div>
-                        <div class="rounded-xl bg-slate-100 p-4">
-                            <p class="text-[10px] font-bold uppercase text-slate-600">Total Pegawai</p>
-                            <p class="mt-1 text-2xl font-black text-slate-900">{{ attendanceToday.totalStaff }}</p>
-                        </div>
-                    </div>
-                    <Link href="/dashboard/pegawai/absensi" class="mt-4 flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold text-slate-700 transition hover:bg-slate-50">
-                        Lihat detail absensi <ArrowRight class="h-4 w-4" />
-                    </Link>
-                </article>
-            </section>
-
-            <DocumentProgress :stats="stats" :categories="categoryCounts" />
-
-            <section class="grid gap-5 xl:grid-cols-2">
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Perlu Perhatian</h2>
-                            <p class="text-xs text-slate-500">Deadline terlambat dan mendekati jatuh tempo.</p>
-                        </div>
-                        <AlertTriangle class="h-5 w-5 text-red-500" />
-                    </div>
-                    <div class="mt-4 divide-y divide-slate-100">
-                        <Link v-for="job in overdueJobs" :key="`overdue-${job.jobType}-${job.id}`" :href="jobUrl(job)" class="flex items-center justify-between gap-3 py-3 transition hover:bg-red-50/50 sm:px-2">
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <span class="rounded-md bg-red-100 px-2 py-0.5 text-[10px] font-black text-red-700">TERLAMBAT</span>
-                                    <code class="truncate text-[10px] font-bold text-slate-400">{{ job.trackingCode }}</code>
-                                </div>
-                                <p class="mt-1 truncate text-sm font-bold text-slate-800">{{ job.title }}</p>
-                                <p class="truncate text-xs text-slate-500">{{ job.clientName || "Tanpa client" }}</p>
-                            </div>
-                            <div class="shrink-0 text-right">
-                                <p class="text-xs font-bold text-red-700">{{ deadlineDistance(job.deadline).label }}</p>
-                                <p class="mt-1 text-[10px] text-slate-400">{{ formatDate(job.deadline, true) }}</p>
-                            </div>
-                        </Link>
-                        <Link v-for="job in deadlines" :key="`upcoming-${job.jobType}-${job.id}`" :href="jobUrl(job)" class="flex items-center justify-between gap-3 py-3 transition hover:bg-amber-50/50 sm:px-2">
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <span class="rounded-md bg-amber-100 px-2 py-0.5 text-[10px] font-black text-amber-700">SEGERA</span>
-                                    <code class="truncate text-[10px] font-bold text-slate-400">{{ job.trackingCode }}</code>
-                                </div>
-                                <p class="mt-1 truncate text-sm font-bold text-slate-800">{{ job.title }}</p>
-                                <p class="truncate text-xs text-slate-500">{{ job.clientName || "Tanpa client" }}</p>
-                            </div>
-                            <div class="shrink-0 text-right">
-                                <p class="text-xs font-bold text-amber-700">{{ deadlineDistance(job.deadline).label }}</p>
-                                <p class="mt-1 text-[10px] text-slate-400">{{ formatDate(job.deadline, true) }}</p>
-                            </div>
-                        </Link>
-                        <p v-if="!overdueJobs.length && !deadlines.length" class="py-10 text-center text-sm text-slate-400">Tidak ada deadline mendesak.</p>
-                    </div>
-                    <Link href="/dashboard/jobs" class="mt-3 flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                        Lihat seluruh berkas <ArrowRight class="h-4 w-4" />
-                    </Link>
-                </article>
-
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-start justify-between gap-3">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Berkas Terbaru</h2>
-                            <p class="text-xs text-slate-500">Aktivitas pendaftaran berkas terbaru.</p>
-                        </div>
-                        <Files class="h-5 w-5" :style="{ color: 'var(--primary)' }" />
-                    </div>
-                    <div class="mt-4 divide-y divide-slate-100">
-                        <Link v-for="job in recentJobs" :key="`${job.jobType}-${job.id}`" :href="jobUrl(job)" class="flex items-center justify-between gap-3 py-3 transition hover:bg-slate-50 sm:px-2">
-                            <div class="min-w-0">
-                                <div class="flex items-center gap-2">
-                                    <code class="truncate text-[10px] font-bold" :style="{ color: 'var(--primary)' }">{{ job.trackingCode }}</code>
-                                    <span class="rounded-full border px-2 py-0.5 text-[9px] font-black" :class="statusClass(job.status)">{{ job.status }}</span>
-                                </div>
-                                <p class="mt-1 truncate text-sm font-bold text-slate-800">{{ job.title }}</p>
-                                <p class="truncate text-xs text-slate-500">{{ job.clientName || "Tanpa client" }} · {{ job.category }}</p>
-                            </div>
-                            <div class="shrink-0 text-right text-[10px] text-slate-400">{{ formatDate(job.createdAt, true) }}</div>
-                        </Link>
-                        <p v-if="!recentJobs.length" class="py-10 text-center text-sm text-slate-400">Belum ada berkas.</p>
-                    </div>
-                    <Link href="/dashboard/jobs" class="mt-3 flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                        Buka Data Berkas <ArrowRight class="h-4 w-4" />
-                    </Link>
-                </article>
-            </section>
-
-            <section v-if="canViewFinance && invoiceSummary" class="grid gap-5 xl:grid-cols-3">
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
                     <div class="flex items-start justify-between">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Ringkasan Keuangan</h2>
-                            <p class="text-xs text-slate-500">Informasi tagihan dan penerimaan invoice.</p>
-                        </div>
-                        <Banknote class="h-5 w-5 text-emerald-600" />
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
+                            <Folder class="h-5 w-5 fill-amber-500/20" />
+                        </span>
                     </div>
-                    <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                        <div class="rounded-xl bg-violet-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-violet-600">Sisa Piutang</p>
-                            <p class="mt-2 text-xl font-black text-violet-900">{{ formatCurrency(invoiceSummary.outstandingAmount) }}</p>
-                            <p class="mt-1 text-xs text-violet-600">{{ invoiceSummary.outstandingCount }} invoice</p>
-                        </div>
-                        <div class="rounded-xl bg-red-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-red-600">Lewat Jatuh Tempo</p>
-                            <p class="mt-2 text-xl font-black text-red-900">{{ invoiceSummary.overdueCount }}</p>
-                            <p class="mt-1 text-xs text-red-600">invoice perlu ditagih</p>
-                        </div>
-                        <div class="rounded-xl bg-emerald-50 p-4">
-                            <p class="text-[10px] font-bold uppercase text-emerald-600">Masuk Bulan Ini</p>
-                            <p class="mt-2 text-xl font-black text-emerald-900">{{ formatCurrency(invoiceSummary.paidThisMonth) }}</p>
-                            <p class="mt-1 text-xs text-emerald-600">pembayaran tercatat</p>
-                        </div>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Total Berkas</p>
+                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ totalBerkas }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-500">Seluruh berkas terdaftar</p>
                     </div>
-                    <div class="mt-4 flex flex-wrap gap-2">
-                        <Link href="/dashboard/invoice" class="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white" :style="{ backgroundColor: 'var(--primary)' }">
-                            <ReceiptText class="h-4 w-4" /> Kelola Invoice
-                        </Link>
-                        <Link href="/dashboard/finance" class="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50">
-                            <WalletCards class="h-4 w-4" /> Buka Keuangan
-                        </Link>
-                    </div>
-                </article>
+                </Link>
 
-                <article class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-lg font-black text-slate-950">Pembayaran Terbaru</h2>
-                            <p class="text-xs text-slate-500">Penerimaan terakhir tercatat.</p>
-                        </div>
-                        <CircleDollarSign class="h-5 w-5 text-emerald-600" />
+                <!-- Card 2: Pekerjaan Aktif -->
+                <Link
+                    href="/dashboard/jobs?status=AKTIF"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div class="flex items-start justify-between">
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
+                            <Hourglass class="h-5 w-5" />
+                        </span>
                     </div>
-                    <div class="mt-4 divide-y divide-slate-100">
-                        <Link v-for="payment in recentPayments" :key="payment.id" :href="payment.invoiceId ? `/dashboard/invoice/${payment.invoiceId}` : '/dashboard/finance'" class="flex items-center justify-between gap-3 py-3 hover:bg-slate-50 sm:px-2">
-                            <div class="min-w-0">
-                                <p class="truncate text-xs font-bold text-slate-800">{{ payment.invoiceNumber || payment.description || "Pembayaran" }}</p>
-                                <p class="mt-1 text-[10px] text-slate-400">{{ formatDate(payment.date, true) }}</p>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Pekerjaan Aktif</p>
+                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ pekerjaanAktif }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-500">Menunggu dan sedang dikerjakan</p>
+                    </div>
+                </Link>
+
+                <!-- Card 3: Dalam Proses -->
+                <Link
+                    href="/dashboard/jobs"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div class="flex items-start justify-between">
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
+                            <RefreshCw class="h-5 w-5" />
+                        </span>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Dalam Proses</p>
+                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ dalamProses }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-500">Termasuk revisi dan verifikasi</p>
+                    </div>
+                </Link>
+
+                <!-- Card 4: Selesai -->
+                <Link
+                    href="/dashboard/jobs?status=SELESAI"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div class="flex items-start justify-between">
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100/70 text-emerald-600">
+                            <CheckCircle2 class="h-5 w-5" />
+                        </span>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Selesai</p>
+                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ selesai }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-500">Berkas telah selesai</p>
+                    </div>
+                </Link>
+
+                <!-- Card 5: Deadline Terlewat -->
+                <Link
+                    href="/dashboard/jobs?status=TERLAMBAT"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div class="flex items-start justify-between">
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-rose-100/70 text-rose-600">
+                            <AlertTriangle class="h-5 w-5" />
+                        </span>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Deadline Terlewat</p>
+                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ deadlineTerlewat }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-500">Berkas aktif melewati deadline</p>
+                    </div>
+                </Link>
+
+                <!-- Card 6: Piutang Invoice -->
+                <Link
+                    v-if="canViewFinance"
+                    href="/dashboard/invoice"
+                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                    <div class="flex items-start justify-between">
+                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
+                            <Coins class="h-5 w-5" />
+                        </span>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-[11px] font-semibold text-stone-500">Piutang Invoice</p>
+                        <p class="mt-0.5 text-lg font-black text-stone-900 tracking-tight truncate">{{ piutangInvoice }}</p>
+                        <p class="mt-1 text-[11px] font-medium text-stone-400">{{ invoiceSummary?.outstandingCount ?? 0 }} invoice belum lunas</p>
+                    </div>
+                </Link>
+            </section>
+
+            <!-- 3. Middle Section (Left ~50%, Center ~25%, Right ~25%) -->
+            <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <!-- LEFT COLUMN (col-span-12 xl:col-span-6) -->
+                <div class="lg:col-span-12 xl:col-span-6 space-y-4">
+                    <!-- Tren Pekerjaan Bulanan Card -->
+                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-3">
+                            <div>
+                                <h2 class="text-sm font-bold text-stone-900 flex items-center gap-2">
+                                    <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                                    Tren Pekerjaan Bulanan
+                                </h2>
+                                <p class="text-[11px] text-stone-500 mt-0.5">
+                                    Berkas masuk dan berstatus selesai; bulan selesai berdasarkan pembaruan terakhir.
+                                </p>
                             </div>
-                            <p class="shrink-0 text-xs font-black text-emerald-600">{{ formatCurrency(payment.amount) }}</p>
-                        </Link>
-                        <p v-if="!recentPayments.length" class="py-10 text-center text-sm text-slate-400">Belum ada pembayaran.</p>
+                            <span class="text-[11px] text-stone-500">Periode sesuai data yang ditampilkan</span>
+                        </div>
+
+                        <!-- Bar & Line Combo Chart -->
+                        <div class="mt-4">
+                            <!-- Y-axis and chart area -->
+                            <div class="relative h-48 w-full flex items-end">
+                                <div class="absolute inset-0 flex flex-col justify-between pointer-events-none text-[10px] text-stone-400">
+                                    <div v-for="step in [5, 4, 3, 2, 1, 0]" :key="step" class="border-b border-stone-100 flex items-center justify-between">
+                                        <span class="w-6">{{ Math.round(chartMax * step / 5) }}</span><div class="w-full h-px bg-stone-100"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Bars for 12 months -->
+                                <div class="relative z-10 w-full h-full flex items-end pl-7 pr-3 gap-1.5 sm:gap-2">
+                                    <div
+                                        v-for="item in monthlyChartData"
+                                        :key="item.key"
+                                        class="flex-1 flex flex-col items-center h-full justify-end group cursor-pointer"
+                                        @mouseenter="hoveredMonth = item"
+                                        @mouseleave="hoveredMonth = null"
+                                    >
+                                        <div class="w-full flex items-end justify-center gap-1 sm:gap-1.5 h-full">
+                                            <!-- Yellow Bar: Berkas Masuk -->
+                                            <div
+                                                class="w-1/2 max-w-[12px] bg-[#F3BA2F] rounded-t-sm transition-all group-hover:brightness-110"
+                                                :style="{ height: `${(item.masuk / chartMax) * 100}%` }"
+                                                :title="`${item.month}: Masuk ${item.masuk}`"
+                                            ></div>
+                                            <!-- Dark Bar: Berkas Selesai -->
+                                            <div
+                                                class="w-1/2 max-w-[12px] bg-[#221F1B] rounded-t-sm transition-all group-hover:brightness-125"
+                                                :style="{ height: `${(item.selesai / chartMax) * 100}%` }"
+                                                :title="`${item.month}: Selesai ${item.selesai}`"
+                                            ></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- X-Axis Months -->
+                            <div class="flex text-center text-[10px] font-semibold text-stone-500 pl-7 pr-3 mt-2">
+                                <span v-for="item in monthlyChartData" :key="item.key" class="flex-1">
+                                    {{ item.month }}
+                                </span>
+                            </div>
+
+                            <!-- Legend -->
+                            <div class="mt-4 flex items-center justify-center gap-6 text-[11px] font-semibold text-stone-600 border-t border-stone-100 pt-3">
+                                <span class="flex items-center gap-1.5">
+                                    <span class="h-2.5 w-2.5 rounded-xs bg-[#F3BA2F]"></span>
+                                    Berkas Masuk
+                                </span>
+                                <span class="flex items-center gap-1.5">
+                                    <span class="h-2.5 w-2.5 rounded-xs bg-[#221F1B]"></span>
+                                    Berkas Selesai
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </article>
+
+                    <!-- Ringkasan Operasional Card -->
+                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                        <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2 mb-4">
+                            <LayoutDashboard class="h-4 w-4 text-amber-600" />
+                            Ringkasan Operasional
+                        </h2>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            <div><p class="text-[11px] font-semibold text-stone-500">Total Client</p><p class="mt-1 text-2xl font-black text-stone-900">{{ clientCount }}</p></div>
+                            <div><p class="text-[11px] font-semibold text-stone-500">Badan Hukum / Usaha</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.badan_hukum ?? 0 }}</p></div>
+                            <div><p class="text-[11px] font-semibold text-stone-500">Non Badan Hukum</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.non_badan_hukum ?? 0 }}</p></div>
+                            <div><p class="text-[11px] font-semibold text-stone-500">PPAT</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.ppat ?? 0 }}</p></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CENTER COLUMN (col-span-12 md:col-span-6 xl:col-span-3) -->
+                <div class="lg:col-span-6 xl:col-span-3 space-y-4">
+                    <!-- Distribusi Status Pekerjaan Card -->
+                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                        <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2 mb-4">
+                            <span class="h-2 w-2 rounded-full bg-amber-500"></span>
+                            Distribusi Status Pekerjaan
+                        </h2>
+
+                        <div class="flex items-center justify-between gap-3 pt-1">
+                            <!-- SVG Donut Chart -->
+                            <div class="relative h-32 w-32 shrink-0">
+                                <svg class="h-full w-full transform -rotate-90" viewBox="0 0 36 36">
+                                    <!-- Background circle -->
+                                    <path
+                                        class="text-stone-100"
+                                        stroke-width="5"
+                                        stroke="currentColor"
+                                        fill="none"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                    />
+                                    <path v-for="segment in donutStatus" :key="segment.label"
+                                        :stroke="segment.color" stroke-width="5" :stroke-dasharray="`${segment.size} ${100 - segment.size}`"
+                                        :stroke-dashoffset="-segment.offset" fill="none"
+                                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                                </svg>
+                                <!-- Center text -->
+                                <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                                    <span class="text-xl font-black text-stone-900 leading-none">{{ totalBerkas }}</span>
+                                    <span class="text-[10px] font-semibold text-stone-400 mt-0.5">Berkas</span>
+                                </div>
+                            </div>
+
+                            <!-- Legend List -->
+                            <div class="space-y-2 text-xs flex-1 pl-2">
+                                <div
+                                    v-for="st in donutStatus"
+                                    :key="st.label"
+                                    class="flex items-center justify-between gap-1 text-[11px]"
+                                >
+                                    <span class="flex items-center gap-1.5 text-stone-700">
+                                        <span class="h-2 w-2 rounded-full shrink-0" :style="{ backgroundColor: st.color }"></span>
+                                        <span class="truncate">{{ st.label }}</span>
+                                    </span>
+                                    <span class="font-bold text-stone-900 shrink-0">
+                                        {{ st.count }} <span class="font-normal text-stone-400">({{ st.pct }})</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- RIGHT COLUMN (col-span-12 md:col-span-6 xl:col-span-3) -->
+                <div class="lg:col-span-6 xl:col-span-3 space-y-4">
+                    <!-- Agenda & Kalender Card -->
+                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                        <div class="flex items-center justify-between mb-3">
+                            <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2">
+                                <Calendar class="h-4 w-4 text-amber-600" />
+                                Agenda & Kalender
+                            </h2>
+                        </div>
+
+                        <!-- Mini Calendar Header -->
+                        <div class="flex items-center justify-between py-1 text-xs font-bold text-stone-800 mb-2">
+                            <button type="button" @click="prevMonth" aria-label="Bulan sebelumnya" class="grid h-6 w-6 place-items-center rounded text-stone-400 hover:text-stone-800 hover:bg-stone-50">
+                                <ChevronLeft class="h-4 w-4" />
+                            </button>
+                            <span>{{ calMonthLabel }}</span>
+                            <button type="button" @click="nextMonth" aria-label="Bulan berikutnya" class="grid h-6 w-6 place-items-center rounded text-stone-400 hover:text-stone-800 hover:bg-stone-50">
+                                <ChevronRight class="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        <!-- Day Names -->
+                        <div class="grid grid-cols-7 text-center text-[10px] font-bold text-stone-500 mb-1">
+                            <span>Sen</span>
+                            <span>Sel</span>
+                            <span>Rab</span>
+                            <span>Kam</span>
+                            <span>Jum</span>
+                            <span>Sab</span>
+                            <span>Min</span>
+                        </div>
+
+                        <!-- Calendar Grid -->
+                        <div class="grid grid-cols-7 gap-y-1 text-center text-xs">
+                            <div
+                                v-for="(cal, idx) in calendarDays"
+                                :key="idx"
+                                class="h-7 flex items-center justify-center"
+                            >
+                                <button
+                                    type="button"
+                                    class="h-6 w-6 rounded-full flex items-center justify-center transition text-[11px]"
+                                    :class="[
+                                        cal.isToday
+                                            ? 'bg-[#F3BA2F] font-black text-stone-950 shadow-xs'
+                                            : cal.currentMonth
+                                            ? 'text-stone-800 hover:bg-stone-100 font-medium'
+                                            : 'text-stone-300 font-normal',
+                                    ]"
+                                    @click="selectCalendarDate(cal)"
+                                >
+                                    {{ cal.day }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </section>
 
-            <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Link href="/dashboard/clients" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-700"><Users class="h-5 w-5" /></span>
-                    <div><p class="text-xs text-slate-500">Client Aktif</p><p class="text-xl font-black text-slate-900">{{ clientCount }}</p></div>
-                </Link>
-                <Link href="/dashboard/pegawai/data" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-50 text-emerald-700"><UserCheck class="h-5 w-5" /></span>
-                    <div><p class="text-xs text-slate-500">Akun Pegawai</p><p class="text-xl font-black text-slate-900">{{ staffCount }}</p></div>
-                </Link>
-                <Link href="/dashboard/quotation/new" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-sky-50 text-sky-700"><ReceiptText class="h-5 w-5" /></span>
-                    <div><p class="text-xs text-slate-500">Tindakan Cepat</p><p class="text-sm font-black text-slate-900">Buat Quotation</p></div>
-                </Link>
-                <Link href="/dashboard/invoice/new" class="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                    <span class="grid h-10 w-10 place-items-center rounded-xl bg-violet-50 text-violet-700"><CircleDollarSign class="h-5 w-5" /></span>
-                    <div><p class="text-xs text-slate-500">Tindakan Cepat</p><p class="text-sm font-black text-slate-900">Buat Invoice</p></div>
-                </Link>
+            <!-- 4. Bottom Row (Pekerjaan Terbaru ~52%, Aktivitas Hari Ini ~25%, Aksi Cepat ~23%) -->
+            <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <!-- Pekerjaan Terbaru Card (col-span-12 xl:col-span-6) -->
+                <div class="lg:col-span-12 xl:col-span-6 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
+                        <div class="flex items-center gap-2">
+                            <FolderOpen class="h-4 w-4 text-amber-600" />
+                            <h2 class="text-xs font-bold text-stone-900">Pekerjaan Terbaru</h2>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <!-- Filter pills -->
+                            <div class="flex items-center gap-1 bg-stone-100/70 p-1 rounded-xl">
+                                <button
+                                    v-for="tab in ['Semua', 'Pending', 'Proses', 'Selesai']"
+                                    :key="tab"
+                                    type="button"
+                                    class="px-2.5 py-0.5 text-[11px] font-semibold rounded-lg transition"
+                                    :class="
+                                        tableTab === tab
+                                            ? 'bg-[#F5BA31] text-stone-950 shadow-xs'
+                                            : 'text-stone-600 hover:text-stone-900'
+                                    "
+                                    @click="tableTab = tab"
+                                >
+                                    {{ tab }}
+                                </button>
+                            </div>
+                            <Link href="/dashboard/jobs" class="text-[11px] font-semibold text-amber-700 hover:text-amber-800 ml-1">
+                                Lihat Semua →
+                            </Link>
+                        </div>
+                    </div>
+
+                    <!-- Jobs Table -->
+                    <div class="overflow-x-auto mt-2">
+                        <table class="w-full text-left text-xs">
+                            <thead>
+                                <tr class="border-b border-stone-100 text-[11px] font-bold text-stone-400">
+                                    <th class="py-2.5 pr-2 font-bold">No. Berkas</th>
+                                    <th class="py-2.5 px-2 font-bold">Client</th>
+                                    <th class="py-2.5 px-2 font-bold">Jenis Pekerjaan</th>
+                                    <th class="py-2.5 px-2 font-bold">Status</th>
+                                    <th class="py-2.5 px-2 font-bold">Tanggal</th>
+                                    <th class="py-2.5 px-2 font-bold">Deadline</th>
+                                    <th class="py-2.5 pl-2 text-center font-bold">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-stone-100">
+                                <tr
+                                    v-for="row in filteredJobs"
+                                    :key="row.id"
+                                    class="hover:bg-amber-50/30 transition-colors"
+                                >
+                                    <td class="py-2.5 pr-2 font-bold text-amber-700">{{ row.id }}</td>
+                                    <td class="py-2.5 px-2 font-semibold text-stone-800">{{ row.client }}</td>
+                                    <td class="py-2.5 px-2 text-stone-600">{{ row.jenis }}</td>
+                                    <td class="py-2.5 px-2">
+                                        <span
+                                            v-if="row.status === 'Dalam Proses'"
+                                            class="inline-flex rounded-full bg-[#E0F2FE] px-2.5 py-0.5 text-[10px] font-bold text-[#0284C7]"
+                                        >
+                                            Dalam Proses
+                                        </span>
+                                        <span
+                                            v-else-if="row.status === 'Pending'"
+                                            class="inline-flex rounded-full bg-[#FEF3C7] px-2.5 py-0.5 text-[10px] font-bold text-[#D97706]"
+                                        >
+                                            Pending
+                                        </span>
+                                        <span
+                                            v-else-if="row.status === 'Selesai'"
+                                            class="inline-flex rounded-full bg-[#DCFCE7] px-2.5 py-0.5 text-[10px] font-bold text-[#16A34A]"
+                                        >
+                                            Selesai
+                                        </span>
+                                        <span v-else class="inline-flex rounded-full bg-stone-100 px-2.5 py-0.5 text-[10px] font-bold text-stone-700">{{ row.status }}</span>
+                                    </td>
+                                    <td class="py-2.5 px-2 text-stone-500 whitespace-nowrap">{{ row.tanggal }}</td>
+                                    <td class="py-2.5 px-2 text-stone-500 whitespace-nowrap">{{ row.deadline }}</td>
+                                    <td class="py-2.5 pl-2 text-center">
+                                        <Link
+                                            :href="row.url"
+                                            class="grid h-7 w-7 mx-auto place-items-center rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-900 transition"
+                                            title="Lihat Berkas"
+                                        >
+                                            <Eye class="h-3.5 w-3.5" />
+                                        </Link>
+                                    </td>
+                                </tr>
+                                <tr v-if="!filteredJobs.length"><td colspan="7" class="py-5 text-center text-stone-500">Tidak ada pekerjaan untuk ditampilkan.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Aktivitas Hari Ini Card (col-span-12 md:col-span-6 xl:col-span-3) -->
+                <div class="lg:col-span-6 xl:col-span-3 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                    <div class="flex items-center justify-between mb-4 pb-2 border-b border-stone-100">
+                        <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2">
+                            <Clock class="h-4 w-4 text-amber-600" />
+                            Deadline Mendatang
+                        </h2>
+                        <Link href="/dashboard/jobs" class="text-[11px] font-semibold text-amber-700 hover:text-amber-800">Lihat Berkas →</Link>
+                    </div>
+
+                    <p v-if="!upcomingDeadlines.length" class="text-xs text-stone-500">Tidak ada deadline dalam 7 hari ke depan.</p>
+                    <div v-else class="relative pl-6 space-y-4">
+                        <!-- Vertical connecting line -->
+                        <div class="absolute left-2.5 top-2 bottom-2 w-0.5 bg-amber-200"></div>
+
+                        <div
+                            v-for="(act, idx) in upcomingDeadlines"
+                            :key="idx"
+                            class="relative flex items-start gap-2.5"
+                        >
+                            <!-- Golden dot -->
+                            <span class="absolute -left-6 top-1.5 grid h-3 w-3 place-items-center rounded-full bg-[#F5BA31] ring-3 ring-white"></span>
+                            <div>
+                                <p class="text-[11px] font-bold text-amber-800">{{ fmtDate(act.deadline) }}</p>
+                                <p class="text-xs font-medium text-stone-800 mt-0.5 leading-snug">{{ act.title }} ({{ act.trackingCode }})</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Aksi Cepat Card (col-span-12 md:col-span-6 xl:col-span-3) -->
+                <div class="lg:col-span-6 xl:col-span-3 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-stone-100">
+                        <Sparkles class="h-4 w-4 text-amber-600" />
+                        <h2 class="text-xs font-bold text-stone-900">Aksi Cepat</h2>
+                    </div>
+
+                    <!-- 2x2 Grid Buttons -->
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <!-- 1. Berkas Baru -->
+                        <Link
+                            href="/dashboard/jobs/new"
+                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
+                        >
+                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
+                                <FilePlus2 class="h-5 w-5" />
+                            </span>
+                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Berkas Baru</span>
+                        </Link>
+
+                        <!-- 2. Buat Invoice -->
+                        <Link
+                            v-if="canViewFinance"
+                            href="/dashboard/invoice/new"
+                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
+                        >
+                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
+                                <Receipt class="h-5 w-5" />
+                            </span>
+                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Buat Invoice</span>
+                        </Link>
+
+                        <!-- 3. Input Absensi -->
+                        <Link
+                            href="/dashboard/pegawai/absensi/absenku"
+                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
+                        >
+                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
+                                <Fingerprint class="h-5 w-5" />
+                            </span>
+                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Input Absensi</span>
+                        </Link>
+
+                    </div>
+                </div>
             </section>
-        </main>
+        </div>
     </AppLayout>
 </template>
-
-<style scoped>
-@media (min-width: 1024px) {
-.luxury-dashboard { color:#f5f5f5; }
-.luxury-dashboard :deep(.bg-white), .luxury-dashboard :deep(article), .luxury-dashboard :deep(.bg-slate-50), .luxury-dashboard :deep(.bg-slate-50\/50) { background:#191919; border-color:rgba(212,175,55,.25); }
-.luxury-dashboard :deep([class*="text-slate-9"]), .luxury-dashboard :deep([class*="text-slate-8"]), .luxury-dashboard :deep([class*="text-slate-7"]) { color:#f5f5f5; }
-.luxury-dashboard :deep([class*="text-slate-5"]), .luxury-dashboard :deep([class*="text-slate-4"]) { color:#a3a3a3; }
-.luxury-dashboard :deep([class*="border-slate-"]) { border-color:rgba(212,175,55,.25); }
-.luxury-dashboard :deep(input), .luxury-dashboard :deep(select) { color:#f5f5f5; background:#242424; border-color:rgba(212,175,55,.25); color-scheme:dark; }
-.luxury-dashboard :deep(a:hover) { filter:brightness(1.12); }
-.luxury-dashboard > header { border:1px solid rgba(212,175,55,.25); border-radius:1rem; padding:1.5rem; background:linear-gradient(110deg,#18140c,#2a2110 55%,#111); }
-}
-</style>

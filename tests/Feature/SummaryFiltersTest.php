@@ -23,6 +23,29 @@ class SummaryFiltersTest extends TestCase
         return ['auth_user' => ['id' => 'local-test-admin', 'username' => 'local-test-admin', 'fullName' => 'Admin Test', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
     }
 
+    public function test_dashboard_reports_real_jobs_and_deadlines_for_selected_period(): void
+    {
+        DB::table('client')->insert(['id' => 'dashboard-real-client', 'name' => 'Client Dashboard', 'type' => 'individual', 'updatedAt' => now()]);
+        foreach (['PENDING', 'PROSES', 'SELESAI'] as $i => $status) {
+            DB::table('badan_hukum')->insert([
+                'id' => 'dashboard-real-'.$i, 'trackingCode' => 'REAL/DASH/'.$i,
+                'clientId' => 'dashboard-real-client', 'title' => 'Berkas Dashboard '.$i,
+                'type' => 'PT', 'status' => $status, 'deadline' => '2020-03-25',
+                'createdAt' => '2020-03-15 10:00:00', 'updatedAt' => '2020-03-20 10:00:00',
+            ]);
+        }
+        $response = $this->withSession($this->adminSession())->get('/dashboard?start_date=2020-03-01&end_date=2020-03-31')->assertOk();
+        $props = $response->viewData('page')['props'];
+        $this->assertSame(3, $props['stats']['total']);
+        $this->assertSame(1, $props['stats']['pending']);
+        $this->assertSame(1, $props['stats']['processing']);
+        $this->assertSame(1, $props['stats']['completed']);
+        $this->assertSame(3, $props['categoryCounts']['badan_hukum']);
+        $this->assertSame(3, $props['months'][0]['incoming']);
+        $this->assertSame(1, $props['months'][0]['completed']);
+        $this->assertTrue(collect($props['recentJobs'])->contains(fn ($job) => $job->id === 'dashboard-real-0' && str_starts_with($job->deadline, '2020-03-25')));
+    }
+
     public function test_client_type_filter_is_applied_before_pagination(): void
     {
         foreach (range(1, 22) as $i) DB::table('client')->insert(['id' => 'filter-client-'.$i, 'name' => 'Filter Client '.$i, 'type' => $i <= 21 ? 'individual' : 'corporate', 'updatedAt' => now()]);

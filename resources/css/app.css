@@ -186,114 +186,83 @@ button, a, [role="button"] {
 }
 
 
-/* Desktop CMS: tema bersama, tanpa mengubah cetak dan tampilan ponsel. */
+/* Desktop CMS: tema luxury notaris warm ivory dan gold, konsisten dengan mobile dan cetak */
 @media screen and (min-width: 1024px) {
   .desktop-workspace {
-    --background: #080808; --foreground: #fff; --card: #191919;
-    --primary: #d4af37; --primary-hover: #f5d76e; --primary-light: #292414;
-    --muted: #202020; --muted-foreground: #a5a5a5; --border: rgba(212,175,55,.25);
-    --sidebar: #111; --sidebar-foreground: #e3e3e3; --sidebar-border: rgba(212,175,55,.25);
-    --sidebar-accent: rgba(212,175,55,.12); background: #080808; color: #fff;
+    --background: #F7F4EB;
+    --foreground: #1c1917;
+    --card: #ffffff;
+    --primary: #c99a3d;
+    --primary-hover: #e0b95f;
+    --primary-light: #fef8eb;
+    --muted: #eee8dc;
+    --muted-foreground: #78716c;
+    --border: #E8E2D5;
+    --sidebar: #12110e;
+    --sidebar-foreground: #d8d0c0;
+    --sidebar-border: #2c251b;
+    --sidebar-accent: rgba(201, 154, 61, 0.15);
+    background: #F7F4EB;
+    color: #1c1917;
   }
-  .desktop-workspace h1, .desktop-workspace h2, .desktop-workspace h3, .desktop-workspace .font-display { font-family: Inter, 'Segoe UI', system-ui, sans-serif; letter-spacing: -.02em; }
-  .desktop-workspace aside { background: #111; border-color: rgba(212,175,55,.25); }
-  .desktop-workspace > div > header { background: #111 !important; border-color: rgba(212,175,55,.25); }
-  .desktop-workspace > div > main { background: #080808; }
-  .desktop-workspace main .bg-white, .desktop-workspace main .bg-white\/95 { background-color: #191919 !important; }
-  .desktop-workspace main .bg-slate-50, .desktop-workspace main .bg-slate-100 { background-color: #202020 !important; }
-  .desktop-workspace main .text-slate-950, .desktop-workspace main .text-slate-900, .desktop-workspace main .text-slate-800, .desktop-workspace main .text-slate-700 { color: #f5f5f5 !important; }
-  .desktop-workspace main .text-slate-600, .desktop-workspace main .text-slate-500, .desktop-workspace main .text-slate-400 { color: #a5a5a5 !important; }
-  .desktop-workspace main [class*="border-slate-"] { border-color: rgba(212,175,55,.25) !important; }
-  .desktop-workspace main input, .desktop-workspace main select, .desktop-workspace main textarea, .desktop-workspace > div > header input { background-color: #202020 !important; color: #f5f5f5 !important; border-color: rgba(212,175,55,.25) !important; color-scheme: dark; }
-  .desktop-workspace main input::placeholder, .desktop-workspace > div > header input::placeholder { color:#a5a5a5; }
-  .desktop-workspace main table { width:100%; background:#191919; }
-  .desktop-workspace main thead { background:#24211b !important; color:#f5d76e !important; }
-  .desktop-workspace main th { color:#e6d6a3; }
-  .desktop-workspace main tbody tr:hover { background:#26231c; }
-  .desktop-workspace main section.rounded-3xl, .desktop-workspace main div.rounded-3xl.border, .desktop-workspace main form.rounded-3xl { box-shadow:0 10px 30px rgba(0,0,0,.2); }
-  .desktop-workspace main .bg-pink-50, .desktop-workspace main .bg-pink-100 { background:#292414 !important; }
-  .desktop-workspace main [class*="text-pink-"] { color:#f5d76e !important; }
-}
-
-@media screen and (min-width: 1024px) {
-  /* Badge dan pesan status tetap memakai latar terang serta teks kontras. */
-  .desktop-workspace main :is(.bg-emerald-50,.bg-emerald-100,.bg-green-50,.bg-green-100,.bg-amber-50,.bg-amber-100,.bg-yellow-50,.bg-yellow-100,.bg-red-50,.bg-red-100,.bg-rose-50,.bg-rose-100,.bg-blue-50,.bg-blue-100,.bg-sky-50,.bg-sky-100,.bg-purple-50,.bg-purple-100) :is(.text-slate-950,.text-slate-900,.text-slate-800,.text-slate-700,.text-slate-600,.text-slate-500) { color:#26302b !important; }
-  .desktop-workspace main :is(.bg-emerald-50,.bg-emerald-100,.bg-green-50,.bg-green-100,.bg-amber-50,.bg-amber-100,.bg-yellow-50,.bg-yellow-100,.bg-red-50,.bg-red-100,.bg-rose-50,.bg-rose-100,.bg-blue-50,.bg-blue-100,.bg-sky-50,.bg-sky-100,.bg-purple-50,.bg-purple-100).text-slate-900,
-  .desktop-workspace main :is(.bg-emerald-50,.bg-emerald-100,.bg-green-50,.bg-green-100,.bg-amber-50,.bg-amber-100,.bg-yellow-50,.bg-yellow-100,.bg-red-50,.bg-red-100,.bg-rose-50,.bg-rose-100,.bg-blue-50,.bg-blue-100,.bg-sky-50,.bg-sky-100,.bg-purple-50,.bg-purple-100).text-slate-700 { color:#26302b !important; }
+  .desktop-workspace h1, .desktop-workspace h2, .desktop-workspace h3, .desktop-workspace .font-display {
+    font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+    letter-spacing: -.02em;
+  }
+  .desktop-workspace aside {
+    background: #12110e;
+    border-color: #2c251b;
+  }
+  .desktop-workspace > div > header {
+    background: #ffffff !important;
+    border-color: #E8E2D5;
+  }
+  .desktop-workspace > div > main {
+    background: #F7F4EB;
+  }
+  .desktop-workspace main .bg-white, .desktop-workspace main .bg-white\/95 {
+    background-color: #ffffff;
+  }
+  .desktop-workspace main .bg-slate-50, .desktop-workspace main .bg-slate-100 {
+    background-color: #FAF7F2;
+  }
+  .desktop-workspace main .text-slate-950, .desktop-workspace main .text-slate-900, .desktop-workspace main .text-slate-800, .desktop-workspace main .text-slate-700 {
+    color: #1c1917;
+  }
+  .desktop-workspace main .text-slate-600, .desktop-workspace main .text-slate-500, .desktop-workspace main .text-slate-400 {
+    color: #78716c;
+  }
+  .desktop-workspace main [class*="border-slate-"] {
+    border-color: #EAE3D2;
+  }
+  .desktop-workspace main table {
+    width: 100%;
+    background: #ffffff;
+  }
+  .desktop-workspace main thead {
+    background: #FAF7F2;
+    color: #78716c;
+  }
+  .desktop-workspace main th {
+    color: #78716c;
+    font-weight: 600;
+  }
+  .desktop-workspace main tbody tr:hover {
+    background: #FAF7F2;
+  }
+  .desktop-workspace main section.rounded-3xl, .desktop-workspace main div.rounded-3xl.border, .desktop-workspace main form.rounded-3xl {
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+  }
   .desktop-workspace main table th { padding-top:.9rem; padding-bottom:.9rem; white-space:nowrap; }
   .desktop-workspace main table td { vertical-align:middle; }
-  .desktop-workspace main table tbody tr { border-color:rgba(212,175,55,.14); }
-  .desktop-workspace main a:focus-visible, .desktop-workspace main button:focus-visible { outline:2px solid #f5d76e; outline-offset:2px; }
-}
-
-@media screen and (min-width:1024px) {
-  .desktop-workspace .ds-detail-heading { padding:1.4rem 1.5rem; border:1px solid rgba(212,175,55,.25); border-radius:1rem; background:linear-gradient(110deg,#191710,#111); }
-  .desktop-workspace .ds-detail-heading h1 { color:#f5f5f5; }
-  .desktop-workspace .ds-detail-heading a:focus-visible, .desktop-workspace .ds-detail-heading button:focus-visible { outline:2px solid #f5d76e; outline-offset:2px; }
-}
-
-@media screen and (min-width:1024px) {
- .desktop-workspace > div > header select { background:#202020 !important; color:#f5f5f5 !important; border-color:rgba(212,175,55,.25) !important; color-scheme:dark; }
- .desktop-workspace main .luxury-dashboard section[aria-label="Notifikasi absensi hari ini"] details.bg-white,
- .desktop-workspace main .luxury-dashboard section[aria-label="Notifikasi absensi hari ini"] a.bg-white { background:#fffaf0 !important; color:#543716 !important; }
- .desktop-workspace main .luxury-dashboard section[aria-label="Notifikasi absensi hari ini"] details summary,
- .desktop-workspace main .luxury-dashboard section[aria-label="Notifikasi absensi hari ini"] details li { color:#302719 !important; }
- .desktop-workspace main :is(button,a).bg-\[var\(--primary\)\] { color:#1a160b !important; }
-}
-
-@media screen and (min-width:1024px) {
- .desktop-workspace main thead tr { background:#24211b !important; }
- .desktop-workspace main .finance-income { background:#193329 !important; }
- .desktop-workspace main .finance-expense { background:#3b2026 !important; }
- .desktop-workspace main .finance-balance { background:#1b303e !important; }
- .desktop-workspace main .finance-income > div p { color:#82ebbe !important; }
- .desktop-workspace main .finance-expense > div p { color:#ffadba !important; }
- .desktop-workspace main .finance-balance > div p { color:#a2d8ff !important; }
- .desktop-workspace main .luxury-dashboard > header a[style] { color:#1a160b !important; }
- .desktop-workspace main .stats-luxury article > div > div > p.text-emerald-700 { color:#73e7ae !important; }
- .desktop-workspace main .stats-luxury article > div > div > p.text-red-700 { color:#ff9999 !important; }
- .desktop-workspace main .stats-luxury article > div > div > p.text-amber-700 { color:#f5d76e !important; }
-}
-
-@media screen and (min-width:1024px) {
- .desktop-workspace main .task-paid { background:#193329 !important; }
- .desktop-workspace main .task-unpaid { background:#3b2026 !important; }
- .desktop-workspace main .task-paid > div:first-child :is(p,h3) { color:#82ebbe !important; }
- .desktop-workspace main .task-unpaid > div:first-child :is(p,h3) { color:#ffadba !important; }
-}
-
-@media screen and (min-width:1024px) {
- .desktop-workspace main button.bg-pink-500 { background:#d4af37 !important; color:#17130a !important; }
- .desktop-workspace main button[class*="hover:bg-pink-50"]:not(.bg-pink-500) { background:transparent !important; }
- .desktop-workspace main button[class*="hover:bg-pink-50"]:not(.bg-pink-500):hover { background:#292414 !important; color:#f5d76e !important; }
-}
-
-@media screen and (min-width:1024px) {
- .desktop-workspace main :is(.bg-emerald-50,.bg-emerald-100,.bg-green-50,.bg-green-100,.bg-amber-50,.bg-amber-100,.bg-yellow-50,.bg-yellow-100,.bg-red-50,.bg-red-100,.bg-rose-50,.bg-rose-100,.bg-blue-50,.bg-blue-100,.bg-sky-50,.bg-sky-100,.bg-purple-50,.bg-purple-100) { color:#26302b; }
- .desktop-workspace main textarea::placeholder { color:#a5a5a5 !important; opacity:1; }
- .desktop-workspace main td :is(.text-amber-600,.text-amber-700):not([class*="bg-"]) { color:#f5c96a !important; }
- .desktop-workspace main td :is(.text-rose-600,.text-red-600):not([class*="bg-"]) { color:#ff9fa8 !important; }
-}
-
-@media screen and (min-width:1024px) {
- /* Surface transparan Tailwind juga perlu disesuaikan dengan tema gelap. */
- .desktop-workspace main :is(.bg-slate-50\/40,.bg-slate-50\/50,.bg-slate-50\/60,.bg-slate-50\/70,.bg-slate-50\/80) { background-color:#242424 !important; }
- .desktop-workspace main :is(.bg-slate-50\/40,.bg-slate-50\/50,.bg-slate-50\/60,.bg-slate-50\/70,.bg-slate-50\/80) .label { color:#d0c4a9 !important; }
- .desktop-workspace main .label { color:#d0c4a9 !important; }
- .desktop-workspace main .ds-detail-heading > a:first-child { color:#f5d76e !important; }
- .desktop-workspace main .ds-detail-heading > div > a:not([class*="bg-"]) { color:#f5d76e !important; }
- .desktop-workspace main .ds-detail-heading > div > a[class*="hover:bg-pink-50"] { color:#f5d76e !important; }
- .desktop-workspace main :is(a,button).bg-pink-500 { background-color:#d4af37 !important; color:#17130a !important; }
- /* Sorotan riwayat tetap terang; teks harus menggunakan warna gelap. */
- .desktop-workspace main .document-history-entry.bg-orange-50 { color:#302414 !important; }
- .desktop-workspace main .job-history-entry.bg-orange-50 :is(p,strong) { color:#302414 !important; }
- .desktop-workspace main .bg-orange-50 :is(.text-slate-800,.text-slate-700,.text-slate-600,.text-slate-500,.text-slate-400) { color:#46351e !important; }
-}
-
-@media screen and (min-width:1024px) and (hover:hover) {
- /* Baris dan tautan di permukaan gelap tidak boleh menjadi putih saat di-hover. */
- .desktop-workspace main :is(a,tr):not([class^="bg-"]):not([class*=" bg-"]):is([class*="hover:bg-slate-"],[class*="hover:bg-gray-"],[class*="hover:bg-white"],[class*="hover:bg-red-50"],[class*="hover:bg-amber-50"],[class*="hover:bg-emerald-50"],[class*="hover:bg-pink-50"]):hover,
- .desktop-workspace main :is(a,button):is(.bg-white,.bg-slate-50,.bg-slate-100):is([class*="hover:bg-slate-"],[class*="hover:bg-white"],[class*="hover:bg-pink-50"]):hover {
-   background-color:#302b20 !important;
- }
+  .desktop-workspace main table tbody tr { border-color:#EAE3D2; }
+  .desktop-workspace main a:focus-visible, .desktop-workspace main button:focus-visible { outline:2px solid #c99a3d; outline-offset:2px; }
+  .desktop-workspace .ds-detail-heading { padding:1.4rem 1.5rem; border:1px solid #EAE3D2; border-radius:1rem; background:#ffffff; box-shadow:0 2px 10px rgba(0,0,0,0.03); }
+  .desktop-workspace .ds-detail-heading h1 { color:#1c1917; }
+  .desktop-workspace main .finance-income { background:#ecfdf5 !important; border-color:#a7f3d0 !important; }
+  .desktop-workspace main .finance-expense { background:#fff1f2 !important; border-color:#fecdd3 !important; }
+  .desktop-workspace main .finance-balance { background:#f0f9ff !important; border-color:#bae6fd !important; }
+  .desktop-workspace main .finance-income > div p { color:#047857 !important; }
+  .desktop-workspace main .finance-expense > div p { color:#be123c !important; }
+  .desktop-workspace main .finance-balance > div p { color:#0369a1 !important; }
 }

@@ -104,7 +104,7 @@ class DashboardController extends Controller
 
         $recentParts = collect($categories)->map(fn ($category, $table) => $range->apply(DB::table($table.' as j'), 'j.createdAt')
             ->leftJoin('client as c', 'c.id', '=', 'j.clientId')
-            ->select(['j.id', 'j.trackingCode', 'j.title', 'j.status', 'j.createdAt', 'c.name as clientName'])
+            ->select(['j.id', 'j.trackingCode', 'j.title', 'j.status', 'j.deadline', 'j.createdAt', 'c.name as clientName'])
             ->selectRaw('? as category, ? as jobType', [$category, $table]));
         $recentJobs = $recentParts->shift();
         foreach ($recentParts as $part) {
