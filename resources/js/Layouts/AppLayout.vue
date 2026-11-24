@@ -61,7 +61,7 @@ const appName = computed(
     () => branding.value.appName?.trim() || "Notaris Digital",
 );
 const officeName = computed(
-    () => branding.value.officeName?.trim() || "Novia Roza, S.H., M.Kn",
+    () => branding.value.officeName?.trim() || "Kantor Notaris",
 );
 const logoUrl = computed(() => branding.value.logoUrl || "");
 const faviconUrl = computed(
@@ -309,11 +309,8 @@ const mobile = computed(() => [
                     <h1 class="mt-2.5 text-sm font-black tracking-widest text-[#E5B842] uppercase font-serif">
                         {{ appName }}
                     </h1>
-                    <p class="text-[9px] font-bold tracking-widest text-[#C4B28E] uppercase mt-0.5">
-                        KANTOR NOTARIS & PPAT
-                    </p>
-                    <p class="text-[9px] text-[#8C7D62] font-medium tracking-wide">
-                        NOVIA ROZA, S.H., M.Kn
+                    <p class="mt-1 max-w-full break-words text-[10px] font-semibold leading-relaxed tracking-wide text-[#D8C9AA]">
+                        {{ officeName }}
                     </p>
                 </Link>
             </div>

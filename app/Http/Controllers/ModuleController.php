@@ -257,7 +257,7 @@ class ModuleController extends Controller
         $periodEnd = $range?->end?->copy()->endOfDay() ?? $today->copy()->endOfDay();
         $attendanceEnd = $periodEnd->min($today->copy()->endOfDay());
         $profiles = DB::table('staff')
-            ->whereIn('userId', $staff->keys())
+            ->whereIn('userId', $staff->keys())->where('attendance_enabled', true)
             ->select('id', 'userId', 'createdAt')
             ->get()
             ->keyBy('userId');

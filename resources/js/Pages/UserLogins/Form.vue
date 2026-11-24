@@ -29,6 +29,8 @@ const form = useForm({
     phone: props.account?.phone || "",
     role: props.account?.role || "STAFFADMIN",
     isActive: Number(props.account?.isActive ?? 1) === 1,
+    attendance_enabled: Boolean(props.account?.attendance_enabled ?? (props.account?.source !== "admin" && !props.account)),
+    payroll_enabled: Boolean(props.account?.payroll_enabled ?? (props.account?.source !== "admin" && !props.account)),
     password: "",
 });
 
@@ -168,6 +170,16 @@ const inputClass =
                             <span v-if="form.errors.isActive" class="mt-1 block text-xs font-bold text-rose-600">{{ form.errors.isActive }}</span>
                         </label>
                     </div>
+
+                    <section v-if="account?.source !== 'admin'" class="rounded-xl border border-amber-200 bg-amber-50/40 p-4">
+                        <h3 class="font-bold text-slate-900">Keikutsertaan Pegawai</h3>
+                        <p class="mt-1 text-sm text-slate-600">Pilihan berlaku untuk daftar dan perhitungan berikutnya; riwayat yang telah tersimpan tetap tersedia.</p>
+                        <div class="mt-4 grid gap-4 md:grid-cols-2">
+                            <label class="block text-sm font-semibold text-slate-700">Masuk daftar Absensi<select v-model="form.attendance_enabled" :class="inputClass"><option :value="true">Ya</option><option :value="false">Tidak</option></select></label>
+                            <label class="block text-sm font-semibold text-slate-700">Masuk dalam Payroll<select v-model="form.payroll_enabled" :class="inputClass"><option :value="true">Ya</option><option :value="false">Tidak</option></select></label>
+                        </div>
+                    </section>
+                    <p v-else class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">Akun Admin Utama tidak terhubung ke profil pegawai. Absensi dan payroll menggunakan akun User Sistem.</p>
 
                     <div class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
                         <Link href="/dashboard/system/users" class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 px-6 text-sm font-bold text-slate-600 hover:bg-slate-50">

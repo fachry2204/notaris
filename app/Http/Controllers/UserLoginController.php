@@ -112,6 +112,8 @@ class UserLoginController extends Controller
                 'userId' => $id,
                 'photoPath' => null,
                 'ktpPath' => null,
+                'attendance_enabled' => $data['attendance_enabled'] ?? true,
+                'payroll_enabled' => $data['payroll_enabled'] ?? true,
                 'createdAt' => now(),
                 'updatedAt' => now(),
             ]);
@@ -127,6 +129,11 @@ class UserLoginController extends Controller
         $account = DB::table($table)->where('id', $id)->first();
         abort_unless($account, 404);
         $account->source = $source;
+        if ($source === 'user') {
+            $staff = DB::table('staff')->where('userId', $id)->first(['attendance_enabled', 'payroll_enabled']);
+            $account->attendance_enabled = $staff ? (bool) $staff->attendance_enabled : false;
+            $account->payroll_enabled = $staff ? (bool) $staff->payroll_enabled : false;
+        }
 
         return Inertia::render('UserLogins/Form', compact('account'));
     }
@@ -156,7 +163,21 @@ class UserLoginController extends Controller
             $payload['passwordHash'] = Hash::make($data['password']);
         }
 
-        DB::table($table)->where('id', $id)->update($payload);
+        DB::transaction(function () use ($table, $id, $payload, $source, $data) {
+            DB::table($table)->where('id', $id)->update($payload);
+            if ($source === 'user' && (array_key_exists('attendance_enabled', $data) || array_key_exists('payroll_enabled', $data))) {
+                $staff = DB::table('staff')->where('userId', $id)->first();
+                $flags = [];
+                foreach (['attendance_enabled', 'payroll_enabled'] as $key) {
+                    if (array_key_exists($key, $data)) $flags[$key] = $data[$key];
+                }
+                if ($staff) {
+                    DB::table('staff')->where('id', $staff->id)->update([...$flags, 'updatedAt' => now()]);
+                } else {
+                    DB::table('staff')->insert(['id' => 'staff-'.Str::lower(Str::random(12)), 'userId' => $id, 'attendance_enabled' => $flags['attendance_enabled'] ?? false, 'payroll_enabled' => $flags['payroll_enabled'] ?? false, 'createdAt' => now(), 'updatedAt' => now()]);
+                }
+            }
+        });
 
         if ($this->isCurrentAccount($request, $source, $id)) {
             $request->session()->put('auth_user.username', $data['username']);
@@ -224,6 +245,8 @@ class UserLoginController extends Controller
             'phone' => ['nullable', 'string', 'max:30'],
             'role' => ['required', 'in:'.implode(',', $roles)],
             'isActive' => ['required', 'boolean'],
+            'attendance_enabled' => ['sometimes', 'boolean'],
+            'payroll_enabled' => ['sometimes', 'boolean'],
             'password' => [$creating ? 'required' : 'nullable', 'string', 'min:4'],
         ]);
     }

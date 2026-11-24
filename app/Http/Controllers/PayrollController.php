@@ -82,8 +82,8 @@ class PayrollController extends Controller
         $start = Carbon::createFromFormat('!Y-m', $data['period'])->startOfMonth();
         $end = $start->copy()->endOfMonth();
         $employees = DB::table('user as u')->join('staff as s', 's.userId', '=', 'u.id')
-            ->leftJoin('payroll_profiles as p', 'p.user_id', '=', 'u.id')->where('u.isActive', true)
-            ->select('u.id', 'u.fullName', 's.id as staff_id', 'p.base_salary', 'p.allowance', 'p.other_allowances', 'p.bpjs_health', 'p.bpjs_employment')->get();
+            ->leftJoin('payroll_profiles as p', 'p.user_id', '=', 'u.id')->where('u.isActive', true)->where('s.payroll_enabled', true)
+            ->select('u.id', 'u.fullName', 's.id as staff_id', 's.attendance_enabled', 'p.base_salary', 'p.allowance', 'p.other_allowances', 'p.bpjs_health', 'p.bpjs_employment')->get();
         if ($employees->isEmpty()) throw ValidationException::withMessages(['period' => 'Tidak ada pegawai aktif yang memiliki data pegawai.']);
         if ($employees->contains(fn ($employee) => $employee->base_salary === null)) {
             throw ValidationException::withMessages(['period' => 'Lengkapi gaji pokok seluruh pegawai aktif di Data Gaji Karyawan terlebih dahulu.']);
@@ -95,7 +95,7 @@ class PayrollController extends Controller
         $items = [];
         foreach ($employees as $employee) {
             $details = [];
-            foreach (($attendance->get($employee->staff_id) ?? collect())->unique(fn ($row) => substr((string) $row->date, 0, 10)) as $record) {
+            foreach (($employee->attendance_enabled ? ($attendance->get($employee->staff_id) ?? collect()) : collect())->unique(fn ($row) => substr((string) $row->date, 0, 10)) as $record) {
                 $actual = Carbon::parse($record->checkIn);
                 $scheduled = $actual->copy()->startOfDay()->setTimeFromTimeString($settings['start_time']);
                 $minutes = max(0, (int) floor($scheduled->diffInMinutes($actual, false)));

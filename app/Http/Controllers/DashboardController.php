@@ -117,11 +117,13 @@ class DashboardController extends Controller
             && $request->query('view') !== 'overview';
         $todayAttendance = null;
         $staffPhoto = null;
+        $attendanceEnabled = false;
         $staffWork = null;
         if ($staffLanding) {
-            $staff = DB::table('staff')->where('userId', $user['id'] ?? '')->first(['id', 'photoPath']);
+            $staff = DB::table('staff')->where('userId', $user['id'] ?? '')->first(['id', 'photoPath', 'attendance_enabled']);
             $staffId = $staff?->id;
             $staffPhoto = $staff?->photoPath;
+            $attendanceEnabled = (bool) ($staff?->attendance_enabled ?? false);
             if ($staffId) {
                 $todayAttendance = DB::table('attendance')->where('staffId', $staffId)->whereDate('date', today())->first();
             }
@@ -150,6 +152,7 @@ class DashboardController extends Controller
             $employees = DB::table('user as u')
                 ->leftJoin('staff as s', 's.userId', '=', 'u.id')
                 ->where('u.isActive', true)
+                ->where('s.attendance_enabled', true)
                 ->where('u.role', '<>', 'ADMINISTRATOR')
                 ->select('u.id', 'u.fullName', 'u.username', 's.id as staffId')
                 ->orderBy('u.fullName')->get();
@@ -183,11 +186,12 @@ class DashboardController extends Controller
             }
         }
 
+        $attendanceStaffIds = DB::table('staff')->where('attendance_enabled', true)->pluck('id');
         $attendanceToday = [
-            'present' => DB::table('attendance')->whereDate('date', today())->whereNotNull('checkIn')->count(),
-            'late' => DB::table('attendance')->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
-            'notCheckedOut' => DB::table('attendance')->whereDate('date', today())->whereNotNull('checkIn')->whereNull('checkOut')->count(),
-            'totalStaff' => DB::table('staff')->count(),
+            'present' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereNotNull('checkIn')->count(),
+            'late' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
+            'notCheckedOut' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereNotNull('checkIn')->whereNull('checkOut')->count(),
+            'totalStaff' => $attendanceStaffIds->count(),
         ];
 
         $invoiceSummary = null;
@@ -244,6 +248,7 @@ class DashboardController extends Controller
             'staffLanding' => $staffLanding,
             'staffWork' => $staffWork,
             'staffPhoto' => $staffPhoto,
+            'attendanceEnabled' => $attendanceEnabled,
             'todayAttendance' => $todayAttendance,
             'user' => $user,
         ]);

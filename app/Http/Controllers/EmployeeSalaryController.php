@@ -18,7 +18,7 @@ class EmployeeSalaryController extends Controller
         $data = $request->validate(['search' => 'nullable|string|max:100']);
         $rows = DB::table('staff as s')->join('user as u', 'u.id', '=', 's.userId')
             ->leftJoin('payroll_profiles as p', 'p.user_id', '=', 'u.id')
-            ->select('u.id', 'u.fullName', 'u.role', 'u.isActive', 'p.base_salary', 'p.allowance', 'p.bpjs_health', 'p.bpjs_employment')
+            ->where('s.payroll_enabled', true)->select('u.id', 'u.fullName', 'u.role', 'u.isActive', 'p.base_salary', 'p.allowance', 'p.bpjs_health', 'p.bpjs_employment')
             ->when($data['search'] ?? null, fn ($q, $term) => $q->where('u.fullName', 'like', '%'.$term.'%'))
             ->orderBy('u.fullName')->paginate(20)->withQueryString();
         return Inertia::render('Payroll/Salaries', ['rows' => $rows, 'search' => $data['search'] ?? '']);

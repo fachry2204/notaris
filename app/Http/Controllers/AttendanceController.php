@@ -19,7 +19,7 @@ class AttendanceController extends Controller
     {
         $user = $request->session()->get('auth_user');
         $attendanceFilter = in_array($request->query('filter'), ['present', 'late', 'not_checked_out'], true) ? $request->query('filter') : '';
-        $staff = DB::table('staff')->where('userId', $user['id'])->first();
+        $staff = DB::table('staff')->where('userId', $user['id'])->where('attendance_enabled', true)->first();
 
         // attendance was created later with utf8mb4_general_ci, while the
         // legacy staff tables use utf8mb4_unicode_ci. Collate both operands so
@@ -33,6 +33,7 @@ class AttendanceController extends Controller
                 );
             })
             ->leftJoin('user as u', 'u.id', '=', 's.userId')
+            ->where('s.attendance_enabled', true)
             ->select('a.*', 'u.fullName as staffName')
             ->orderByDesc('a.date')
             ->orderByDesc('a.checkIn')
@@ -76,6 +77,8 @@ class AttendanceController extends Controller
             $personalStats = ['present' => $present->count(), 'missing' => $missing, 'leave' => $leave->count(), 'period' => now()->locale('id')->translatedFormat('F Y')];
         }
 
+        $eligibleStaffIds = DB::table('staff')->where('attendance_enabled', true)->pluck('id');
+
         return Inertia::render('Attendance/Index', [
             'records' => $query->paginate(30)->withQueryString(),
             'attendanceFilter' => $attendanceFilter,
@@ -84,10 +87,10 @@ class AttendanceController extends Controller
             'isManager' => $isManager,
             'personalStats' => $personalStats,
             'stats' => [
-                'present' => DB::table('attendance')->whereDate('date', today())->where('status', 'Hadir')->count(),
-                'late' => DB::table('attendance')->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
-                'notCheckedOut' => DB::table('attendance')->whereDate('date', today())->whereNull('checkOut')->count(),
-                'totalStaff' => DB::table('staff')->count(),
+                'present' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->where('status', 'Hadir')->count(),
+                'late' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
+                'notCheckedOut' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->whereNull('checkOut')->count(),
+                'totalStaff' => $eligibleStaffIds->count(),
             ],
         ]);
     }
@@ -95,7 +98,7 @@ class AttendanceController extends Controller
     public function checkIn(Request $request)
     {
         $user = $request->session()->get('auth_user');
-        $staff = DB::table('staff')->where('userId', $user['id'])->first();
+        $staff = DB::table('staff')->where('userId', $user['id'])->where('attendance_enabled', true)->first();
         $today = $staff ? DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first() : null;
         return Inertia::render('Attendance/CheckIn', ['today' => $today, 'hasStaff' => (bool) $staff, 'checkoutRequested' => $request->query('action') === 'checkout' && (bool) ($today?->checkIn) && ! $today?->checkOut]);
     }
@@ -103,7 +106,7 @@ class AttendanceController extends Controller
     public function report(Request $request)
     {
         $month = $request->query('month', now()->format('Y-m'));
-        $rows = DB::table('staff as s')->join('user as u','u.id','=','s.userId')->leftJoin('attendance as a', function ($join) use ($month) {
+        $rows = DB::table('staff as s')->where('s.attendance_enabled', true)->join('user as u','u.id','=','s.userId')->leftJoin('attendance as a', function ($join) use ($month) {
             $join->on(DB::raw('a.staffId COLLATE utf8mb4_unicode_ci'),'=',DB::raw('s.id COLLATE utf8mb4_unicode_ci'))->whereRaw("DATE_FORMAT(a.date, '%Y-%m') = ?", [$month]);
         })->select('u.id','u.fullName','u.role')->selectRaw('COUNT(a.id) as presentDays, SUM(CASE WHEN TIME(a.checkIn) > "08:00:00" THEN 1 ELSE 0 END) as lateDays, SUM(CASE WHEN a.checkOut IS NULL AND a.id IS NOT NULL THEN 1 ELSE 0 END) as incompleteDays')->groupBy('u.id','u.fullName','u.role')->orderBy('u.fullName')->get();
         return Inertia::render('Attendance/Report', compact('rows','month'));
@@ -172,8 +175,8 @@ class AttendanceController extends Controller
     public function submit(Request $request)
     {
         $user = $request->session()->get('auth_user');
-        $staff = DB::table('staff')->where('userId', $user['id'])->first();
-        abort_unless($staff, 422, 'Profil staff tidak ditemukan.');
+        $staff = DB::table('staff')->where('userId', $user['id'])->where('attendance_enabled', true)->first();
+        abort_unless($staff, 422, 'Akun tidak terdaftar dalam absensi.');
 
         $data = $request->validate([
             'attendanceAction' => 'required|in:checkin,checkout',
@@ -187,7 +190,8 @@ class AttendanceController extends Controller
         ]);
         DB::transaction(function () use ($staff, $request, $data) {
             // Serialize submissions for one employee so a retry cannot turn check-in into check-out.
-            DB::table('staff')->where('id', $staff->id)->lockForUpdate()->first();
+            $locked = DB::table('staff')->where('id', $staff->id)->lockForUpdate()->first();
+            abort_unless($locked && $locked->attendance_enabled, 422, 'Akun tidak terdaftar dalam absensi.');
             $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->lockForUpdate()->first();
             if ($data['attendanceAction'] === 'checkin' && $existing) {
                 throw ValidationException::withMessages(['attendanceAction' => 'Absen masuk hari ini sudah tercatat.']);

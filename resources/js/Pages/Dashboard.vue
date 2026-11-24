@@ -80,6 +80,7 @@ const props = defineProps<{
     }>;
     staffLanding: boolean;
     staffPhoto: string | null;
+    attendanceEnabled: boolean;
     todayAttendance: any | null;
     user: any;
     staffWork: {
@@ -238,6 +239,7 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
             v-if="staffLanding"
             :user="user"
             :photo="staffPhoto"
+            :attendance-enabled="attendanceEnabled"
             :today-attendance="todayAttendance"
             :staff-work="staffWork"
         />
