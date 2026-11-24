@@ -60,6 +60,7 @@ const reset = () =>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-2">
+                    <Link :href="`/dashboard/productivity/${encodeURIComponent(staff.id)}`" class="flex h-10 items-center gap-2 rounded-xl border border-amber-300 bg-white px-3 text-xs font-bold text-amber-800">KPI Karyawan</Link>
                     <button
                         @click="reset"
                         class="flex h-10 items-center gap-2 rounded-xl bg-amber-50 px-3 text-xs font-bold text-amber-700"

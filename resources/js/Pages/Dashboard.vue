@@ -4,9 +4,7 @@ import { Head, Link } from "@inertiajs/vue3";
 import {
     AlertTriangle,
     ArrowRight,
-    Calendar,
     CalendarDays,
-    CalendarPlus,
     CheckCircle2,
     Clock,
     Clock3,
@@ -22,7 +20,6 @@ import {
     FolderOpen,
     HelpCircle,
     Hourglass,
-    LayoutDashboard,
     Mail,
     Receipt,
     RefreshCw,
@@ -30,8 +27,6 @@ import {
     Star,
     TrendingUp,
     Users,
-    ChevronLeft,
-    ChevronRight,
     ChevronDown,
     Check,
 } from "@lucide/vue";
@@ -181,42 +176,6 @@ const donutStatus = computed(() => {
     });
 });
 
-// Calendar — dynamic for current month
-const today = new Date();
-const calMonth = ref(today.getMonth());
-const calYear = ref(today.getFullYear());
-const selectedDate = ref(today.getDate());
-const selectCalendarDate = (cal: any) => {
-    if (cal.currentMonth) selectedDate.value = cal.day;
-};
-const calMonthLabel = computed(() =>
-    new Date(calYear.value, calMonth.value, 1).toLocaleDateString("id-ID", { month: "long", year: "numeric" })
-);
-const calendarDays = computed(() => {
-    const firstDay = new Date(calYear.value, calMonth.value, 1).getDay();
-    const offset = firstDay === 0 ? 6 : firstDay - 1; // Monday-first
-    const daysInMonth = new Date(calYear.value, calMonth.value + 1, 0).getDate();
-    const daysInPrev = new Date(calYear.value, calMonth.value, 0).getDate();
-    const days: any[] = [];
-    for (let i = offset; i > 0; i--) {
-        days.push({ day: daysInPrev - i + 1, currentMonth: false });
-    }
-    for (let d = 1; d <= daysInMonth; d++) {
-        days.push({
-            day: d,
-            currentMonth: true,
-            isToday: d === today.getDate() && calMonth.value === today.getMonth() && calYear.value === today.getFullYear(),
-        });
-    }
-    const remaining = 42 - days.length;
-    for (let d = 1; d <= remaining; d++) {
-        days.push({ day: d, currentMonth: false });
-    }
-    return days;
-});
-const prevMonth = () => { if (calMonth.value === 0) { calMonth.value = 11; calYear.value--; } else calMonth.value--; };
-const nextMonth = () => { if (calMonth.value === 11) { calMonth.value = 0; calYear.value++; } else calMonth.value++; };
-
 // Recent Jobs table — real data from props.recentJobs
 const tableTab = ref("Semua");
 const statusMap: Record<string, { label: string; color: string }> = {
@@ -250,6 +209,21 @@ const filteredJobs = computed(() => {
     if (tableTab.value === "Proses") return rows.filter((r) => r.statusColor === "blue" || r.statusColor === "purple");
     if (tableTab.value === "Selesai") return rows.filter((r) => r.statusColor === "green");
     return rows;
+});
+
+// Follow the same role visibility used by the existing sidebar.
+const quickActions = computed(() => {
+    const canManageClients = ['ADMINISTRATOR', 'PIMPINAN', 'STAFFADMIN'].includes(props.user?.role);
+    return [
+        { label: 'Berkas Baru', href: '/dashboard/jobs/new', icon: FilePlus2, visible: true },
+        { label: 'Buat Invoice', href: '/dashboard/invoice/new', icon: Receipt, visible: props.canViewFinance },
+        { label: 'Input Absensi', href: '/dashboard/pegawai/absensi/absenku', icon: Fingerprint, visible: true },
+        { label: 'Client Baru', href: '/dashboard/clients/new', icon: Users, visible: canManageClients },
+        { label: 'Buat Quotation', href: '/dashboard/quotation/new', icon: FileSignature, visible: canManageClients },
+        { label: 'Data Tugas', href: '/dashboard/tasks', icon: FileCheck, visible: true },
+        { label: 'Daftar Akta', href: '/dashboard/akta', icon: FileText, visible: true },
+        { label: 'Statistik', href: '/dashboard/stats', icon: TrendingUp, visible: props.canViewFinance },
+    ].filter(action => action.visible);
 });
 
 // Deadlines are scheduled dates, not recorded activities.
@@ -426,7 +400,7 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                 </Link>
             </section>
 
-            <!-- 3. Middle Section (Left ~50%, Center ~25%, Right ~25%) -->
+            <!-- 3. Grafik dan distribusi pekerjaan -->
             <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <!-- LEFT COLUMN (col-span-12 xl:col-span-6) -->
                 <div class="lg:col-span-12 xl:col-span-6 space-y-4">
@@ -503,33 +477,20 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                         </div>
                     </div>
 
-                    <!-- Ringkasan Operasional Card -->
-                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
-                        <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2 mb-4">
-                            <LayoutDashboard class="h-4 w-4 text-amber-600" />
-                            Ringkasan Operasional
-                        </h2>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                            <div><p class="text-[11px] font-semibold text-stone-500">Total Client</p><p class="mt-1 text-2xl font-black text-stone-900">{{ clientCount }}</p></div>
-                            <div><p class="text-[11px] font-semibold text-stone-500">Badan Hukum / Usaha</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.badan_hukum ?? 0 }}</p></div>
-                            <div><p class="text-[11px] font-semibold text-stone-500">Non Badan Hukum</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.non_badan_hukum ?? 0 }}</p></div>
-                            <div><p class="text-[11px] font-semibold text-stone-500">PPAT</p><p class="mt-1 text-2xl font-black text-stone-900">{{ categoryCounts.ppat ?? 0 }}</p></div>
-                        </div>
-                    </div>
                 </div>
 
-                <!-- CENTER COLUMN (col-span-12 md:col-span-6 xl:col-span-3) -->
-                <div class="lg:col-span-6 xl:col-span-3 space-y-4">
+                <!-- Distribusi mengisi ruang yang sebelumnya digunakan kalender -->
+                <div class="lg:col-span-12 xl:col-span-6">
                     <!-- Distribusi Status Pekerjaan Card -->
-                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
-                        <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2 mb-4">
+                    <div class="flex h-full flex-col rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                        <h2 class="text-sm font-bold text-stone-900 flex items-center gap-2 mb-4">
                             <span class="h-2 w-2 rounded-full bg-amber-500"></span>
                             Distribusi Status Pekerjaan
                         </h2>
 
-                        <div class="flex items-center justify-between gap-3 pt-1">
+                        <div class="flex flex-1 flex-wrap items-center justify-evenly gap-6 py-5">
                             <!-- SVG Donut Chart -->
-                            <div class="relative h-32 w-32 shrink-0">
+                            <div class="relative h-44 w-44 shrink-0 xl:h-52 xl:w-52">
                                 <svg class="h-full w-full transform -rotate-90" viewBox="0 0 36 36">
                                     <!-- Background circle -->
                                     <path
@@ -546,17 +507,17 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                                 </svg>
                                 <!-- Center text -->
                                 <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
-                                    <span class="text-xl font-black text-stone-900 leading-none">{{ totalBerkas }}</span>
+                                    <span class="text-3xl font-black text-stone-900 leading-none">{{ totalBerkas }}</span>
                                     <span class="text-[10px] font-semibold text-stone-400 mt-0.5">Berkas</span>
                                 </div>
                             </div>
 
                             <!-- Legend List -->
-                            <div class="space-y-2 text-xs flex-1 pl-2">
+                            <div class="w-full max-w-xs space-y-3 text-sm sm:w-auto sm:min-w-48 sm:flex-1">
                                 <div
                                     v-for="st in donutStatus"
                                     :key="st.label"
-                                    class="flex items-center justify-between gap-1 text-[11px]"
+                                    class="flex items-center justify-between gap-4 text-sm"
                                 >
                                     <span class="flex items-center gap-1.5 text-stone-700">
                                         <span class="h-2 w-2 rounded-full shrink-0" :style="{ backgroundColor: st.color }"></span>
@@ -572,65 +533,6 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
 
                 </div>
 
-                <!-- RIGHT COLUMN (col-span-12 md:col-span-6 xl:col-span-3) -->
-                <div class="lg:col-span-6 xl:col-span-3 space-y-4">
-                    <!-- Agenda & Kalender Card -->
-                    <div class="rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
-                        <div class="flex items-center justify-between mb-3">
-                            <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2">
-                                <Calendar class="h-4 w-4 text-amber-600" />
-                                Agenda & Kalender
-                            </h2>
-                        </div>
-
-                        <!-- Mini Calendar Header -->
-                        <div class="flex items-center justify-between py-1 text-xs font-bold text-stone-800 mb-2">
-                            <button type="button" @click="prevMonth" aria-label="Bulan sebelumnya" class="grid h-6 w-6 place-items-center rounded text-stone-400 hover:text-stone-800 hover:bg-stone-50">
-                                <ChevronLeft class="h-4 w-4" />
-                            </button>
-                            <span>{{ calMonthLabel }}</span>
-                            <button type="button" @click="nextMonth" aria-label="Bulan berikutnya" class="grid h-6 w-6 place-items-center rounded text-stone-400 hover:text-stone-800 hover:bg-stone-50">
-                                <ChevronRight class="h-4 w-4" />
-                            </button>
-                        </div>
-
-                        <!-- Day Names -->
-                        <div class="grid grid-cols-7 text-center text-[10px] font-bold text-stone-500 mb-1">
-                            <span>Sen</span>
-                            <span>Sel</span>
-                            <span>Rab</span>
-                            <span>Kam</span>
-                            <span>Jum</span>
-                            <span>Sab</span>
-                            <span>Min</span>
-                        </div>
-
-                        <!-- Calendar Grid -->
-                        <div class="grid grid-cols-7 gap-y-1 text-center text-xs">
-                            <div
-                                v-for="(cal, idx) in calendarDays"
-                                :key="idx"
-                                class="h-7 flex items-center justify-center"
-                            >
-                                <button
-                                    type="button"
-                                    class="h-6 w-6 rounded-full flex items-center justify-center transition text-[11px]"
-                                    :class="[
-                                        cal.isToday
-                                            ? 'bg-[#F3BA2F] font-black text-stone-950 shadow-xs'
-                                            : cal.currentMonth
-                                            ? 'text-stone-800 hover:bg-stone-100 font-medium'
-                                            : 'text-stone-300 font-normal',
-                                    ]"
-                                    @click="selectCalendarDate(cal)"
-                                >
-                                    {{ cal.day }}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                </div>
             </section>
 
             <!-- 4. Bottom Row (Pekerjaan Terbaru ~52%, Aktivitas Hari Ini ~25%, Aksi Cepat ~23%) -->
@@ -765,42 +667,18 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                         <h2 class="text-xs font-bold text-stone-900">Aksi Cepat</h2>
                     </div>
 
-                    <!-- 2x2 Grid Buttons -->
                     <div class="grid grid-cols-2 gap-2.5">
-                        <!-- 1. Berkas Baru -->
                         <Link
-                            href="/dashboard/jobs/new"
-                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
+                            v-for="action in quickActions"
+                            :key="action.href"
+                            :href="action.href"
+                            class="group flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs"
                         >
-                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
-                                <FilePlus2 class="h-5 w-5" />
+                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 transition group-hover:scale-105 group-hover:bg-amber-100">
+                                <component :is="action.icon" class="h-5 w-5" />
                             </span>
-                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Berkas Baru</span>
+                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">{{ action.label }}</span>
                         </Link>
-
-                        <!-- 2. Buat Invoice -->
-                        <Link
-                            v-if="canViewFinance"
-                            href="/dashboard/invoice/new"
-                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
-                        >
-                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
-                                <Receipt class="h-5 w-5" />
-                            </span>
-                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Buat Invoice</span>
-                        </Link>
-
-                        <!-- 3. Input Absensi -->
-                        <Link
-                            href="/dashboard/pegawai/absensi/absenku"
-                            class="flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs group"
-                        >
-                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 group-hover:bg-amber-100 group-hover:scale-105 transition">
-                                <Fingerprint class="h-5 w-5" />
-                            </span>
-                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">Input Absensi</span>
-                        </Link>
-
                     </div>
                 </div>
             </section>

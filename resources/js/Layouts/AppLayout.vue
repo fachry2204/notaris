@@ -144,6 +144,7 @@ const sections = [
     {
         title: "PEGAWAI",
         items: [
+            ["Payroll", CreditCard, "/dashboard/payroll", ["ADMINISTRATOR", "PIMPINAN"]],
             [
                 "Data Pegawai",
                 Contact,
@@ -173,6 +174,12 @@ const sections = [
                 TrendingUp,
                 "/dashboard/productivity",
                 ["ADMINISTRATOR", "PIMPINAN"],
+            ],
+            [
+                "KPI Karyawan",
+                FileBarChart,
+                user.value?.source === "user" && user.value?.id ? `/dashboard/productivity/${encodeURIComponent(user.value.id)}` : "/dashboard/productivity",
+                ["STAFFADMIN", "OB"],
             ],
         ],
     },
