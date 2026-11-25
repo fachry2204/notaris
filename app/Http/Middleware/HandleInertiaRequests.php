@@ -34,6 +34,8 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+            'csrfToken' => fn () => csrf_token(),
+            'pwa' => fn () => app(\App\Services\PwaBrandingService::class)->metadata(),
             'branding' => fn () => Cache::remember(
                 'app.global-branding',
                 now()->addMinutes(10),

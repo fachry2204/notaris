@@ -9,13 +9,18 @@ import {
     TimerOff,
     Trash2,
     UserCheck,
+    Settings,
     Users,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
+import OvertimeAction from '@/Components/OvertimeAction.vue';
+import { attendanceDuration } from '@/Utils/attendance';
+import AttendanceLocationMap from '@/Components/AttendanceLocationMap.vue';
 
 const p = defineProps<{
     records: any;
+    activeOvertime?: any;
     today: any;
     hasStaff: boolean;
     isManager: boolean;
@@ -35,13 +40,6 @@ const detailLocations = computed(() => {
         ].filter((item) => item.data && typeof item.data === "object");
     } catch { return []; }
 });
-const mapUrl = (data: any) => {
-    if (data.latitude == null || data.longitude == null || data.latitude === "" || data.longitude === "") return null;
-    const lat = Number(data.latitude), lon = Number(data.longitude);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
-    const bounds = [lon - 0.003, lat - 0.002, lon + 0.003, lat + 0.002].join(",");
-    return `https://www.openstreetmap.org/export/embed.html?${new URLSearchParams({ bbox: bounds, layer: "mapnik", marker: `${lat},${lon}` })}`;
-};
 const previewPhoto = ref<string | null>(null);
 const editing = ref<any>(null);
 const editForm = useForm({ checkIn: "", checkOut: "" });
@@ -114,8 +112,10 @@ const cardStatusStyle = (x: any) => {
     <Head title="Rekap Absensi" />
     <AppLayout>
         <main class="mx-auto max-w-7xl space-y-6 p-3 sm:p-5">
+            <nav aria-label="Tab absensi" class="flex gap-2"><Link href="/dashboard/pegawai/absensi" class="rounded-xl bg-amber-100 px-4 py-3 font-bold text-amber-950">Absensi</Link><Link href="/dashboard/pegawai/absensi/overtime" class="rounded-xl border border-amber-200 bg-white px-4 py-3 font-bold text-amber-950">Lembur</Link></nav>
+            <OvertimeAction v-if="hasStaff" :active="activeOvertime"/>
             <!-- Header section -->
-            <PageHeader hide-mobile-icon title="Rekap Absensi" section="Pegawai / Absensi" :description="isManager ? 'Pantau kehadiran dan jam kerja seluruh pegawai.' : 'Pantau riwayat kehadiran dan jam kerja Anda.'"><template #icon><Clock3 class="h-6 w-6" /></template><template #actions><button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai"><UserCheck class="h-4 w-4" /> Absensi Selesai</button><Link v-else-if="hasStaff" :href="today?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90"><UserCheck class="h-4 w-4" />{{ today?.checkIn ? 'Absen Pulang' : 'Absen Masuk' }}</Link></template></PageHeader>
+            <PageHeader hide-mobile-icon title="Rekap Absensi" section="Pegawai / Absensi" :description="isManager ? 'Pantau kehadiran dan jam kerja seluruh pegawai.' : 'Pantau riwayat kehadiran dan jam kerja Anda.'"><template #icon><Clock3 class="h-6 w-6" /></template><template #actions><Link v-if="isManager" href="/dashboard/pegawai/absensi/settings" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-800 bg-white px-4 py-2 text-sm font-bold text-amber-950"><Settings class="h-4 w-4" />Pengaturan Absensi</Link><button v-if="hasStaff && today?.checkOut" type="button" disabled class="inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-200 px-5 text-sm font-bold text-slate-500" aria-label="Absensi hari ini sudah selesai"><UserCheck class="h-4 w-4" /> Absensi Selesai</button><Link v-else-if="hasStaff" :href="today?.checkIn ? '/dashboard/pegawai/absensi/absenku?action=checkout' : '/dashboard/pegawai/absensi/absenku'" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-5 text-sm font-bold text-white shadow-md hover:opacity-90"><UserCheck class="h-4 w-4" />{{ today?.checkIn ? 'Absen Pulang' : 'Absen Masuk' }}</Link></template></PageHeader>
 
             <section v-if="today?.checkIn" aria-label="Absensi saya hari ini" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 sm:p-5">
                 <div class="flex flex-wrap items-center justify-between gap-3">
@@ -220,6 +220,7 @@ const cardStatusStyle = (x: any) => {
                             <span class="font-bold">{{ hours(x.checkIn, x.checkOut) }}</span>
                         </div>
                     </div>
+                    <p class="mt-3 text-xs font-bold text-emerald-900">Lembur diterima: {{ attendanceDuration(Number(x.overtimeMinutes || 0)) }}</p>
                     <div class="mt-3 flex items-center justify-end gap-2 border-t border-black/5 pt-3">
                         <button
                             @click="detail = x"
@@ -266,6 +267,7 @@ const cardStatusStyle = (x: any) => {
                                 <th>Masuk</th>
                                 <th>Pulang</th>
                                 <th>Jam Kerja</th>
+                                <th>Lembur Diterima</th>
                                 <th>Status</th>
                                 <th class="pr-6 text-right">Aksi</th>
                             </tr>
@@ -273,7 +275,7 @@ const cardStatusStyle = (x: any) => {
                         <tbody class="divide-y divide-slate-100">
                             <tr v-if="!rows.length">
                                 <td
-                                    colspan="7"
+                                    colspan="8"
                                     class="py-16 text-center text-slate-500"
                                 >
                                     Data absensi tidak ditemukan.
@@ -303,6 +305,7 @@ const cardStatusStyle = (x: any) => {
                                 <td class="font-bold text-slate-700 text-xs">
                                     {{ hours(x.checkIn, x.checkOut) }}
                                 </td>
+                                <td class="text-xs font-bold text-emerald-800">{{ attendanceDuration(Number(x.overtimeMinutes || 0)) }}</td>
                                 <td>
                                     <span
                                         class="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700 border border-slate-200"
@@ -389,11 +392,12 @@ const cardStatusStyle = (x: any) => {
                                 </p>
                             </div>
                         </div>
+                        <p class="rounded-xl bg-emerald-50 p-3 text-sm font-bold text-emerald-900">Lembur diterima: {{ attendanceDuration(Number(detail.overtimeMinutes || 0)) }}</p>
                         <div v-if="detailLocations.length" class="space-y-4">
                             <div v-for="item in detailLocations" :key="item.label" class="space-y-3 rounded-xl border border-slate-200 p-3 text-sm">
                                 <p class="font-bold">{{ item.label }} · {{ item.data.workLocationType || 'Lokasi kerja' }}</p>
                                 <div><p class="mb-2 text-xs font-bold uppercase text-slate-500">Foto absensi</p><button v-if="item.data.photoPath" type="button" class="overflow-hidden rounded-xl border border-slate-200" :aria-label="`Perbesar foto ${item.label}`" @click="previewPhoto = item.data.photoPath"><img :src="item.data.photoPath" :alt="`Foto ${item.label}`" class="h-36 w-36 object-cover" /></button><p v-else class="text-xs text-slate-500">Foto tidak tersedia pada catatan ini.</p></div>
-                                <div><p class="mb-2 text-xs font-bold uppercase text-slate-500">Lokasi absensi</p><iframe v-if="mapUrl(item.data)" :src="mapUrl(item.data)!" :title="`Peta lokasi ${item.label}`" loading="lazy" referrerpolicy="no-referrer" class="h-44 w-full rounded-xl border border-slate-200"></iframe><p v-else class="text-xs text-slate-500">Koordinat tidak tersedia pada catatan ini.</p><p v-if="item.data.locationLabel" class="mt-2 text-xs text-slate-600">{{ item.data.locationLabel }}</p><p v-if="item.data.locationAccuracy != null && Number.isFinite(Number(item.data.locationAccuracy))" class="mt-1 text-xs text-slate-500">Perkiraan akurasi GPS: ±{{ Math.ceil(Number(item.data.locationAccuracy)) }} meter</p></div>
+                                <div><p class="mb-2 text-xs font-bold uppercase text-slate-500">Lokasi absensi</p><AttendanceLocationMap :latitude="item.data.latitude" :longitude="item.data.longitude" :title="`Peta lokasi ${item.label}`"/><p v-if="item.data.locationLabel" class="mt-2 text-xs text-slate-600">{{ item.data.locationLabel }}</p><p v-if="item.data.locationAccuracy != null && Number.isFinite(Number(item.data.locationAccuracy))" class="mt-1 text-xs text-slate-500">Perkiraan akurasi GPS: ±{{ Math.ceil(Number(item.data.locationAccuracy)) }} meter</p></div>
                             </div>
                         </div>
                         <p v-else class="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Foto dan lokasi tidak tersedia pada catatan ini.</p>

@@ -65,6 +65,7 @@ class SettingsController extends Controller
             'general.appName' => 'required|string|max:255',
             'general.officeName' => 'required|string|max:255',
             'general.officeAddress' => 'nullable|string',
+            'general.officeMapUrl' => 'nullable|url:http,https|max:2048',
             'general.officeEmail' => 'nullable|email',
             'general.officePhone' => 'nullable|string|max:255',
             'branding.logoUrl' => 'nullable|string|max:500',

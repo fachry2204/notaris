@@ -202,7 +202,7 @@ const backUrl = computed(() => {
                 v-if="!invoice && !job && !sourceQuotation"
                 class="rounded-3xl border bg-white p-6"
             >
-                <label><span class="label">Cari Quotation</span><span class="relative block"><Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input v-model="quotationSearch" class="field pl-10" placeholder="Cari nomor, nama client, atau perihal" autocomplete="off" /></span></label>
+                <label><span class="label">Cari Quotation</span><span class="relative block"><Search aria-hidden="true" class="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400" /><input v-model="quotationSearch" class="field field-search" placeholder="Cari nomor, nama client, atau perihal" autocomplete="off" /></span></label>
                 <div v-if="matchingQuotations.length" class="mt-3 max-h-72 overflow-y-auto rounded-xl border border-slate-200">
                     <button v-for="item in matchingQuotations" :key="item.id" type="button" @click="selectedQuotation = item.id; chooseQuotation()" class="block w-full border-b border-slate-200 p-3 text-left text-sm last:border-0 hover:bg-slate-50"><strong>{{ item.quotationNumber }}</strong><span class="mt-1 block text-xs text-slate-500">{{ item.clientName || item.legacyClientName || 'Client' }} · {{ item.subject }}</span></button>
                 </div>
@@ -498,5 +498,8 @@ const backUrl = computed(() => {
     color: #e11d48;
     font-size: 0.75rem;
     font-weight: 700;
+}
+.field-search {
+    padding-left: 2.5rem;
 }
 </style>

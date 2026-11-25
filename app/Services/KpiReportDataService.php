@@ -34,9 +34,16 @@ class KpiReportDataService
             $personal = DB::table('user')->where('id', $id)->select('email', 'phone', 'birthday', 'isActive')->first();
             $employee = [...$employee, ...(array) $personal];
         }
-        $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
+        $attendance = $profile && $profile->attendance_enabled ? DB::table('attendance')->where('staffId', $profile->id)
             ->whereBetween('date', [$range->start ?? now()->startOfMonth(), ($range->end ?? now()->endOfDay())->min(now()->endOfDay())])
             ->select('date', 'checkIn', 'checkOut')->orderBy('date', $sort)->get() : collect();
+        $overtime = DB::table('overtime_requests')->where('user_id', $id)
+            ->whereBetween('date', [($range->start ?? now()->startOfMonth())->toDateString(), ($range->end ?? now())->min(now())->toDateString()])
+            ->orderBy('date', $sort)->orderByDesc('id')->get();
+        $approved = $overtime->where('status', 'APPROVED')->groupBy('date')->map(fn ($rows) => $rows->sum('minutes'));
+        $calculator = app(KpiAttendanceService::class);
+        $startTime = $calculator->startTime();
+        $attendance = $attendance->map(fn ($row) => $calculator->enrich($row, $startTime, (int) $approved->get(substr($row->date, 0, 10), 0)));
 
         return [
             'employee' => $employee,
@@ -45,6 +52,9 @@ class KpiReportDataService
             'jobs' => ($sort === 'asc' ? $jobs->sortBy('createdAt') : $jobs->sortByDesc('createdAt'))->when(! $report, fn ($items) => $items->take(10))->values(),
             'tasks' => $tasks,
             'attendance' => $attendance,
+            'attendanceStartTime' => $startTime,
+            'attendanceGraceMinutes' => app(AttendanceSettingsService::class)->read()['grace_minutes'],
+            'overtimeRequests' => $overtime,
         ];
     }
 }

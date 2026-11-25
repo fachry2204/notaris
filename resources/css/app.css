@@ -277,3 +277,11 @@ button.save-action:hover:not(:disabled) { background-color: #065f46 !important; 
 button.save-action:focus-visible { outline: 3px solid #34d399 !important; outline-offset: 3px; }
 button.save-action:disabled { opacity: .6; cursor: not-allowed; }
 button.save-action svg { color: inherit; }
+
+/* Keep mobile scrolling clear of fixed navigation and keep dialogs inside the visible viewport. */
+@media (max-width: 767px) {
+  .desktop-workspace { height: 100vh; height: 100dvh; }
+  .desktop-workspace .workspace-scroll { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+  .desktop-workspace [role="dialog"].fixed.inset-0 { padding-top: max(1rem, env(safe-area-inset-top)); padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .desktop-workspace [role="dialog"].fixed.inset-0 > :first-child { max-height: calc(100dvh - max(2rem, env(safe-area-inset-top) + env(safe-area-inset-bottom))); overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+}

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttendanceController;
+use App\Http\Controllers\AttendanceSettingsController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\ModuleController;
+use App\Http\Controllers\OvertimeController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\EmployeeSalaryController;
 use App\Http\Controllers\PrintController;
@@ -24,6 +26,8 @@ use App\Http\Controllers\SignedDeedController;
 use Illuminate\Support\Facades\Route;
 
 Route::redirect('/', '/dashboard');
+Route::get('/manifest.webmanifest', [\App\Http\Controllers\PwaController::class, 'manifest'])->name('pwa.manifest');
+Route::get('/pwa/brand-icon-{size}.png', [\App\Http\Controllers\PwaController::class, 'icon'])->where('size', '180|192|512')->name('pwa.icon');
 Route::get('/login', [AuthController::class, 'create'])->name('login');
 Route::post('/login', [AuthController::class, 'store'])->name('login.store');
 Route::get('/admin/login', [AuthController::class, 'createAdmin'])->name('admin.login');
@@ -120,6 +124,9 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/pegawai/new', [StaffController::class, 'create'])->name('staff.create');
     Route::post('/dashboard/pegawai/data', [StaffController::class, 'store'])->name('staff.store');
     Route::get('/dashboard/pegawai/absensi', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::get('/dashboard/pegawai/absensi/overtime', [OvertimeController::class, 'index'])->name('attendance.overtime.index');
+    Route::get('/dashboard/pegawai/absensi/settings', [AttendanceSettingsController::class, 'edit'])->name('attendance.settings');
+    Route::put('/dashboard/pegawai/absensi/settings', [AttendanceSettingsController::class, 'update'])->name('attendance.settings.update');
     Route::get('/dashboard/pegawai/absensi/absenku', [AttendanceController::class, 'checkIn'])->name('attendance.checkin');
     Route::get('/dashboard/pegawai/absensi/location', [AttendanceController::class, 'reverseGeocode'])->name('attendance.location');
     Route::post('/dashboard/pegawai/absensi', [AttendanceController::class, 'submit'])->name('attendance.submit');
@@ -151,6 +158,8 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/stats', [ModuleController::class, 'stats'])->name('stats.index');
     Route::get('/dashboard/productivity', [ModuleController::class, 'productivity'])->name('productivity.index');
     Route::put('/dashboard/productivity/{id}/evaluation', [ModuleController::class, 'saveKpiEvaluation'])->name('productivity.evaluation');
+    Route::post('/dashboard/productivity/{id}/overtime', [OvertimeController::class, 'store'])->middleware('throttle:20,1')->name('productivity.overtime.store');
+    Route::patch('/dashboard/productivity/{id}/overtime/{overtime}', [OvertimeController::class, 'review'])->name('productivity.overtime.review');
     Route::get('/dashboard/productivity/{id}', [ModuleController::class, 'productivityShow'])->name('productivity.show');
     Route::get('/dashboard/akta', [ModuleController::class, 'deeds'])->name('deeds.index');
     Route::get('/dashboard/saksi', [ModuleController::class, 'witnesses'])->name('witnesses.index');

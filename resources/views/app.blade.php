@@ -6,11 +6,14 @@
         <meta name="theme-color" content="#15130f">
         <meta name="mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-capable" content="yes">
-        <meta name="apple-mobile-web-app-title" content="Notaris">
+        @php($pwa = app(\App\Services\PwaBrandingService::class)->metadata())
+        <meta name="apple-mobile-web-app-title" content="{{ $pwa['name'] }}">
+        <meta name="application-name" content="{{ $pwa['name'] }}">
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
         <meta name="pwa-worker-url" content="{{ asset('sw.js') }}">
-        <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-        <link rel="apple-touch-icon" href="{{ asset('pwa/icon-180.png') }}">
+        <link rel="manifest" href="{{ $pwa['manifestUrl'] }}">
+        <link rel="apple-touch-icon" sizes="180x180" href="{{ $pwa['appleIconUrl'] }}">
+        <link rel="icon" type="image/png" href="{{ $pwa['faviconUrl'] }}">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
         <title inertia>{{ data_get($page, 'props.branding.appName') ?: 'Notaris Digital' }}</title>

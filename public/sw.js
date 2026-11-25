@@ -1,4 +1,4 @@
-const CACHE_NAME = "notaris-offline-v1";
+const CACHE_NAME = "notaris-offline-v2";
 const offlineUrl = new URL("pwa/offline.html", self.registration.scope).href;
 self.addEventListener("install", (event) => {
     event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.add(offlineUrl)));

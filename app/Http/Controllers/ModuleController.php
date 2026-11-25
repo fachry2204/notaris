@@ -198,6 +198,7 @@ class ModuleController extends Controller
 
     private function productivityData(?JobDateRange $range = null, ?string $employeeId = null): array
     {
+        $lateThresholdSeconds = app(\App\Services\AttendanceSettingsService::class)->lateThresholdSeconds();
         $staff = DB::table('user')
             ->leftJoin('staff as profile', 'profile.userId', '=', 'user.id')
             ->select('user.id', 'user.fullName', 'user.username', 'user.role', 'user.createdAt', 'profile.division')
@@ -283,7 +284,11 @@ class ModuleController extends Controller
                 ->unique()
                 ->count();
             $lateDays = $records
-                ->filter(fn ($record) => ! empty($record->checkIn) && Carbon::parse($record->checkIn)->format('H:i:s') > '08:00:00')
+                ->filter(function ($record) use ($lateThresholdSeconds) {
+                    if (empty($record->checkIn)) return false;
+                    $time = Carbon::parse($record->checkIn);
+                    return $time->hour*3600 + $time->minute*60 + $time->second > $lateThresholdSeconds;
+                })
                 ->map(fn ($record) => Carbon::parse($record->date)->toDateString())
                 ->unique()
                 ->count();

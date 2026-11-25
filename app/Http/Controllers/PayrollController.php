@@ -22,7 +22,7 @@ class PayrollController extends Controller
     {
         $value = DB::table('app_settings')->where('settings_key', self::SETTINGS)->value('settings_value');
         $data = json_decode($value ?: '{}', true);
-        return array_replace(['start_time' => '08:00', 'grace_minutes' => 0, 'rules' => []], is_array($data) ? $data : []);
+        return array_replace(['rules' => []], is_array($data) ? $data : [], array_intersect_key(app(\App\Services\AttendanceSettingsService::class)->read(), array_flip(['start_time','end_time','grace_minutes'])));
     }
 
     public function index(Request $request)
@@ -52,7 +52,6 @@ class PayrollController extends Controller
     {
         $this->authorizePayroll($request);
         $data = $request->validate([
-            'start_time' => 'required|date_format:H:i', 'grace_minutes' => 'required|integer|min:0|max:1440',
             'rules' => 'present|array|max:100', 'rules.*.from' => 'required|integer|min:1|max:1440',
             'rules.*.to' => 'nullable|integer|min:1|max:1440', 'rules.*.amount' => 'required|integer|min:0|max:1000000000',
         ]);
@@ -65,10 +64,11 @@ class PayrollController extends Controller
             }
             $previousEnd = $end ?? PHP_INT_MAX;
         }
-        DB::transaction(function () use ($data, $rules) {
+        DB::transaction(function () use ($rules) {
+            $stored = json_decode(DB::table('app_settings')->where('settings_key', self::SETTINGS)->value('settings_value') ?: '{}', true) ?: [];
             DB::table('app_settings')->updateOrInsert(['settings_key' => self::SETTINGS], [
                 'id' => (string) (DB::table('app_settings')->where('settings_key', self::SETTINGS)->value('id') ?: Str::uuid()),
-                'settings_value' => json_encode(['start_time' => $data['start_time'], 'grace_minutes' => (int) $data['grace_minutes'], 'rules' => $rules->all()]),
+                'settings_value' => json_encode([...$stored, 'rules' => $rules->all()]),
                 'updated_at' => now(),
             ]);
         });
@@ -93,7 +93,12 @@ class PayrollController extends Controller
             ->whereDate('date', '>=', $start->toDateString())->whereDate('date', '<=', $end->toDateString())->whereNotNull('checkIn')
             ->orderBy('checkIn')->get(['staffId', 'date', 'checkIn'])->groupBy('staffId');
         $items = [];
+        $acceptedOvertime = DB::table('overtime_requests')->whereIn('user_id', $employees->pluck('id'))
+            ->where('status', 'APPROVED')->whereNotNull('end_at')
+            ->whereDate('date', '>=', $start->toDateString())->whereDate('date', '<=', $end->toDateString())
+            ->orderBy('date')->get(['id', 'user_id', 'date', 'start_at', 'end_at', 'minutes', 'reason'])->groupBy('user_id');
         foreach ($employees as $employee) {
+            $employeeOvertime = $employee->attendance_enabled ? ($acceptedOvertime->get($employee->id) ?? collect()) : collect();
             $details = [];
             foreach (($employee->attendance_enabled ? ($attendance->get($employee->staff_id) ?? collect()) : collect())->unique(fn ($row) => substr((string) $row->date, 0, 10)) as $record) {
                 $actual = Carbon::parse($record->checkIn);
@@ -115,7 +120,7 @@ class PayrollController extends Controller
             if ($deduction + $bpjs > $gross) throw ValidationException::withMessages(['period' => 'Total potongan melebihi gaji kotor '.$employee->fullName.'. Periksa pengaturan payroll.']);
             $items[] = ['user_id' => $employee->id, 'employee_name' => $employee->fullName, 'base_salary' => $employee->base_salary,
                 'allowance' => $totalAllowance, 'late_deduction' => $deduction, 'other_deduction' => $bpjs,
-                'salary_details' => json_encode(['fixed_allowance' => (int) $employee->allowance, 'other_allowances' => $otherAllowances, 'bpjs_health' => (int) $employee->bpjs_health, 'bpjs_employment' => (int) $employee->bpjs_employment]),
+                'salary_details' => json_encode(['fixed_allowance' => (int) $employee->allowance, 'other_allowances' => $otherAllowances, 'bpjs_health' => (int) $employee->bpjs_health, 'bpjs_employment' => (int) $employee->bpjs_employment, 'accepted_overtime_minutes'=>(int)$employeeOvertime->sum('minutes'), 'accepted_overtime_details'=>$employeeOvertime->values()->all()]),
                 'net_salary' => $gross - $deduction - $bpjs, 'late_details' => json_encode($details), 'created_at' => now(), 'updated_at' => now()];
         }
         DB::transaction(function () use ($request, $data, $items) {

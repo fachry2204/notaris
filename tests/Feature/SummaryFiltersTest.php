@@ -23,6 +23,19 @@ class SummaryFiltersTest extends TestCase
         return ['auth_user' => ['id' => 'local-test-admin', 'username' => 'local-test-admin', 'fullName' => 'Admin Test', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
     }
 
+    public function test_office_map_link_persists_and_rejects_unsafe_schemes(): void
+    {
+        $payload = $this->withSession($this->adminSession())->get('/dashboard/settings')->assertOk()->viewData('page')['props']['settings'];
+        $payload['general'] = ['appName'=>'Notaris Digital','officeName'=>'Kantor Uji','officeMapUrl'=>'https://maps.app.goo.gl/example-office'];
+        $payload['email']['enabled'] = false;
+        $payload['whatsapp']['enabled'] = false;
+        $this->withSession($this->adminSession())->put('/dashboard/settings',$payload)->assertSessionHasNoErrors();
+        $this->withSession($this->adminSession())->get('/dashboard/settings')->assertInertia(fn (Assert $page) => $page->where('settings.general.officeMapUrl','https://maps.app.goo.gl/example-office'));
+        $payload['general']['officeMapUrl'] = 'javascript:alert(1)';
+        $this->withSession($this->adminSession())->put('/dashboard/settings',$payload)->assertSessionHasErrors('general.officeMapUrl');
+        $this->withSession(['auth_user'=>['id'=>'other','role'=>'STAFFADMIN','source'=>'user']])->put('/dashboard/settings',$payload)->assertRedirect('/admin/login');
+    }
+
     public function test_dashboard_reports_real_jobs_and_deadlines_for_selected_period(): void
     {
         DB::table('client')->insert(['id' => 'dashboard-real-client', 'name' => 'Client Dashboard', 'type' => 'individual', 'updatedAt' => now()]);

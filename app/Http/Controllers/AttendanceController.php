@@ -17,6 +17,7 @@ class AttendanceController extends Controller
 {
     public function index(Request $request)
     {
+        $lateThreshold = app(\App\Services\AttendanceSettingsService::class)->lateThresholdSeconds();
         $user = $request->session()->get('auth_user');
         $attendanceFilter = in_array($request->query('filter'), ['present', 'late', 'not_checked_out'], true) ? $request->query('filter') : '';
         $staff = DB::table('staff')->where('userId', $user['id'])->where('attendance_enabled', true)->first();
@@ -33,8 +34,12 @@ class AttendanceController extends Controller
                 );
             })
             ->leftJoin('user as u', 'u.id', '=', 's.userId')
+            ->leftJoinSub(DB::table('overtime_requests')->where('status', 'APPROVED')->whereNotNull('end_at')->select('user_id', 'date')->selectRaw('SUM(minutes) as accepted_minutes')->groupBy('user_id', 'date'), 'ot', function ($join) {
+                $join->on(DB::raw('ot.user_id COLLATE utf8mb4_unicode_ci'), '=', DB::raw('s.userId COLLATE utf8mb4_unicode_ci'))->whereRaw('ot.date = DATE(a.date)');
+            })
             ->where('s.attendance_enabled', true)
             ->select('a.*', 'u.fullName as staffName')
+            ->selectRaw('COALESCE(ot.accepted_minutes, 0) as overtimeMinutes')
             ->orderByDesc('a.date')
             ->orderByDesc('a.checkIn')
             ->orderByDesc('a.createdAt');
@@ -50,7 +55,7 @@ class AttendanceController extends Controller
         if (in_array($user['role'], ['ADMINISTRATOR', 'PIMPINAN'], true) && $attendanceFilter) {
             $query->whereDate('a.date', today());
             if ($attendanceFilter === 'present') $query->where('a.status', 'Hadir');
-            if ($attendanceFilter === 'late') $query->whereTime('a.checkIn', '>', '08:00:00');
+            if ($attendanceFilter === 'late') $query->whereRaw('TIME_TO_SEC(TIME(a.checkIn)) > ?', [$lateThreshold]);
             if ($attendanceFilter === 'not_checked_out') $query->whereNull('a.checkOut');
         }
 
@@ -80,7 +85,8 @@ class AttendanceController extends Controller
         $eligibleStaffIds = DB::table('staff')->where('attendance_enabled', true)->pluck('id');
 
         return Inertia::render('Attendance/Index', [
-            'records' => $query->paginate(30)->withQueryString(),
+            'activeOvertime' => DB::table('overtime_requests')->where('user_id', $user['id'])->where('status', 'ACTIVE')->first(),
+            'records' => $query->paginate(30)->withQueryString()->through(function ($row) { $row->overtimeMinutes = (int)$row->overtimeMinutes; return $row; }),
             'attendanceFilter' => $attendanceFilter,
             'today' => $today,
             'hasStaff' => (bool) $staff,
@@ -88,7 +94,7 @@ class AttendanceController extends Controller
             'personalStats' => $personalStats,
             'stats' => [
                 'present' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->where('status', 'Hadir')->count(),
-                'late' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
+                'late' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->whereRaw('TIME_TO_SEC(TIME(checkIn)) > ?', [$lateThreshold])->count(),
                 'notCheckedOut' => DB::table('attendance')->whereIn('staffId', $eligibleStaffIds)->whereDate('date', today())->whereNull('checkOut')->count(),
                 'totalStaff' => $eligibleStaffIds->count(),
             ],
@@ -100,7 +106,9 @@ class AttendanceController extends Controller
         $user = $request->session()->get('auth_user');
         $staff = DB::table('staff')->where('userId', $user['id'])->where('attendance_enabled', true)->first();
         $today = $staff ? DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->first() : null;
-        return Inertia::render('Attendance/CheckIn', ['today' => $today, 'hasStaff' => (bool) $staff, 'checkoutRequested' => $request->query('action') === 'checkout' && (bool) ($today?->checkIn) && ! $today?->checkOut]);
+        $activeOvertime = DB::table('overtime_requests')->where('user_id', $user['id'])->where('status', 'ACTIVE')->first();
+        $overtimeAction = in_array($request->query('action'), ['overtime-start', 'overtime-finish'], true) ? $request->query('action') : null;
+        return Inertia::render('Attendance/CheckIn', ['activeOvertime'=>$activeOvertime, 'overtimeAction'=>$overtimeAction, 'attendanceSettings'=>app(\App\Services\AttendanceSettingsService::class)->read(), 'today' => $today, 'hasStaff' => (bool) $staff, 'checkoutRequested' => $request->query('action') === 'checkout' && (bool) ($today?->checkIn) && ! $today?->checkOut]);
     }
 
     public function report(Request $request)
@@ -108,7 +116,7 @@ class AttendanceController extends Controller
         $month = $request->query('month', now()->format('Y-m'));
         $rows = DB::table('staff as s')->where('s.attendance_enabled', true)->join('user as u','u.id','=','s.userId')->leftJoin('attendance as a', function ($join) use ($month) {
             $join->on(DB::raw('a.staffId COLLATE utf8mb4_unicode_ci'),'=',DB::raw('s.id COLLATE utf8mb4_unicode_ci'))->whereRaw("DATE_FORMAT(a.date, '%Y-%m') = ?", [$month]);
-        })->select('u.id','u.fullName','u.role')->selectRaw('COUNT(a.id) as presentDays, SUM(CASE WHEN TIME(a.checkIn) > "08:00:00" THEN 1 ELSE 0 END) as lateDays, SUM(CASE WHEN a.checkOut IS NULL AND a.id IS NOT NULL THEN 1 ELSE 0 END) as incompleteDays')->groupBy('u.id','u.fullName','u.role')->orderBy('u.fullName')->get();
+        })->select('u.id','u.fullName','u.role')->selectRaw('COUNT(a.id) as presentDays, SUM(CASE WHEN TIME_TO_SEC(TIME(a.checkIn)) > ? THEN 1 ELSE 0 END) as lateDays, SUM(CASE WHEN a.checkOut IS NULL AND a.id IS NOT NULL THEN 1 ELSE 0 END) as incompleteDays', [app(\App\Services\AttendanceSettingsService::class)->lateThresholdSeconds()])->groupBy('u.id','u.fullName','u.role')->orderBy('u.fullName')->get();
         return Inertia::render('Attendance/Report', compact('rows','month'));
     }
 
@@ -179,7 +187,8 @@ class AttendanceController extends Controller
         abort_unless($staff, 422, 'Akun tidak terdaftar dalam absensi.');
 
         $data = $request->validate([
-            'attendanceAction' => 'required|in:checkin,checkout',
+            'attendanceAction' => 'required|in:checkin,checkout,overtime-start,overtime-finish',
+            'reason' => 'nullable|required_if:attendanceAction,overtime-start|string|min:5|max:2000',
             'workLocationType' => 'required|in:Office,Dinas Luar,WFC,WFH',
             'locationLabel' => 'required|string|max:255',
             'locationSource' => 'nullable|in:gps,manual',
@@ -188,10 +197,39 @@ class AttendanceController extends Controller
             'locationAccuracy' => 'nullable|numeric|min:0|max:1000000',
             'photo' => 'required|image|max:5120',
         ]);
-        DB::transaction(function () use ($staff, $request, $data) {
+        $settingsService = app(\App\Services\AttendanceSettingsService::class);
+        $settings = $settingsService->read();
+        $distance = null;
+        if ($data['workLocationType'] === 'Office') {
+            $distance = $settingsService->officeDistance($settings, (float)$data['latitude'], (float)$data['longitude']);
+            if ($distance === null) throw ValidationException::withMessages(['workLocationType'=>'Lokasi kantor belum diatur. Hubungi pimpinan atau admin.']);
+            if ($distance > $settings['office_radius_meters']) throw ValidationException::withMessages(['workLocationType'=>'Anda tidak berada di sekitar kantor. Jarak '.round($distance,1).' meter; radius kantor '.$settings['office_radius_meters'].' meter.']);
+        }
+        DB::transaction(function () use ($staff, $request, $data, $distance, $settings) {
+            if (str_starts_with($data['attendanceAction'], 'overtime-')) DB::table('user')->where('id', $staff->userId)->lockForUpdate()->firstOrFail();
             // Serialize submissions for one employee so a retry cannot turn check-in into check-out.
             $locked = DB::table('staff')->where('id', $staff->id)->lockForUpdate()->first();
             abort_unless($locked && $locked->attendance_enabled, 422, 'Akun tidak terdaftar dalam absensi.');
+            if (str_starts_with($data['attendanceAction'], 'overtime-')) {
+                abort_unless($request->session()->get('auth_user.source') === 'user', 403);
+                $userId = $staff->userId;
+                $active = DB::table('overtime_requests')->where('user_id', $userId)->where('status', 'ACTIVE')->lockForUpdate()->first();
+                $finish = $data['attendanceAction'] === 'overtime-finish';
+                if ((!$finish && $active) || ($finish && !$active)) throw ValidationException::withMessages(['attendanceAction'=>'Status lembur sudah berubah. Muat ulang halaman.']);
+                if (!$finish && !DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->whereNotNull('checkIn')->exists()) throw ValidationException::withMessages(['attendanceAction'=>'Silakan absen masuk terlebih dahulu sebelum memulai lembur.']);
+                $timestamp = now();
+                if (!$finish && DB::table('overtime_requests')->where('user_id', $userId)->whereIn('status', ['PENDING','APPROVED'])->where('end_at', '>', $timestamp)->exists()) throw ValidationException::withMessages(['attendanceAction'=>'Waktu lembur bertumpang tindih dengan pengajuan sebelumnya.']);
+                $evidence = ['workLocationType'=>$data['workLocationType'], 'locationLabel'=>$data['locationLabel'], 'latitude'=>$data['latitude'], 'longitude'=>$data['longitude'], 'locationAccuracy'=>$data['locationAccuracy'] ?? null, 'submittedAt'=>$timestamp->toIso8601String(), 'photoPath'=>'/'.$request->file('photo')->store('uploads/attendance', 'public_root')];
+                if ($distance !== null) $evidence['officeVerification'] = ['distanceMeters'=>round($distance,2), 'radiusMeters'=>$settings['office_radius_meters']];
+                if ($finish) {
+                    $notes = json_decode($active->attendance_notes ?: '{}', true) ?: [];
+                    $notes['finish'] = $evidence;
+                    DB::table('overtime_requests')->where('id', $active->id)->update(['end_at'=>$timestamp, 'minutes'=>max(0, (int)floor(\Carbon\Carbon::parse($active->start_at)->diffInMinutes($timestamp))), 'status'=>'PENDING', 'attendance_notes'=>json_encode($notes), 'updated_at'=>$timestamp]);
+                } else {
+                    DB::table('overtime_requests')->insert(['user_id'=>$userId, 'date'=>$timestamp->toDateString(), 'start_at'=>$timestamp, 'end_at'=>null, 'minutes'=>0, 'reason'=>$data['reason'], 'status'=>'ACTIVE', 'attendance_notes'=>json_encode(['start'=>$evidence]), 'created_at'=>$timestamp, 'updated_at'=>$timestamp]);
+                }
+                return;
+            }
             $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->lockForUpdate()->first();
             if ($data['attendanceAction'] === 'checkin' && $existing) {
                 throw ValidationException::withMessages(['attendanceAction' => 'Absen masuk hari ini sudah tercatat.']);
@@ -201,6 +239,7 @@ class AttendanceController extends Controller
             }
 
             $payload = ['workLocationType' => $data['workLocationType'], 'locationLabel' => $data['locationLabel'], 'locationSource' => $data['locationSource'] ?? 'gps', 'latitude' => $data['latitude'], 'longitude' => $data['longitude'], 'locationAccuracy' => isset($data['locationAccuracy']) ? (float) $data['locationAccuracy'] : null, 'submittedAt' => now()->toIso8601String()];
+            if ($distance !== null) $payload['officeVerification'] = ['distanceMeters'=>round($distance,2),'radiusMeters'=>$settings['office_radius_meters'],'latitude'=>$settings['office_latitude'],'longitude'=>$settings['office_longitude']];
             $payload['photoPath'] = '/'.$request->file('photo')->store('uploads/attendance', 'public_root');
             if ($data['attendanceAction'] === 'checkout') {
                 $notes = json_decode($existing->notes ?: '{}', true) ?: [];
@@ -211,7 +250,13 @@ class AttendanceController extends Controller
             }
         });
 
-        return redirect()->route('attendance.checkin')->with('success', $data['attendanceAction'] === 'checkout' ? 'Absen pulang berhasil.' : 'Absen masuk berhasil.');
+        $message = match ($data['attendanceAction']) {
+            'overtime-start' => 'Absen mulai lembur berhasil. Tekan Selesai Lembur saat pekerjaan selesai.',
+            'overtime-finish' => 'Absen selesai lembur berhasil. Hasil lembur menunggu pemeriksaan pimpinan.',
+            'checkout' => 'Absen pulang berhasil.',
+            default => 'Absen masuk berhasil.',
+        };
+        return redirect()->route('attendance.checkin')->with('success', $message);
     }
 
     public function destroy(Request $request, string $id)

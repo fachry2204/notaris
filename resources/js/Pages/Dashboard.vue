@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from "vue";
-import { Head, Link } from "@inertiajs/vue3";
+import { computed, ref, onMounted, onUnmounted, watch } from "vue";
+import { Head, Link, usePage } from "@inertiajs/vue3";
 import {
     AlertTriangle,
     ArrowRight,
@@ -10,23 +10,15 @@ import {
     Clock3,
     Coins,
     Eye,
-    FileCheck,
     FileCode,
-    FilePlus2,
-    FileSignature,
-    FileText,
-    Fingerprint,
     Folder,
     FolderOpen,
     HelpCircle,
     Hourglass,
     Mail,
-    Receipt,
     RefreshCw,
-    Sparkles,
     Star,
     TrendingUp,
-    Users,
     ChevronDown,
     Check,
 } from "@lucide/vue";
@@ -98,6 +90,11 @@ const props = defineProps<{
         }>;
     } | null;
 }>();
+const dashboardPage = usePage<any>();
+const welcomePhoto = computed(() => dashboardPage.props.auth?.photoUrl || props.staffPhoto || '');
+const welcomePhotoFailed = ref(false);
+watch(welcomePhoto, () => { welcomePhotoFailed.value = false; });
+const welcomeInitials = computed(() => String(props.user?.fullName || props.user?.username || 'P').trim().split(/\s+/).slice(0,2).map(word => word[0]).join('').toUpperCase());
 
 // Live clock WIB
 const currentTime = ref("");
@@ -212,21 +209,14 @@ const filteredJobs = computed(() => {
     return rows;
 });
 
-// Follow the same role visibility used by the existing sidebar.
-const quickActions = computed(() => {
-    const canManageClients = ['ADMINISTRATOR', 'PIMPINAN', 'STAFFADMIN'].includes(props.user?.role);
-    return [
-        { label: 'Berkas Baru', href: '/dashboard/jobs/new', icon: FilePlus2, visible: props.user?.role !== 'OB' },
-        { label: 'Buat Invoice', href: '/dashboard/invoice/new', icon: Receipt, visible: props.canViewFinance },
-        { label: 'Input Absensi', href: '/dashboard/pegawai/absensi/absenku', icon: Fingerprint, visible: true },
-        { label: 'Client Baru', href: '/dashboard/clients/new', icon: Users, visible: canManageClients },
-        { label: 'Buat Quotation', href: '/dashboard/quotation/new', icon: FileSignature, visible: canManageClients },
-        { label: 'Data Tugas', href: '/dashboard/tasks', icon: FileCheck, visible: true },
-        { label: 'Daftar Akta', href: '/dashboard/akta', icon: FileText, visible: props.user?.role !== 'OB' },
-        { label: 'Statistik', href: '/dashboard/stats', icon: TrendingUp, visible: props.canViewFinance },
-    ].filter(action => action.visible);
-});
-
+const summaryCards = computed(() => [
+    {label:'Total Berkas', value:totalBerkas.value, note:'Seluruh berkas terdaftar', href:'/dashboard/jobs', icon:Folder, background:'#EFF6FF', border:'#BFDBFE', iconBackground:'#DBEAFE', color:'#1D4ED8'},
+    {label:'Pekerjaan Aktif', value:pekerjaanAktif.value, note:'Menunggu dan sedang dikerjakan', href:'/dashboard/jobs?status=AKTIF', icon:Hourglass, background:'#FFFBEB', border:'#FDE68A', iconBackground:'#FEF3C7', color:'#B45309'},
+    {label:'Dalam Proses', value:dalamProses.value, note:'Termasuk revisi dan verifikasi', href:'/dashboard/jobs', icon:RefreshCw, background:'#F5F3FF', border:'#DDD6FE', iconBackground:'#EDE9FE', color:'#6D28D9'},
+    {label:'Selesai', value:selesai.value, note:'Berkas telah selesai', href:'/dashboard/jobs?status=SELESAI', icon:CheckCircle2, background:'#ECFDF5', border:'#A7F3D0', iconBackground:'#D1FAE5', color:'#047857'},
+    {label:'Deadline Terlewat', value:deadlineTerlewat.value, note:'Berkas aktif melewati deadline', href:'/dashboard/jobs?status=TERLAMBAT', icon:AlertTriangle, background:'#FFF1F2', border:'#FECDD3', iconBackground:'#FFE4E6', color:'#BE123C'},
+    ...(props.canViewFinance ? [{label:'Piutang Invoice', value:piutangInvoice.value, note:`${props.invoiceSummary?.outstandingCount ?? 0} invoice belum lunas`, href:'/dashboard/invoice', icon:Coins, background:'#ECFEFF', border:'#A5F3FC', iconBackground:'#CFFAFE', color:'#0E7490'}] : []),
+]);
 // Deadlines are scheduled dates, not recorded activities.
 const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
 </script>
@@ -245,7 +235,7 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
         />
 
         <!-- Desktop Luxury Notary Dashboard Layout -->
-        <div v-else class="space-y-4 max-w-[1600px] mx-auto select-none">
+        <div class="space-y-4 max-w-[1600px] mx-auto select-none" :class="{ 'hidden md:block': staffLanding }">
             <!-- 1. Hero Welcome Banner -->
             <section
                 class="relative overflow-hidden rounded-2xl border border-[#E8DFC9] bg-gradient-to-r from-[#FFFDF9] via-[#FAF4E6] to-[#F1E4C3] p-5 sm:p-6 shadow-xs"
@@ -262,13 +252,18 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
 
                 <div class="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <!-- Left: Welcome text & Verified badge -->
-                    <div>
+                    <div class="flex min-w-0 items-center gap-4 sm:gap-5">
+                        <Link href="/dashboard/profile" aria-label="Buka profil saya" class="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border-2 border-white bg-amber-100 text-xl font-black text-amber-900 shadow-sm ring-1 ring-amber-200 sm:h-20 sm:w-20 sm:text-2xl">
+                            <img v-if="welcomePhoto && !welcomePhotoFailed" :src="welcomePhoto" :alt="`Foto profil ${user?.fullName || user?.username || 'pengguna'}`" class="h-full w-full object-cover" @error="welcomePhotoFailed=true"/>
+                            <span v-else>{{ welcomeInitials }}</span>
+                        </Link>
+                        <div class="min-w-0">
                         <p class="text-xs sm:text-sm font-medium text-stone-600">Selamat Datang,</p>
                         <h1 class="mt-0.5 text-xl sm:text-2xl lg:text-3xl font-black text-stone-900 tracking-tight flex items-center gap-2">
-                            <span>{{ user?.fullName || user?.username || 'Pengguna' }}</span>
+                            <span class="min-w-0 break-words">{{ user?.fullName || user?.username || 'Pengguna' }}</span>
                             <!-- Golden Verified Badge -->
                             <span
-                                class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-[#F5C344] to-[#C99A3D] text-white shadow-xs"
+                                class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#F5C344] to-[#C99A3D] text-white shadow-xs"
                                 title="Terverifikasi"
                             >
                                 <Check class="h-3.5 w-3.5 stroke-[3]" />
@@ -277,6 +272,7 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                         <p class="mt-1 text-xs sm:text-sm font-medium text-stone-600">
                             Dashboard Operasional Kantor Notaris
                         </p>
+                        </div>
                     </div>
 
                     <!-- Right: Date and Time Widget Card -->
@@ -296,112 +292,12 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                 </div>
             </section>
 
-            <!-- 2. Six Metric Cards -->
-            <section class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5">
-                <!-- Card 1: Total Berkas -->
-                <Link
-                    href="/dashboard/jobs"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
-                            <Folder class="h-5 w-5 fill-amber-500/20" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Total Berkas</p>
-                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ totalBerkas }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-500">Seluruh berkas terdaftar</p>
-                    </div>
-                </Link>
-
-                <!-- Card 2: Pekerjaan Aktif -->
-                <Link
-                    href="/dashboard/jobs?status=AKTIF"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
-                            <Hourglass class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Pekerjaan Aktif</p>
-                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ pekerjaanAktif }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-500">Menunggu dan sedang dikerjakan</p>
-                    </div>
-                </Link>
-
-                <!-- Card 3: Dalam Proses -->
-                <Link
-                    href="/dashboard/jobs"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
-                            <RefreshCw class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Dalam Proses</p>
-                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ dalamProses }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-500">Termasuk revisi dan verifikasi</p>
-                    </div>
-                </Link>
-
-                <!-- Card 4: Selesai -->
-                <Link
-                    href="/dashboard/jobs?status=SELESAI"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100/70 text-emerald-600">
-                            <CheckCircle2 class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Selesai</p>
-                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ selesai }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-500">Berkas telah selesai</p>
-                    </div>
-                </Link>
-
-                <!-- Card 5: Deadline Terlewat -->
-                <Link
-                    href="/dashboard/jobs?status=TERLAMBAT"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-rose-100/70 text-rose-600">
-                            <AlertTriangle class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Deadline Terlewat</p>
-                        <p class="mt-0.5 text-2xl font-black text-stone-900 tracking-tight">{{ deadlineTerlewat }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-500">Berkas aktif melewati deadline</p>
-                    </div>
-                </Link>
-
-                <!-- Card 6: Piutang Invoice -->
-                <Link
-                    v-if="canViewFinance"
-                    href="/dashboard/invoice"
-                    class="group flex flex-col justify-between rounded-2xl border border-[#EAE3D2] bg-white p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                    <div class="flex items-start justify-between">
-                        <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-100/70 text-amber-600">
-                            <Coins class="h-5 w-5" />
-                        </span>
-                    </div>
-                    <div class="mt-3">
-                        <p class="text-[11px] font-semibold text-stone-500">Piutang Invoice</p>
-                        <p class="mt-0.5 text-lg font-black text-stone-900 tracking-tight truncate">{{ piutangInvoice }}</p>
-                        <p class="mt-1 text-[11px] font-medium text-stone-400">{{ invoiceSummary?.outstandingCount ?? 0 }} invoice belum lunas</p>
-                    </div>
+            <section aria-label="Ringkasan pekerjaan" class="grid grid-cols-1 gap-3 sm:grid-cols-2" :class="canViewFinance ? 'xl:grid-cols-6' : 'xl:grid-cols-5'">
+                <Link v-for="card in summaryCards" :key="card.label" :href="card.href" :class="!canViewFinance && card.label === 'Deadline Terlewat' ? 'sm:col-span-2 xl:col-span-1' : ''" class="summary-card flex min-w-0 items-start gap-3 rounded-2xl border p-4 shadow-xs transition hover:-translate-y-0.5 hover:shadow-md" :style="{ backgroundColor:card.background, borderColor:card.border }">
+                    <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl" :style="{ backgroundColor:card.iconBackground, color:card.color }"><component :is="card.icon" class="h-5 w-5" aria-hidden="true"/></span>
+                    <div class="min-w-0 flex-1"><p class="text-xs font-semibold leading-snug text-stone-700">{{ card.label }}</p><p class="my-1 break-words font-black leading-tight tracking-tight text-stone-900 tabular-nums" :class="card.label==='Piutang Invoice' ? 'text-lg' : 'text-2xl'">{{ card.value }}</p><p class="text-[11px] leading-relaxed text-stone-600">{{ card.note }}</p></div>
                 </Link>
             </section>
-
             <!-- 3. Grafik dan distribusi pekerjaan -->
             <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 <!-- LEFT COLUMN (col-span-12 xl:col-span-6) -->
@@ -537,10 +433,10 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
 
             </section>
 
-            <!-- 4. Bottom Row (Pekerjaan Terbaru ~52%, Aktivitas Hari Ini ~25%, Aksi Cepat ~23%) -->
+            <!-- Pekerjaan terbaru dan deadline mendatang -->
             <section class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                <!-- Pekerjaan Terbaru Card (col-span-12 xl:col-span-6) -->
-                <div class="lg:col-span-12 xl:col-span-6 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                <!-- Pekerjaan Terbaru -->
+                <div class="lg:col-span-8 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
                     <div class="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 pb-3">
                         <div class="flex items-center gap-2">
                             <FolderOpen class="h-4 w-4 text-amber-600" />
@@ -632,8 +528,8 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                     </div>
                 </div>
 
-                <!-- Aktivitas Hari Ini Card (col-span-12 md:col-span-6 xl:col-span-3) -->
-                <div class="lg:col-span-6 xl:col-span-3 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
+                <!-- Deadline Mendatang -->
+                <div class="lg:col-span-4 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
                     <div class="flex items-center justify-between mb-4 pb-2 border-b border-stone-100">
                         <h2 class="text-xs font-bold text-stone-900 flex items-center gap-2">
                             <Clock class="h-4 w-4 text-amber-600" />
@@ -662,27 +558,6 @@ const upcomingDeadlines = computed(() => (props.deadlines ?? []).slice(0, 4));
                     </div>
                 </div>
 
-                <!-- Aksi Cepat Card (col-span-12 md:col-span-6 xl:col-span-3) -->
-                <div class="lg:col-span-6 xl:col-span-3 rounded-2xl border border-[#EAE3D2] bg-white p-5 shadow-xs">
-                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-stone-100">
-                        <Sparkles class="h-4 w-4 text-amber-600" />
-                        <h2 class="text-xs font-bold text-stone-900">Aksi Cepat</h2>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-2.5">
-                        <Link
-                            v-for="action in quickActions"
-                            :key="action.href"
-                            :href="action.href"
-                            class="group flex flex-col items-center justify-center rounded-xl border border-[#EAE3D2] bg-[#FAF8F5]/80 p-3.5 text-center transition hover:-translate-y-0.5 hover:border-amber-400 hover:bg-white hover:shadow-xs"
-                        >
-                            <span class="grid h-10 w-10 place-items-center rounded-xl bg-amber-50 text-amber-600 transition group-hover:scale-105 group-hover:bg-amber-100">
-                                <component :is="action.icon" class="h-5 w-5" />
-                            </span>
-                            <span class="mt-2 text-xs font-bold text-stone-800 group-hover:text-amber-800">{{ action.label }}</span>
-                        </Link>
-                    </div>
-                </div>
             </section>
         </div>
     </AppLayout>

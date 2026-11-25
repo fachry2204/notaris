@@ -2,6 +2,11 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { CheckCircle2, Download, Smartphone, X } from "@lucide/vue";
 import { installPrompt } from "@/pwaInstall";
+import { usePage } from '@inertiajs/vue3';
+
+const page = usePage<any>();
+const appName = computed(() => page.props.pwa?.name || page.props.branding?.appName || 'Notaris Digital');
+const appIcon = computed(() => page.props.pwa?.appleIconUrl);
 
 const platform = ref<"ios" | "android" | null>(null);
 const standalone = ref(false);
@@ -42,8 +47,8 @@ onBeforeUnmount(() => {
     <div v-if="canInstall" class="install-overlay fixed inset-0 z-[110] flex items-center justify-center bg-[#102b25]/65 p-4" @click.self="dismiss">
         <section role="dialog" aria-modal="true" aria-labelledby="install-title" aria-describedby="install-description" class="install-dialog relative w-full max-w-sm overflow-y-auto rounded-3xl border border-[#e5dac6] bg-[#fffdf8] p-6 text-[#1d1a15] shadow-2xl sm:p-7">
             <button type="button" aria-label="Tutup informasi instalasi" class="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full text-[#776d5c] hover:bg-[#f5efe3]" @click="dismiss"><X class="h-5 w-5" /></button>
-            <span class="grid h-14 w-14 place-items-center rounded-2xl bg-[#f8ead0] text-[#a56d11]"><Smartphone class="h-7 w-7" /></span>
-            <h2 id="install-title" class="mt-5 pr-5 text-xl font-black">Pasang aplikasi Notaris</h2>
+            <span class="grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-[#f8ead0] text-[#a56d11]"><img v-if="appIcon" :src="appIcon" :alt="appName" class="h-full w-full object-contain"/><Smartphone v-else class="h-7 w-7" /></span>
+            <h2 id="install-title" class="mt-5 break-words pr-5 text-xl font-black">Pasang {{ appName }}</h2>
             <p id="install-description" class="mt-2 text-sm leading-relaxed text-[#665f54]">Tambahkan aplikasi ke layar utama agar lebih mudah membuka data berkas dan mencatat absensi.</p>
             <ul class="mt-4 space-y-2 rounded-2xl bg-[#f5f1e7] p-4 text-sm text-[#514a3e]"><li class="flex items-start gap-2"><CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />Akses cepat melalui ikon di layar utama</li><li class="flex items-start gap-2"><CheckCircle2 class="mt-0.5 h-4 w-4 shrink-0 text-emerald-700" />Tampilan yang nyaman digunakan di ponsel</li></ul>
             <p v-if="platform === 'ios'" class="mt-4 rounded-xl bg-[#fff4dd] p-3 text-sm leading-relaxed text-[#725018]">Di iPhone, buka menu <strong>Bagikan</strong> pada browser, lalu pilih <strong>Tambahkan ke Layar Utama</strong>.</p>

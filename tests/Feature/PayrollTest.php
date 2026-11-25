@@ -42,6 +42,7 @@ class PayrollTest extends TestCase
             DB::table('attendance')->insert(['id' => 'payroll-att-'.$i, 'staffId' => 'payroll-test-staff', 'date' => substr($time, 0, 10), 'checkIn' => $time, 'status' => 'Hadir', 'createdAt' => now(), 'updatedAt' => now()]);
         }
         $settings = ['start_time' => '08:00', 'grace_minutes' => 5, 'rules' => [['from' => 6, 'to' => 15, 'amount' => 10000], ['from' => 16, 'to' => null, 'amount' => 25000]], 'profiles' => []];
+        $this->withSession($this->sessionFor())->put('/dashboard/pegawai/absensi/settings', ['start_time'=>'08:00','end_time'=>'17:00','grace_minutes'=>5,'annual_leave_days'=>12,'office_latitude'=>null,'office_longitude'=>null,'office_radius_meters'=>10])->assertSessionHasNoErrors();
         $this->withSession($this->sessionFor())->put('/dashboard/payroll/settings', $settings)->assertSessionHasNoErrors();
         $salary = ['base_salary' => 5000000, 'allowance' => 1000000, 'other_allowances' => [['name' => 'Transport', 'amount' => 200000], ['name' => 'Makan', 'amount' => 100000]], 'bpjs_health' => 50000, 'bpjs_employment' => 25000, 'reason' => 'Data gaji awal'];
         $this->withSession($this->sessionFor('STAFFADMIN'))->get('/dashboard/payroll/salaries/payroll-test-user')->assertForbidden();
@@ -50,6 +51,9 @@ class PayrollTest extends TestCase
         $this->withSession($this->sessionFor())->get('/dashboard/payroll/salaries')->assertOk();
         $this->withSession($this->sessionFor())->get('/dashboard/payroll/salaries/payroll-test-user')->assertOk();
         $this->withSession($this->sessionFor())->get('/dashboard/payroll/settings')->assertOk();
+        foreach (['APPROVED'=>90, 'REJECTED'=>60, 'PENDING'=>45, 'ACTIVE'=>0] as $status=>$minutes) {
+            DB::table('overtime_requests')->insert(['user_id'=>'payroll-test-user','date'=>'2020-03-31','start_at'=>'2020-03-31 17:00:00','end_at'=>$status==='ACTIVE' ? null : '2020-03-31 18:30:00','minutes'=>$minutes,'reason'=>'Pengujian lembur '.$status,'status'=>$status,'created_at'=>now(),'updated_at'=>now()]);
+        }
         $this->withSession($this->sessionFor())->post('/dashboard/payroll', ['period' => '2020-03'])->assertSessionHasNoErrors();
         $this->withSession($this->sessionFor())->get('/dashboard/payroll?period=2020-03')->assertOk();
         $run = DB::table('payroll_periods')->where('period', '2020-03')->first();
@@ -60,6 +64,8 @@ class PayrollTest extends TestCase
         $salaryDetails = json_decode($item->salary_details, true);
         $this->assertCount(2, $salaryDetails['other_allowances']);
         $this->assertSame(50000, $salaryDetails['bpjs_health']);
+        $this->assertSame(90, $salaryDetails['accepted_overtime_minutes']);
+        $this->assertCount(1, $salaryDetails['accepted_overtime_details']);
         $this->withSession($this->sessionFor())->put('/dashboard/payroll/salaries/payroll-test-user', [...$salary, 'base_salary' => 5500000, 'reason' => 'Penyesuaian tahunan'])->assertSessionHasNoErrors();
         $history = DB::table('payroll_profile_history')->where('user_id', 'payroll-test-user')->orderByDesc('id')->first();
         $change = json_decode($history->changes, true);

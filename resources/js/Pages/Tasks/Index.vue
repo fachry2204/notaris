@@ -96,6 +96,7 @@ const paymentPreview = ref<any | null>(null);
 const previewLoading = ref(false);
 const previewError = ref("");
 const paymentProcessing = ref(false);
+let previewAbort: AbortController | null = null;
 
 const paymentPercentage = computed(() => {
     const total = Number(paymentPreview.value?.billing?.totalInvoiceAmount || 0);
@@ -106,6 +107,7 @@ const paymentPercentage = computed(() => {
 
 const closePaymentModal = () => {
     if (paymentProcessing.value) return;
+    previewAbort?.abort(); previewAbort = null; previewLoading.value = false;
     selectedTask.value = null;
     paymentPreview.value = null;
     previewError.value = "";
@@ -117,20 +119,22 @@ const openPaymentModal = async (task: any) => {
     paymentPreview.value = null;
     previewError.value = "";
     previewLoading.value = true;
+    const controller = new AbortController(); previewAbort = controller;
 
     try {
         const response = await fetch(`/dashboard/tasks/${task.id}/payment-preview`, {
             headers: { Accept: "application/json" },
-            credentials: "same-origin",
+            credentials: "same-origin", signal: controller.signal,
         });
         if (!response.ok) throw new Error("Data pembayaran tidak dapat diperiksa.");
-        paymentPreview.value = await response.json();
+        const result = await response.json();
+        if (previewAbort === controller) paymentPreview.value = result;
     } catch (error) {
-        previewError.value = error instanceof Error
+        if (!controller.signal.aborted && previewAbort === controller) previewError.value = error instanceof Error
             ? error.message
             : "Data pembayaran tidak dapat diperiksa.";
     } finally {
-        previewLoading.value = false;
+        if (previewAbort === controller) { previewLoading.value = false; previewAbort = null; }
     }
 };
 
@@ -155,7 +159,7 @@ const handleEscape = (event: KeyboardEvent) => {
 };
 
 onMounted(() => window.addEventListener("keydown", handleEscape));
-onBeforeUnmount(() => window.removeEventListener("keydown", handleEscape));
+onBeforeUnmount(() => { previewAbort?.abort(); window.removeEventListener("keydown", handleEscape); });
 
 const formatCurrency = (val: number) => {
     return new Intl.NumberFormat("id-ID", {
@@ -385,7 +389,8 @@ const getRowNumber = (index: number | string) => {
             <!-- Tabel tugas untuk desktop -->
             <div v-if="tasks.data.length" class="hidden overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm md:block">
                 <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
+                    <table class="tasks-table w-full min-w-[1240px] table-fixed text-left text-sm">
+                        <colgroup><col style="width:4%"/><col style="width:17%"/><col style="width:14%"/><col style="width:25%"/><col style="width:11%"/><col style="width:13%"/><col style="width:11%"/><col style="width:5%"/></colgroup>
                         <thead class="bg-slate-50/80 border-b border-slate-200">
                             <tr class="text-[11px] font-black uppercase tracking-wider text-slate-500">
                                 <th class="w-12 px-5 py-3.5 text-center">No.</th>
@@ -407,27 +412,27 @@ const getRowNumber = (index: number | string) => {
                                 <!-- Pegawai Column -->
                                 <td class="px-5 py-3.5">
                                     <div class="flex items-center gap-3">
-                                        <div class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-[var(--primary)]/10 font-black text-sm text-[var(--primary)]">
-                                            <img v-if="task.employeePhoto" :src="task.employeePhoto" class="h-full w-full object-cover" />
+                                        <div class="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl border border-amber-100 bg-amber-50 font-black text-sm text-amber-800">
+                                            <img v-if="task.employeePhoto" :src="task.employeePhoto" :alt="`Foto ${task.employeeName || 'pegawai'}`" class="h-full w-full object-cover" />
                                             <span v-else>{{ task.employeeName?.charAt(0) || 'P' }}</span>
                                         </div>
-                                        <div>
-                                            <p class="font-bold text-slate-900 text-sm">{{ task.employeeName || 'Pegawai' }}</p>
-                                            <p class="text-xs font-semibold text-slate-400">@{{ task.employeeUsername || '-' }}</p>
+                                        <div class="min-w-0">
+                                            <p class="break-words font-bold leading-relaxed text-slate-900 text-sm">{{ task.employeeName || 'Pegawai' }}</p>
+                                            <p class="mt-1 break-all text-xs font-medium text-slate-500">@{{ task.employeeUsername || '-' }}</p>
                                         </div>
                                     </div>
                                 </td>
 
                                 <!-- Task Type Badge Column -->
                                 <td class="px-5 py-3.5">
-                                    <div class="space-y-1">
+                                    <div class="space-y-2">
                                         <span
                                             class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-bold"
                                             :class="taskTypeColor(task.taskType)"
                                         >
                                             {{ task.taskType }}
                                         </span>
-                                        <button type="button" class="block rounded-lg border border-amber-400 px-2 py-1 text-xs font-bold text-amber-800" @click="openStatus(task)">{{ workStatusLabel(task.workStatus) }} · Ubah</button><p v-if="task.customTask" class="text-xs font-medium text-slate-600 italic">
+                                        <button type="button" class="flex min-h-11 w-full flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-left text-xs font-semibold text-amber-900 hover:bg-amber-100" @click="openStatus(task)"><span>{{ workStatusLabel(task.workStatus) }}</span><span class="font-bold underline underline-offset-2">Ubah</span></button><p v-if="task.customTask" class="break-words text-xs leading-relaxed font-medium text-slate-600 italic">
                                             "{{ task.customTask }}"
                                         </p>
                                     </div>
@@ -435,28 +440,25 @@ const getRowNumber = (index: number | string) => {
 
                                 <!-- Berkas & Client Column -->
                                 <td class="px-5 py-3.5">
-                                    <div class="space-y-1 max-w-xs">
-                                        <div class="flex items-center gap-2">
-                                            <span class="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-700">
+                                    <div class="min-w-0 space-y-2">
+                                        <div>
+                                            <span class="inline-block max-w-full break-all rounded-md bg-slate-100 px-2 py-1 text-[11px] font-mono font-bold text-slate-700">
                                                 {{ task.trackingCode || '-' }}
                                             </span>
-                                            <span v-if="!task.deedSignedDate" class="rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-800">Akta Belum Ditandatangani</span>
-                                            <span v-else class="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-bold text-emerald-800">Akta Sudah Ditandatangani</span>
-                                            <span class="text-[10px] font-bold text-slate-400">
-                                                {{ task.jobCategory }}
-                                            </span>
                                         </div>
-                                        <p class="font-bold text-slate-900 text-xs truncate" :title="task.jobTitle">
+                                        <p class="break-words font-bold leading-relaxed text-slate-900 text-xs" :title="task.jobTitle">
                                             {{ task.jobTitle || 'Berkas Tanpa Judul' }}
                                         </p>
-                                        <p class="text-xs text-slate-500 truncate" :title="task.clientName">
+                                        <p class="break-words text-xs leading-relaxed text-slate-500" :title="task.clientName">
                                             Client: <span class="font-semibold text-slate-700">{{ task.clientName || '-' }}</span>
                                         </p>
+                                        <p class="text-[11px] leading-relaxed text-slate-500">{{ task.jobCategory }}</p>
+                                        <span class="inline-block rounded-lg px-2 py-1 text-[10px] font-semibold leading-relaxed" :class="task.deedSignedDate ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'">{{ task.deedSignedDate ? 'Akta Sudah Ditandatangani' : 'Akta Belum Ditandatangani' }}</span>
                                     </div>
                                 </td>
 
                                 <!-- Fee Column -->
-                                <td class="px-5 py-3.5 text-right font-black text-slate-900 text-sm">
+                                <td class="px-5 py-3.5 whitespace-nowrap text-right font-black text-slate-900 text-sm tabular-nums">
                                     {{ formatCurrency(task.fee) }}
                                 </td>
 
@@ -530,7 +532,7 @@ const getRowNumber = (index: number | string) => {
                     </div>
                 </div>
             </div>
-            <div v-if="statusTask" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="task-status-title">
+            <div v-if="statusTask" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="task-status-title" @click.self="statusTask = null" @keydown.esc="statusTask = null">
                 <form class="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 text-slate-900 shadow-xl" @submit.prevent="saveStatus">
                     <h2 id="task-status-title" class="text-xl font-bold">Ubah Status Tugas</h2>
                     <p class="text-sm text-slate-600">{{ statusTask.customTask || statusTask.taskType }} · {{ statusTask.employeeName }}</p>
@@ -558,7 +560,7 @@ const getRowNumber = (index: number | string) => {
                     role="dialog"
                     aria-modal="true"
                     aria-labelledby="payment-modal-title"
-                    @mousedown.self="closePaymentModal"
+                    @click.self="closePaymentModal"
                 >
                     <div class="w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
                         <div class="flex items-start justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
@@ -726,3 +728,10 @@ const getRowNumber = (index: number | string) => {
         </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+.tasks-table th, .tasks-table tbody td { padding-left: .75rem; padding-right: .75rem; }
+.tasks-table tbody td { padding-top: 1rem; padding-bottom: 1rem; vertical-align: top; }
+.tasks-table td:nth-child(6) > button, .tasks-table td:nth-child(6) > span { white-space: nowrap; }
+.tasks-table td:nth-child(6) svg { flex-shrink: 0; }
+</style>

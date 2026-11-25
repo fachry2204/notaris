@@ -14,12 +14,18 @@ import {
     X,
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import OvertimeAction from '@/Components/OvertimeAction.vue';
+import AttendanceLocationMap from '@/Components/AttendanceLocationMap.vue';
+import { distanceMeters } from '@/Utils/geofence';
 
-const props = defineProps<{ today: any; hasStaff: boolean; checkoutRequested: boolean }>();
-const checkInComplete = computed(() => Boolean(props.today?.checkIn && !props.today?.checkOut && !props.checkoutRequested));
+const props = defineProps<{ today: any; hasStaff: boolean; checkoutRequested: boolean; attendanceSettings: any; activeOvertime?: any; overtimeAction?: string | null }>();
+const isOvertime = computed(() => Boolean(props.overtimeAction));
+const actionTitle = computed(() => props.overtimeAction === 'overtime-finish' ? 'Selesai Lembur' : 'Mulai Lembur');
+const checkInComplete = computed(() => Boolean(!isOvertime.value && props.today?.checkIn && !props.today?.checkOut && !props.checkoutRequested));
 
 const f = useForm({
-    attendanceAction: props.checkoutRequested ? "checkout" : "checkin",
+    attendanceAction: props.overtimeAction || (props.checkoutRequested ? "checkout" : "checkin"),
+    reason: '',
     workLocationType: "Office",
     locationLabel: "",
     locationSource: "gps" as "gps" | "manual",
@@ -75,6 +81,14 @@ const requestPermissions = async () => {
     else permissionMessage.value = 'Izin belum lengkap. Jika permintaan tidak muncul atau sebelumnya ditolak, ubah izin di pengaturan situs atau perangkat, lalu tekan Coba Lagi.';
 };
 const locationResolved = computed(() => f.latitude !== null && f.longitude !== null && Boolean(f.locationLabel.trim()));
+const officeDistance = computed(() => f.latitude!==null && f.longitude!==null && props.attendanceSettings.office_latitude!==null && props.attendanceSettings.office_longitude!==null
+    ? distanceMeters(Number(props.attendanceSettings.office_latitude),Number(props.attendanceSettings.office_longitude),f.latitude,f.longitude) : null);
+const officeWarning = computed(() => {
+    if(f.workLocationType!=='Office')return '';
+    if(props.attendanceSettings.office_latitude===null || props.attendanceSettings.office_longitude===null)return 'Lokasi kantor belum diatur. Hubungi pimpinan atau admin.';
+    return officeDistance.value!==null && officeDistance.value>props.attendanceSettings.office_radius_meters ? 'Anda tidak berada di sekitar kantor.' : '';
+});
+watch(()=>[f.workLocationType,f.latitude,f.longitude],()=>f.clearErrors('workLocationType'));
 watch(() => [f.latitude, f.longitude, f.locationLabel, f.workLocationType], () => {
     if (!f.photo) return;
     if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
@@ -292,6 +306,8 @@ const retakePhoto = async () => {
 };
 
 const submit = () => {
+    f.attendanceAction = props.overtimeAction || (props.checkoutRequested ? 'checkout' : 'checkin');
+    if(officeWarning.value){f.setError('workLocationType',officeWarning.value);return;}
     if (!locationResolved.value) {
         f.setError("locationLabel", "Lokasi GPS dan alamat saat ini wajib terdeteksi.");
         return;
@@ -306,6 +322,16 @@ const submit = () => {
     });
 };
 
+watch(() => [props.overtimeAction, props.checkoutRequested], () => {
+    stopCamera();
+    if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
+    photoPreview.value = '';
+    f.photo = null;
+    f.reason = '';
+    f.clearErrors();
+    f.attendanceAction = props.overtimeAction || (props.checkoutRequested ? 'checkout' : 'checkin');
+});
+
 onBeforeUnmount(() => {
     stopCamera();
     if (photoPreview.value) URL.revokeObjectURL(photoPreview.value);
@@ -316,7 +342,7 @@ onMounted(async () => {
     clockTimer = setInterval(() => {
         currentTime.value = new Date();
     }, 1000);
-    if (props.hasStaff && !props.today?.checkOut && !checkInComplete.value) {
+    if (props.hasStaff && (isOvertime.value || !props.today?.checkOut) && !checkInComplete.value) {
         await refreshPermissions();
         // iOS and some browsers cannot report camera permission. An unknown
         // state is not a denial: let the browser request access when needed.
@@ -370,7 +396,8 @@ onMounted(async () => {
                 Profil staff tidak ditemukan pada akun ini.
             </div>
 
-            <section v-else class="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-[#d8c9aa] bg-[#fffdf8] shadow-[0_22px_60px_rgba(54,41,16,0.12)]">
+            <OvertimeAction v-if="hasStaff && !isOvertime" :active="activeOvertime" class="mx-auto mb-5 max-w-2xl"/>
+            <section v-if="hasStaff" class="mx-auto max-w-2xl overflow-hidden rounded-3xl border border-[#d8c9aa] bg-[#fffdf8] shadow-[0_22px_60px_rgba(54,41,16,0.12)]">
                 <header class="relative overflow-hidden bg-[#12110e] p-6 text-[#f8f0df] sm:p-8">
                     <div class="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full border-[32px] border-[#c99a3d]/10" />
                     <div class="pointer-events-none absolute -bottom-20 right-24 h-36 w-36 rounded-full bg-[#c99a3d]/10 blur-2xl" />
@@ -379,18 +406,18 @@ onMounted(async () => {
                             <span class="grid h-12 w-12 place-items-center rounded-2xl border border-[#6e5729] bg-[#211b11] text-[#d7aa4d]">
                                 <UserCheck class="h-6 w-6" />
                             </span>
-                            <h2 class="mt-5 text-2xl font-black sm:text-3xl">{{ today?.checkOut ? "Absensi Selesai" : checkoutRequested ? "Absen Pulang" : "Absen Masuk" }}</h2>
+                            <h2 class="mt-5 text-2xl font-black sm:text-3xl">{{ isOvertime ? actionTitle : today?.checkOut ? "Absensi Selesai" : checkoutRequested ? "Absen Pulang" : "Absen Masuk" }}</h2>
                             <p class="mt-1 text-sm font-medium text-[#b7aa94]">
                                 {{ new Date().toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) }}
                             </p>
                         </div>
                         <span class="rounded-full border border-[#66532d] bg-[#201b12] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-[#d7aa4d]">
-                            {{ today?.checkOut ? "Selesai" : checkoutRequested ? "Pulang" : "Masuk" }}
+                            {{ isOvertime ? 'Lembur' : today?.checkOut ? "Selesai" : checkoutRequested ? "Pulang" : "Masuk" }}
                         </span>
                     </div>
                 </header>
 
-                <div v-if="today?.checkOut" class="p-8 text-center sm:p-12">
+                <div v-if="!isOvertime && today?.checkOut" class="p-8 text-center sm:p-12">
                     <span class="mx-auto grid h-20 w-20 place-items-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600">
                         <CheckCircle2 class="h-10 w-10" />
                     </span>
@@ -412,6 +439,12 @@ onMounted(async () => {
                 </div>
 
                 <form v-else class="space-y-6 p-5 sm:p-8" @submit.prevent="submit">
+                    <div v-if="isOvertime" class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                        <p>Waktu {{ overtimeAction === 'overtime-finish' ? 'selesai' : 'mulai' }} dicatat otomatis saat absensi berhasil. Hasil lembur diperiksa setelah selesai.</p>
+                        <p v-if="activeOvertime" class="mt-2 font-semibold">Alasan: {{ activeOvertime.reason }}</p>
+                        <label v-if="overtimeAction === 'overtime-start'" class="mt-3 block font-bold">Alasan lembur<textarea v-model="f.reason" required minlength="5" maxlength="2000" rows="3" class="mt-2 w-full rounded-xl border border-amber-300 bg-white p-3 text-stone-900"/></label>
+                        <p v-if="f.errors.reason" role="alert" class="mt-2 text-rose-700">{{ f.errors.reason }}</p>
+                    </div>
                     <div class="grid gap-5">
                         <label>
                             <span class="label"><MapPin class="h-4 w-4" />Lokasi Kerja</span>
@@ -422,9 +455,16 @@ onMounted(async () => {
                                 <option value="WFH">WFH</option>
                             </select>
                         </label>
+                        <div v-if="f.workLocationType==='Office'" class="rounded-xl border p-4 text-sm" :class="officeWarning ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-950'">
+                            <p v-if="officeWarning" role="alert" class="font-bold">{{ officeWarning }}</p>
+                            <p v-if="officeDistance!==null" class="mt-1">Jarak ke kantor {{ officeDistance.toFixed(1) }} meter · Radius {{ attendanceSettings.office_radius_meters }} meter.</p>
+                            <p v-else-if="!officeWarning">Aktifkan GPS untuk memeriksa jarak ke kantor.</p>
+                            <p v-if="f.locationAccuracy!==null" class="mt-1 text-xs">Akurasi GPS ±{{ Math.round(f.locationAccuracy) }} meter. Perbarui lokasi jika posisi belum akurat.</p>
+                        </div>
+                        <p v-if="f.errors.workLocationType" role="alert" class="text-sm font-bold text-rose-700">{{ f.errors.workLocationType }}</p>
 
                         <div v-if="f.latitude !== null && f.longitude !== null" class="overflow-hidden rounded-xl border border-[#d8c9aa] bg-white">
-                            <iframe title="Peta lokasi GPS saat ini" class="h-48 w-full border-0" loading="lazy" referrerpolicy="no-referrer" :src="`https://www.openstreetmap.org/export/embed.html?bbox=${f.longitude - 0.003}%2C${f.latitude - 0.002}%2C${f.longitude + 0.003}%2C${f.latitude + 0.002}&layer=mapnik&marker=${f.latitude}%2C${f.longitude}`"></iframe>
+                            <AttendanceLocationMap :latitude="f.latitude" :longitude="f.longitude" title="Peta lokasi GPS saat ini"/>
                         </div>
                         <label>
                             <span class="label text-xs"><Navigation class="h-4 w-4" />Alamat Saat Ini</span>
@@ -494,8 +534,8 @@ onMounted(async () => {
                     <p v-if="f.errors.attendanceAction" class="text-sm font-bold text-rose-600">{{ f.errors.attendanceAction }}</p>
                     <p v-if="f.errors.photo" class="text-sm font-bold text-rose-600">{{ f.errors.photo }}</p>
 
-                    <button :disabled="f.processing || !f.photo || !locationResolved" class="h-14 w-full rounded-2xl bg-[#12110e] text-base font-black text-[#f7efdf] shadow-xl shadow-black/15 transition hover:bg-[#292319] disabled:cursor-not-allowed disabled:opacity-40 sm:text-lg">
-                        {{ f.processing ? "Mengirim..." : checkoutRequested ? "Kirim Absen Pulang" : "Kirim Absen Masuk" }}
+                    <button :disabled="f.processing || !f.photo || !locationResolved || Boolean(officeWarning)" class="h-14 w-full rounded-2xl bg-[#12110e] text-base font-black text-[#f7efdf] shadow-xl shadow-black/15 transition hover:bg-[#292319] disabled:cursor-not-allowed disabled:opacity-40 sm:text-lg">
+                        {{ f.processing ? "Mengirim..." : isOvertime ? `Absen ${actionTitle}` : checkoutRequested ? "Kirim Absen Pulang" : "Kirim Absen Masuk" }}
                     </button>
                 </form>
             </section>

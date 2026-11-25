@@ -3,10 +3,11 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from "v
 import { Head, Link, router, useForm, usePage } from "@inertiajs/vue3";
 import { ArrowLeft, FileDown, BriefcaseBusiness, CheckCircle2, ClockAlert, ListChecks, Users, CalendarDays, BarChart3, ClipboardList, FolderOpen, UserRound } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
+import KpiAttendance from "@/Components/KpiAttendance.vue";
 import "@/../css/productivity.css";
 const page = usePage<any>();
 const canViewStaff = computed(() => ["ADMINISTRATOR", "PIMPINAN"].includes(page.props.auth?.user?.role));
-const props = defineProps<{ employee: any; periodLabel: string; filters: { start_date: string | null; end_date: string | null; sort: string }; jobs: any[]; tasks: any[]; attendance: any[]; kpiScore: any; evaluation: any | null }>();
+const props = defineProps<{ employee: any; periodLabel: string; filters: { start_date: string | null; end_date: string | null; sort: string }; jobs: any[]; tasks: any[]; attendance: any[]; attendanceStartTime: string; attendanceGraceMinutes: number; overtimeRequests: any[]; kpiScore: any; evaluation: any | null }>();
 const e = props.employee;
 const evaluationForm = useForm({ start_date: props.filters.start_date || "", end_date: props.filters.end_date || "", notes: props.evaluation?.notes || "", improvement_plan: props.evaluation?.improvement_plan || "", next_target: props.evaluation?.next_target || "" });
 const saveEvaluation = () => evaluationForm.put(`/dashboard/productivity/${encodeURIComponent(e.id)}/evaluation`, { preserveScroll: true });
@@ -114,11 +115,10 @@ const cards = computed(() => [
     { label: "Tingkat penyelesaian", value: completionRate.value, note: "Selesai / (selesai + aktif)", icon: ListChecks, color: "violet" },
     { label: "Total tugas", value: e.totalTasks, note: `${e.picTasks} PIC · ${e.witnessTasks} saksi`, icon: Users, color: "slate" },
     { label: "Hadir", value: e.workingDays === null ? "—" : e.presentDays, note: `Hari dengan check-in · ${props.periodLabel}`, icon: CalendarDays, color: "teal" },
-    { label: "Terlambat", value: e.workingDays === null ? "—" : e.lateDays, note: "Hari check-in setelah 08.00", icon: ClockAlert, color: "orange" },
+    { label: "Terlambat", value: e.workingDays === null ? "—" : e.lateDays, note: `Melewati jam ${props.attendanceStartTime} + toleransi ${props.attendanceGraceMinutes} menit`, icon: ClockAlert, color: "orange" },
     { label: "Tepat waktu", value: punctualRate.value, note: "Hari hadir tidak terlambat / hadir", icon: CheckCircle2, color: "mint" },
 ]);
 const date = (v?: string | null) => v ? new Date(String(v).slice(0, 10) + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—";
-const time = (v?: string | null) => v ? String(v).includes(" ") ? String(v).split(" ")[1].slice(0, 5) : String(v).slice(0, 5) : "—";
 </script>
 <template>
 <Head :title="`KPI ${employee.fullName || employee.username}`" />
@@ -145,16 +145,30 @@ const time = (v?: string | null) => v ? String(v).includes(" ") ? String(v).spli
   <div class="grid items-start gap-4 xl:grid-cols-2">
     <section class="kpi-card"><div class="section-title"><FolderOpen class="h-5 w-5" /><h2 class="kpi-title">Rincian Kinerja Berkas</h2></div><p class="kpi-muted mt-1 text-sm">Maksimal 10 berkas berdasarkan tanggal dibuat.</p><div class="mt-4 overflow-x-auto"><table class="kpi-table detail-table"><thead><tr><th>Nomor Berkas</th><th>Pekerjaan</th><th>Kategori</th><th>Deadline</th><th>Status</th><th>Aksi</th></tr></thead><tbody><tr v-for="job in jobs" :key="job.jobType + job.id"><td>{{ job.trackingCode || '—' }}</td><td class="font-bold">{{ job.title }}</td><td>{{ job.category }}</td><td>{{ date(job.deadline) }}</td><td><span class="kpi-chip">{{ job.status }}</span></td><td><Link :href="`/dashboard/jobs/${job.jobType}/${job.id}`" class="kpi-back">Detail ↗</Link></td></tr><tr v-if="!jobs.length"><td colspan="6" class="kpi-muted">Belum ada berkas sebagai PIC.</td></tr></tbody></table></div></section>
     <section class="kpi-card"><div class="section-title"><BarChart3 class="h-5 w-5" /><h2 class="kpi-title">Komposisi Pekerjaan PIC</h2></div><p class="kpi-muted mt-1 text-sm">Status saat ini; dibatalkan tidak dihitung dalam tingkat penyelesaian.</p><div class="chart-layout mt-5"><div class="donut" :style="{ '--progress': completionRate === '—' ? '0%' : completionRate }" role="img" :aria-label="`Tingkat penyelesaian ${completionRate}`"><div><strong>{{ completionRate }}</strong><span>Selesai</span></div></div><div class="chart-legend"><div><span><i class="legend-dot legend-green"></i>Selesai</span><strong>{{ e.completed }}</strong></div><div><span><i class="legend-dot legend-blue"></i>Aktif</span><strong>{{ e.processing }}</strong></div><div><span><i class="legend-dot legend-grey"></i>Dibatalkan</span><strong>{{ e.cancelled }}</strong></div><div class="legend-total"><span>Total berkas PIC</span><strong>{{ e.totalJobs }}</strong></div></div></div></section>
-    <section class="kpi-card"><div class="section-title"><CalendarDays class="h-5 w-5" /><h2 class="kpi-title">Riwayat Absensi</h2></div><p class="kpi-muted mt-1 text-sm">Catatan untuk {{ periodLabel }}.</p><div v-if="attendance.length" class="mt-3 max-h-80 overflow-auto"><div v-for="(record,i) in attendance" :key="i" class="record-row flex flex-wrap justify-between gap-3 py-3 text-sm"><strong>{{ date(record.date) }}</strong><span class="kpi-muted">Masuk {{ time(record.checkIn) }} · Pulang {{ time(record.checkOut) }}</span></div></div><p v-else class="kpi-muted mt-4 text-sm">Belum ada catatan absensi periode ini.</p></section>
-    <section class="kpi-card"><div class="section-title"><BarChart3 class="h-5 w-5" /><h2 class="kpi-title">Ringkasan Kehadiran</h2></div><p class="kpi-muted mt-1 text-sm">Perkiraan Senin–Jumat sejak profil pegawai dibuat dan sampai hari ini.</p><div v-if="e.workingDays !== null" class="mt-4 grid grid-cols-3 gap-2"><div v-for="item in [{label:'Hari kerja',value:e.workingDays},{label:'Hadir',value:e.presentDays},{label:'Belum ada absensi',value:e.absentDays}]" :key="item.label" class="kpi-note"><p class="text-xl font-black">{{ item.value }}</p><p>{{ item.label }}</p></div></div><p v-else class="kpi-muted mt-4 text-sm">Profil absensi belum tersedia.</p><p class="kpi-note mt-4">Belum ada absensi bukan konfirmasi mangkir; libur, cuti, jadwal khusus, dan tanggal masuk kerja belum diperhitungkan.</p></section>
+    <section class="kpi-card xl:col-span-2"><div class="section-title"><BarChart3 class="h-5 w-5" /><h2 class="kpi-title">Ringkasan Kehadiran</h2></div><p class="kpi-muted mt-1 text-sm">Perkiraan Senin–Jumat sejak profil pegawai dibuat dan sampai hari ini.</p><div v-if="e.workingDays !== null" class="mt-4 grid grid-cols-3 gap-2"><div v-for="item in [{label:'Hari kerja',value:e.workingDays},{label:'Hadir',value:e.presentDays},{label:'Belum ada absensi',value:e.absentDays}]" :key="item.label" class="kpi-note"><p class="text-xl font-black">{{ item.value }}</p><p>{{ item.label }}</p></div></div><p v-else class="kpi-muted mt-4 text-sm">Profil absensi belum tersedia.</p><p class="kpi-note mt-4">Belum ada absensi bukan konfirmasi mangkir; libur, cuti, jadwal khusus, dan tanggal masuk kerja belum diperhitungkan.</p></section>
+    <KpiAttendance :employee-id="employee.id" :period-label="periodLabel" :attendance="attendance" :start-time="attendanceStartTime" :overtime-requests="overtimeRequests" />
   </div>
-  <section class="kpi-card"><div class="section-title"><ClipboardList class="h-5 w-5" /><h2 class="kpi-title">Daftar Tugas</h2></div><p class="kpi-muted mt-1 text-sm">Maksimal 10 penugasan sesuai urutan tanggal.</p><div v-if="tasks.length" class="mt-3 grid gap-x-6 md:grid-cols-2"><div v-for="task in tasks" :key="task.id" class="record-row py-3"><p class="font-bold">{{ task.customTask || task.taskType }}</p><p class="kpi-muted mt-1 text-sm">{{ task.jobTitle || 'Berkas tidak tersedia' }} · {{ date(task.createdAt) }}</p></div></div><p v-else class="kpi-muted mt-4 text-sm">Belum ada tugas.</p></section>
+  <section class="kpi-card" aria-labelledby="daftar-tugas-title">
+    <div class="section-title"><ClipboardList class="h-5 w-5"/><h2 id="daftar-tugas-title" class="kpi-title">Daftar Tugas</h2></div>
+    <p class="kpi-muted mt-1 text-sm">Maksimal 10 penugasan sesuai urutan tanggal.</p>
+    <div class="mt-4 overflow-x-auto rounded-xl border border-[#eee7dc]">
+      <table class="kpi-table" style="min-width:560px;table-layout:fixed">
+        <caption class="sr-only">Daftar tugas pegawai pada periode yang dipilih</caption>
+        <colgroup><col style="width:52px"/><col style="width:28%"/><col/><col style="width:150px"/></colgroup>
+        <thead><tr><th scope="col" class="text-center">No.</th><th scope="col">Tugas</th><th scope="col">Berkas / Pekerjaan</th><th scope="col">Tanggal Penugasan</th></tr></thead>
+        <tbody>
+          <tr v-for="(task,index) in tasks" :key="task.id"><td class="text-center text-stone-500">{{ index+1 }}</td><td class="break-words font-semibold">{{ task.customTask || task.taskType || '—' }}<span v-if="task.customTask && task.taskType" class="kpi-muted mt-1 block text-xs">{{ task.taskType }}</span></td><td class="break-words">{{ task.jobTitle || 'Berkas tidak tersedia' }}</td><td class="whitespace-nowrap">{{ date(task.createdAt) }}</td></tr>
+          <tr v-if="!tasks.length"><td colspan="4" class="kpi-muted py-6 text-center">Belum ada tugas.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
   <section class="kpi-card" aria-labelledby="metode-kpi">
     <h2 id="metode-kpi" class="kpi-title">Metode dan batasan KPI</h2>
     <div class="kpi-muted mt-3 grid gap-3 text-sm md:grid-cols-2">
       <p><strong>Berkas dan tugas:</strong> berdasarkan tanggal dibuat. Status dan deadline berkas menunjukkan kondisi saat ini, bukan riwayat pada akhir periode.</p>
       <p><strong>Penyelesaian:</strong> berkas selesai dibagi jumlah berkas selesai dan aktif; berkas yang dibatalkan tidak dihitung. Tanpa dasar perhitungan, nilai tidak tersedia.</p>
-      <p><strong>Kehadiran:</strong> hadir adalah hari dengan check-in; terlambat berarti check-in setelah 08.00. Tepat waktu dihitung dari hari hadir yang tidak terlambat dibagi seluruh hari hadir.</p>
+      <p><strong>Kehadiran:</strong> hadir adalah hari dengan check-in; terlambat berarti check-in melewati {{ attendanceStartTime }} dan toleransi {{ attendanceGraceMinutes }} menit. Tepat waktu dihitung dari hari hadir yang tidak terlambat dibagi seluruh hari hadir.</p>
       <p><strong>Interpretasi:</strong> hari tanpa absensi bukan bukti mangkir. Ketepatan tugas hanya dihitung ketika status selesai, target dan tanggal penyelesaian tersedia.</p>
     </div>
   </section>

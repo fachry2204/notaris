@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { Head, Link, useForm } from "@inertiajs/vue3";
 import {
     Building2,
@@ -9,6 +9,7 @@ import {
     Image,
     KeyRound,
     Mail,
+    MapPin,
     MessageSquare,
     Monitor,
     Save,
@@ -78,6 +79,7 @@ const f = useForm({
         appName: p.settings.general?.appName || "NOTARIS DIGITAL",
         officeName: p.settings.general?.officeName || "",
         officeAddress: p.settings.general?.officeAddress || "",
+        officeMapUrl: p.settings.general?.officeMapUrl || "",
         officeEmail: p.settings.general?.officeEmail || "",
         officePhone: p.settings.general?.officePhone || "",
     },
@@ -207,6 +209,12 @@ const documentNumberFields: { key: DocumentNumberKey; label: string }[] = [
     },
     { key: "ppat", label: "Huruf Depan Berkas PPAT" },
 ];
+const officeMapHref = computed(() => {
+    try {
+        const url = new URL(f.general.officeMapUrl);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+    } catch { return ""; }
+});
 const save = () =>
     f.put("/dashboard/settings", {
         preserveScroll: true,
@@ -276,6 +284,13 @@ const save = () =>
                             placeholder="Telepon"
                             class="field"
                         />
+                        <div class="space-y-2">
+                            <label for="office-map-url" class="block text-sm font-bold">Link Google Maps Kantor</label>
+                            <input id="office-map-url" v-model="f.general.officeMapUrl" type="url" maxlength="2048" placeholder="https://maps.app.goo.gl/..." class="field" aria-describedby="office-map-help" />
+                            <p id="office-map-help" class="text-xs text-stone-600">Tempel tautan lokasi kantor dari Google Maps, lalu simpan pengaturan.</p>
+                            <p v-if="f.errors['general.officeMapUrl']" role="alert" class="text-sm text-red-700">{{ f.errors['general.officeMapUrl'] }}</p>
+                            <a v-if="officeMapHref" :href="officeMapHref" target="_blank" rel="noopener noreferrer" class="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-700 px-4 py-2 text-sm font-bold text-amber-900 hover:bg-amber-50"><MapPin class="h-4 w-4" />Buka Google Maps</a>
+                        </div>
                     </section>
                     <section class="space-y-4 rounded-3xl border bg-white p-6">
                         <h2 class="flex items-center gap-2 font-black">

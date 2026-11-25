@@ -7,8 +7,6 @@ const page = usePage<any>();
 
 const props = defineProps<{ settings: any }>();
 const form = useForm({
-    start_time: props.settings.start_time,
-    grace_minutes: props.settings.grace_minutes,
     rules: props.settings.rules.map((r: any) => ({ from: r.from, to: r.to, amount: r.amount })),
 
 });
@@ -16,8 +14,8 @@ const actual = ref('08:20');
 const money = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n);
 const simulation = computed(() => {
     const mins = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
-    const late = Math.max(0, mins(actual.value) - mins(form.start_time));
-    const rule = late > form.grace_minutes ? form.rules.find((r: any) => late >= Number(r.from) && (r.to == null || r.to === '' || late <= Number(r.to))) : null;
+    const late = Math.max(0, mins(actual.value) - mins(props.settings.start_time));
+    const rule = late > props.settings.grace_minutes ? form.rules.find((r: any) => late >= Number(r.from) && (r.to == null || r.to === '' || late <= Number(r.to))) : null;
     return { late, amount: Number(rule?.amount ?? 0) };
 });
 const submit = () => form.put('/dashboard/payroll/settings');
@@ -26,11 +24,13 @@ const submit = () => form.put('/dashboard/payroll/settings');
 <Head title="Pengaturan Payroll" />
 <AppLayout>
 <main class="payroll mx-auto max-w-[1600px] space-y-5 p-3 sm:p-5">
-    <div class="flex flex-wrap items-center justify-between gap-4"><div><Link href="/dashboard/payroll" class="text-sm font-semibold text-amber-700">← Kembali ke Payroll</Link><h1 class="mt-2 text-2xl font-black">Pengaturan Payroll</h1><p class="muted mt-1 text-sm">Atur jam kerja dan potongan keterlambatan.</p></div><button class="save-action primary" :disabled="form.processing" @click="submit"><Save class="h-4 w-4" /> Simpan Pengaturan</button></div>
+    <div class="flex flex-wrap items-center justify-between gap-4"><div><Link href="/dashboard/payroll" class="text-sm font-semibold text-amber-700">← Kembali ke Payroll</Link><h1 class="mt-2 text-2xl font-black">Pengaturan Payroll</h1><p class="muted mt-1 text-sm">Atur potongan keterlambatan dan data penggajian.</p></div><button class="save-action primary" :disabled="form.processing" @click="submit"><Save class="h-4 w-4" /> Simpan Pengaturan</button></div>
     <div v-if="page.props.flash?.success" class="notice">{{ page.props.flash.success }}</div>
     <div v-if="Object.keys(form.errors).length" class="error">{{ Object.values(form.errors).join(' ') }}</div>
     <div class="grid gap-5 xl:grid-cols-3">
-        <section class="panel xl:col-span-2"><h2><Clock class="h-5 w-5 text-amber-600" /> Jam Kerja dan Keterlambatan</h2><div class="mt-5 grid gap-4 md:grid-cols-2"><label>Jam Masuk Kantor<input v-model="form.start_time" type="time" /></label><label>Toleransi keterlambatan (menit)<input v-model.number="form.grace_minutes" type="number" min="0" max="1440" /></label></div>
+        <section class="panel xl:col-span-2"><h2><Clock class="h-5 w-5 text-amber-600" /> Pengaturan Potongan Payroll</h2>
+        <p class="muted mt-3 text-sm">Jam masuk {{ settings.start_time }}, jam pulang {{ settings.end_time || 'belum diatur' }}, toleransi {{ settings.grace_minutes }} menit. Jam kerja dikelola di Pengaturan Absensi.</p>
+        <Link href="/dashboard/pegawai/absensi/settings" class="secondary mt-3">Pengaturan Absensi</Link>
         <div class="mt-6 flex items-center justify-between gap-3"><h3 class="font-bold">Aturan Potongan Keterlambatan</h3><button type="button" class="secondary" @click="form.rules.push({ from: 1, to: null, amount: 0 })"><Plus class="h-4 w-4" /> Tambah Aturan</button></div>
         <p class="muted mt-2 text-sm">Satu aturan sesuai total menit terlambat berlaku per hari. Rentang tidak boleh tumpang tindih; kosongkan batas akhir untuk tanpa batas.</p>
         <div v-if="!form.rules.length" class="empty mt-4">Belum ada aturan potongan.</div>

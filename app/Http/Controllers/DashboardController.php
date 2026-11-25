@@ -189,7 +189,7 @@ class DashboardController extends Controller
         $attendanceStaffIds = DB::table('staff')->where('attendance_enabled', true)->pluck('id');
         $attendanceToday = [
             'present' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereNotNull('checkIn')->count(),
-            'late' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereTime('checkIn', '>', '08:00:00')->count(),
+            'late' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereRaw('TIME_TO_SEC(TIME(checkIn)) > ?', [app(\App\Services\AttendanceSettingsService::class)->lateThresholdSeconds()])->count(),
             'notCheckedOut' => DB::table('attendance')->whereIn('staffId', $attendanceStaffIds)->whereDate('date', today())->whereNotNull('checkIn')->whereNull('checkOut')->count(),
             'totalStaff' => $attendanceStaffIds->count(),
         ];

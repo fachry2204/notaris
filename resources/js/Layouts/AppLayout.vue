@@ -65,7 +65,7 @@ const officeName = computed(
 );
 const logoUrl = computed(() => branding.value.logoUrl || "");
 const faviconUrl = computed(
-    () => branding.value.faviconUrl || logoUrl.value || "",
+    () => (page.props.pwa as any)?.faviconUrl || branding.value.faviconUrl || logoUrl.value || "",
 );
 const role = computed(() => user.value?.role || "");
 
@@ -73,7 +73,6 @@ const sections = [
     {
         title: "UTAMA",
         items: [
-            ["Profil Saya", UserCog, "/dashboard/profile", ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"]],
             [
                 "Dashboard",
                 LayoutDashboard,
@@ -280,12 +279,12 @@ const mobile = computed(() => [
 
 <template>
     <div
-        class="desktop-workspace flex h-screen overflow-hidden bg-[#F7F4EB] pb-16 text-[#1c1917] md:pb-0"
+        class="desktop-workspace flex h-screen overflow-hidden bg-[#F7F4EB] text-[#1c1917]"
     >
         <!-- Desktop Luxury Sidebar -->
         <aside
             v-show="!sidebarCollapsed"
-            class="relative z-50 hidden h-screen w-64 shrink-0 flex-col border-r border-[#2c251b] bg-[#12110e] text-sm shadow-2xl md:flex select-none"
+            class="relative z-50 hidden h-screen w-64 lg:w-72 shrink-0 flex-col border-r border-[#2c251b] bg-[#12110e] text-sm shadow-2xl md:flex select-none"
         >
             <!-- Brand Header -->
             <div class="flex flex-col items-center px-4 pt-6 pb-4 border-b border-[#252017] text-center">
@@ -315,7 +314,7 @@ const mobile = computed(() => [
             <div class="custom-scrollbar min-h-0 flex-1 overflow-y-auto px-3 py-3 space-y-5">
                 <section v-for="s in sections" :key="s.title" class="px-1">
                     <template v-if="s.items.some((i: any) => i[3].includes(role))">
-                        <h2 class="mb-2 px-3 text-[10px] font-bold tracking-widest uppercase text-[#736A5B]">
+                        <h2 class="mb-2 px-3 text-xs font-bold tracking-widest uppercase text-[#AFA695]">
                             {{ s.title }}
                         </h2>
                         <div class="space-y-1">
@@ -323,7 +322,7 @@ const mobile = computed(() => [
                                 <Link
                                     v-if="(i[3] as string[]).includes(role)"
                                     :href="i[2] as string"
-                                    class="group relative flex h-10 items-center gap-3 rounded-xl px-3.5 text-xs font-semibold transition-all"
+                                    class="group relative flex min-h-[52px] items-center gap-3 rounded-xl px-3.5 py-3 text-base font-semibold transition-all"
                                     :class="
                                         active(i[2] as string)
                                             ? 'bg-gradient-to-r from-[#F5C344] to-[#E6A817] text-stone-950 font-bold shadow-md shadow-amber-900/25'
@@ -332,13 +331,13 @@ const mobile = computed(() => [
                                 >
                                     <component
                                         :is="i[1]"
-                                        class="h-4 w-4 shrink-0 transition-transform group-hover:scale-110"
+                                        class="h-[22px] w-[22px] shrink-0 transition-transform group-hover:scale-110"
                                         :class="active(i[2] as string) ? 'text-stone-950' : 'text-[#8A8170] group-hover:text-[#F3BA2F]'"
                                     />
-                                    <span class="truncate">{{ i[0] }}</span>
+                                    <span class="min-w-0 flex-1 whitespace-normal leading-snug">{{ i[0] }}</span>
                                     <span
                                         v-if="active(i[2] as string)"
-                                        class="ml-auto h-1.5 w-1.5 rounded-full bg-stone-950/80"
+                                        class="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-stone-950/80"
                                     ></span>
                                 </Link>
                             </template>
@@ -354,7 +353,7 @@ const mobile = computed(() => [
         </aside>
 
         <!-- Main Body Area -->
-        <div class="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div class="relative flex min-w-0 flex-1 flex-col overflow-hidden">
             <!-- Mobile Top Header Bar -->
             <header v-if="!hideMobileHeader" class="flex h-16 items-center justify-between border-b border-[#2c251b] bg-[#12110e] px-4 shadow-sm md:hidden">
                 <Link href="/dashboard" class="flex items-center gap-2">
@@ -363,10 +362,10 @@ const mobile = computed(() => [
                     <span class="font-serif truncate text-base font-black text-[#f2e8d5]">{{ appName }}</span>
                 </Link>
                 <div class="flex items-center gap-2">
-                    <div class="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-[#fef3c7] text-xs font-black text-amber-800 border border-amber-300">
-                        <img v-if="profilePhoto" :src="profilePhoto" alt="Foto profil" class="h-full w-full object-cover" />
+                    <Link href="/dashboard/profile" aria-label="Buka profil saya" title="Profil Saya" class="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-[#fef3c7] text-xs font-black text-amber-800 border border-amber-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#12110e]">
+                        <img v-if="profilePhoto" :src="profilePhoto" alt="" class="h-full w-full object-cover" />
                         <span v-else>{{ user?.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'NR' }}</span>
-                    </div>
+                    </Link>
                     <Link
                         href="/logout"
                         method="post"
@@ -468,14 +467,18 @@ const mobile = computed(() => [
 
             <!-- Main Content Slot -->
             <main
-                class="flex-1 overflow-y-auto bg-[#F7F4EB] p-4 md:p-6"
+                class="workspace-scroll flex min-h-0 flex-1 flex-col overflow-y-auto bg-[#F7F4EB] p-4 md:p-6"
             >
-                <slot />
+                <div class="min-w-0 flex-1"><slot /></div>
+                <footer class="mt-6 flex shrink-0 flex-col gap-2 border-t border-[#E5DCCB] pt-4 text-xs leading-relaxed text-stone-600 lg:flex-row lg:items-center lg:justify-between" aria-label="Informasi hak cipta">
+                    <p class="min-w-0 break-words">Copyright {{ new Date().getFullYear() }} © {{ officeName }}</p>
+                    <p class="min-w-0 break-words lg:text-right">System Develover by Fachry Hidayat | Garuda Sever</p>
+                </footer>
             </main>
         </div>
 
         <!-- Mobile Bottom Nav -->
-        <nav aria-label="Navigasi mobile" class="fixed inset-x-0 bottom-0 z-50 flex items-end justify-around rounded-t-3xl border-t border-[#e7e2da] bg-[#fffefa] px-1 pt-2 shadow-[0_-4px_20px_rgba(0,0,0,.08)] md:hidden" style="padding-bottom:max(.5rem,env(safe-area-inset-bottom))">
+        <nav aria-label="Navigasi mobile" class="fixed inset-x-0 bottom-0 z-40 flex items-end justify-around rounded-t-3xl border-t border-[#e7e2da] bg-[#fffefa] px-1 pt-2 shadow-[0_-4px_20px_rgba(0,0,0,.08)] md:hidden" style="padding-bottom:max(.5rem,env(safe-area-inset-bottom))">
             <Link v-for="(item, index) in mobile" :key="index" :href="item.href" class="flex min-h-14 w-1/5 flex-col items-center justify-center gap-1 text-center text-[10px] font-semibold leading-tight text-slate-700" :class="active(item.href) ? 'text-emerald-700' : ''">
                 <span :class="index === 2 ? '-mt-7 grid h-14 w-14 place-items-center rounded-full border-4 border-[#fffefa] bg-gradient-to-b from-emerald-400 to-emerald-900 text-white shadow-md' : ''"><component :is="item.icon" aria-hidden="true" :class="[item.color, index === 2 ? 'h-8 w-8' : 'h-7 w-7']" /></span><span>{{ item.label }}</span>
             </Link>
