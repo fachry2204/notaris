@@ -940,7 +940,7 @@ class ApplicationTest extends TestCase
             && str_contains($mail->body, 'Total penawaran'));
         Http::assertSent(fn ($request) => $request->url() === 'https://api.fonnte.com/send'
             && $request->hasHeader('Authorization', 'test-fonnte-token')
-            && $request['target'] === '081234567890');
+            && $request['target'] === '6281234567890');
 
         $this->withExceptionHandling();
         $this->withSession($session)->post("/dashboard/quotation/{$quotation->id}/publish")->assertSessionHasErrors('publish');

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { Head, Link, useForm } from "@inertiajs/vue3";
 import {
     Building2,
@@ -19,6 +19,7 @@ import {
 } from "@lucide/vue";
 import AppLayout from "@/Layouts/AppLayout.vue";
 import PageHeader from "@/Components/DesignSystem/PageHeader.vue";
+import MessageHistory from "@/Components/MessageHistory.vue";
 const p = defineProps<{ settings: any; admins: any[]; initialTab?: string }>();
 const defaults = [
     {
@@ -136,6 +137,7 @@ const f = useForm({
         return merged;
     }).concat((p.settings.roles || []).filter((item: any) => !defaults.some(role => role.id === item.id))),
     whatsapp: {
+        categories: { quotation: true, invoice: true, job: true, attendance: false, ...p.settings.whatsapp?.categories } as Record<string, boolean>,
         enabled: Boolean(p.settings.whatsapp?.enabled),
         provider: p.settings.whatsapp?.provider || "fonnte",
         endpointUrl:
@@ -145,11 +147,20 @@ const f = useForm({
     notificationTemplates: p.settings.notificationTemplates as Record<string, { subject: string; email: string; whatsapp: string }>,
 });
 const tab = ref(p.initialTab || "system");
-const templateType = ref<'quotation' | 'invoice' | 'job'>('quotation');
+const templateType = ref<'quotation' | 'invoice' | 'job' | 'attendance'>('quotation');
 const templateChannel = ref<'email' | 'whatsapp'>('email');
-const templateTypes = [{ id: 'quotation', label: 'Quotation' }, { id: 'invoice', label: 'Invoice' }, { id: 'job', label: 'Progres Berkas' }] as const;
+const templateTypes = [{ id: 'quotation', label: 'Quotation' }, { id: 'invoice', label: 'Invoice' }, { id: 'job', label: 'Progres Berkas' }, {id:'attendance',label:'Absensi'}] as const;
+watch(templateType, type => { if (type === 'attendance') templateChannel.value = 'whatsapp'; });
+const whatsappCategories = [
+    {id:'quotation',title:'Quotation diterbitkan',text:'Client menerima nomor, judul, total, dan tautan quotation.'},
+    {id:'invoice',title:'Invoice dikirim',text:'Client menerima total tagihan, jatuh tempo, status, dan tautan invoice.'},
+    {id:'job',title:'Pembaruan berkas',text:'Client menerima nomor berkas, perihal, status terbaru, dan tautan pelacakan.'},
+    {id:'attendance',title:'Absensi karyawan',text:'Konfirmasi masuk, pulang, mulai dan selesai lembur hanya ke nomor karyawan yang melakukan absensi.'},
+] as const;
 const templateFields: Record<string, string> = { nama_client: 'Nama penerima', nomor: 'Nomor dokumen', perihal: 'Judul pekerjaan atau dokumen', tautan: 'Tautan dokumen atau pelacakan', pic: 'Nama PIC atau tim', total: 'Total tagihan atau penawaran', jatuh_tempo: 'Tanggal jatuh tempo invoice', status: 'Status invoice atau berkas' };
+Object.assign(templateFields, {nama_karyawan:'Nama karyawan yang absen',jenis_absensi:'Masuk, pulang, mulai / selesai lembur',tanggal:'Tanggal absensi',jam:'Jam absensi',jenis_lokasi:'Office, WFH, WFC atau Dinas Luar',lokasi:'Alamat absensi',nama_kantor:'Nama kantor dari Pengaturan'});
 const placeholders: Record<string, string[]> = { quotation: ['nama_client', 'nomor', 'perihal', 'total', 'tautan', 'pic'], invoice: ['nama_client', 'nomor', 'perihal', 'total', 'jatuh_tempo', 'status', 'tautan', 'pic'], job: ['nama_client', 'nomor', 'perihal', 'status', 'tautan', 'pic'] };
+placeholders.attendance = ['nama_karyawan','jenis_absensi','tanggal','jam','jenis_lokasi','lokasi','nama_kantor'];
 const insertPlaceholder = (name: string) => { f.notificationTemplates[templateType.value][templateChannel.value] += `{${name}}`; };
 const testRecipient = ref({ email: '', whatsapp: '' });
 const testResult = ref<Record<string, { message: string; ok: boolean } | null>>({ email: null, whatsapp: null });
@@ -232,6 +243,7 @@ const save = () =>
                         { id: 'numbers', l: 'Nomor Dokumen', i: Hash },
                         { id: 'email', l: 'Email SMTP', i: Mail },
                         { id: 'templates', l: 'Template Notifikasi', i: MessageSquare },
+                        { id: 'messages', l: 'Status Pesan', i: Mail },
                         { id: 'admins', l: 'Administrator', i: Users },
                         { id: 'roles', l: 'Role & Akses', i: Shield },
                         { id: 'whatsapp', l: 'WhatsApp', i: MessageSquare },
@@ -248,6 +260,7 @@ const save = () =>
                 </button>
             </nav>
             <form @submit.prevent="save">
+                <MessageHistory v-if="tab === 'messages'" />
                 <div
                     v-if="f.recentlySuccessful"
                     class="mb-6 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700"
@@ -506,7 +519,7 @@ const save = () =>
                                 </h2>
                                 <p class="mt-1 text-sm text-slate-500">
                                     Koneksi Email global untuk Quotation,
-                                    Invoice, dan Berkas.
+                                    Invoice, Berkas, dan Absensi.
                                 </p>
                             </div>
                             <button
@@ -775,12 +788,12 @@ const save = () =>
                     class="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(260px,1fr)]"
                 >
                     <section class="space-y-5 rounded-3xl border bg-white p-6">
-                        <div><h2 class="text-lg font-black">Template Notifikasi</h2><p class="mt-1 text-sm text-slate-500">Pilih notifikasi dan kanal, lalu sesuaikan pesan untuk client. Klik Simpan Pengaturan untuk menerapkan perubahan.</p></div>
+                        <div><h2 class="text-lg font-black">Template Notifikasi</h2><p class="mt-1 text-sm text-slate-500">Pilih notifikasi dan kanal, lalu sesuaikan pesan untuk client atau karyawan. Klik Simpan Pengaturan untuk menerapkan perubahan.</p></div>
                         <div class="flex flex-wrap gap-2" aria-label="Jenis notifikasi">
                             <button v-for="item in templateTypes" :key="item.id" type="button" @click="templateType = item.id" :aria-pressed="templateType === item.id" class="rounded-xl border px-4 py-2 text-sm font-bold" :class="templateType === item.id ? 'border-amber-500 bg-amber-500 text-black' : 'border-slate-400 text-slate-500'">{{ item.label }}</button>
                         </div>
                         <div class="flex flex-wrap gap-2" aria-label="Kanal notifikasi">
-                            <button v-for="channel in (['email', 'whatsapp'] as const)" :key="channel" type="button" @click="templateChannel = channel" :aria-pressed="templateChannel === channel" class="rounded-xl border px-4 py-2 text-sm font-bold" :class="templateChannel === channel ? 'border-amber-500 bg-amber-500 text-black' : 'border-slate-400 text-slate-500'">{{ channel === 'email' ? 'Email' : 'WhatsApp' }}</button>
+                            <button v-for="channel in (templateType === 'attendance' ? ['whatsapp'] as const : ['email', 'whatsapp'] as const)" :key="channel" type="button" @click="templateChannel = channel" :aria-pressed="templateChannel === channel" class="rounded-xl border px-4 py-2 text-sm font-bold" :class="templateChannel === channel ? 'border-amber-500 bg-amber-500 text-black' : 'border-slate-400 text-slate-500'">{{ channel === 'email' ? 'Email' : 'WhatsApp' }}</button>
                         </div>
                         <label v-if="templateChannel === 'email'" class="block"><span class="input-label">Subjek Email</span><input v-model="f.notificationTemplates[templateType].subject" maxlength="200" class="field" /><span v-if="f.errors[`notificationTemplates.${templateType}.subject`]" class="text-sm text-rose-500">{{ f.errors[`notificationTemplates.${templateType}.subject`] }}</span></label>
                         <label class="block"><span class="input-label">Isi Pesan {{ templateChannel === 'email' ? 'Email' : 'WhatsApp' }}</span><textarea v-model="f.notificationTemplates[templateType][templateChannel]" rows="12" maxlength="10000" class="field min-h-52 resize-y"></textarea><span v-if="f.errors[`notificationTemplates.${templateType}.${templateChannel}`]" class="text-sm text-rose-500">{{ f.errors[`notificationTemplates.${templateType}.${templateChannel}`] }}</span></label>
@@ -879,46 +892,22 @@ const save = () =>
                         <div>
                             <h2 class="font-black">Pesan WhatsApp Otomatis</h2>
                             <p class="mt-1 text-sm text-slate-500">
-                                Fonnte digunakan sebagai gateway untuk seluruh
-                                notifikasi dokumen.
+                                Fonnte digunakan untuk notifikasi dokumen dan
+                                konfirmasi absensi karyawan.
                             </p>
                         </div>
-                        <div
-                            v-for="item in [
-                                {
-                                    title: 'Quotation diterbitkan',
-                                    text: 'Client menerima nomor, judul, total, masa berlaku, dan tautan quotation.',
-                                },
-                                {
-                                    title: 'Invoice dikirim',
-                                    text: 'Client menerima total tagihan, jatuh tempo, status, dan tautan invoice.',
-                                },
-                                {
-                                    title: 'Pembaruan berkas',
-                                    text: 'Client menerima nomor berkas, perihal, status terbaru, dan tautan pelacakan.',
-                                },
-                            ]"
-                            :key="item.title"
-                            class="flex gap-3 rounded-2xl bg-slate-50 p-4"
-                        >
-                            <MessageSquare
-                                class="mt-0.5 h-5 w-5 shrink-0 text-emerald-500"
-                            />
-                            <div>
-                                <h3 class="text-sm font-black">
-                                    {{ item.title }}
-                                </h3>
-                                <p
-                                    class="mt-1 text-xs leading-5 text-slate-500"
-                                >
-                                    {{ item.text }}
-                                </p>
-                            </div>
+                        <p class="text-xs leading-relaxed text-stone-600">Atur setiap kategori, lalu klik Simpan Pengaturan. Pengiriman hanya berjalan jika Fonnte dan kategorinya aktif.</p>
+                        <div v-for="item in whatsappCategories" :key="item.id" class="flex items-start gap-3 rounded-2xl border border-[#e9decd] bg-[#faf5ec] p-4">
+                            <MessageSquare class="mt-1 h-5 w-5 shrink-0 text-emerald-600"/>
+                            <div class="min-w-0 flex-1"><h3 class="text-sm font-black">{{ item.title }}</h3><p class="mt-1 text-xs leading-5 text-stone-600">{{ item.text }}</p><span class="mt-2 inline-block text-xs font-bold" :class="f.whatsapp.categories[item.id] ? 'text-emerald-800' : 'text-stone-500'">{{ f.whatsapp.categories[item.id] ? 'Aktif' : 'Tidak aktif' }}</span></div>
+                            <button type="button" role="switch" :aria-label="item.title" :aria-checked="f.whatsapp.categories[item.id]" :disabled="f.processing" class="flex h-11 w-12 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:opacity-50" @click="f.whatsapp.categories[item.id] = !f.whatsapp.categories[item.id]"><span class="flex h-6 w-11 items-center rounded-full p-0.5 transition-colors" :class="f.whatsapp.categories[item.id] ? 'bg-emerald-600' : 'bg-stone-300'"><span class="h-5 w-5 rounded-full bg-white shadow-sm transition-transform" :class="f.whatsapp.categories[item.id] ? 'translate-x-5' : 'translate-x-0'"/></span></button>
                         </div>
+                        <p class="text-xs leading-relaxed text-stone-600">Nomor Indonesia dinormalisasi saat kirim: 0812… menjadi 62812…. Nomor profil yang tersimpan tidak diubah.</p>
+                        <button type="button" class="min-h-11 rounded-xl border border-amber-700 px-4 text-sm font-bold text-amber-900" @click="tab='templates';templateType='attendance'">Atur Template Absensi</button>
                     </section>
                 </div>
                 <button
-                    v-if="tab !== 'admins'"
+                    v-if="tab !== 'admins' && tab !== 'messages'"
                     type="submit"
                     :disabled="f.processing || !!uploading"
                     class="save-action mt-6 inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white"

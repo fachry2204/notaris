@@ -149,6 +149,8 @@ Route::middleware('legacy.auth')->group(function () {
     Route::delete('/dashboard/system/users/{source}/{id}', [UserLoginController::class, 'destroy'])->where('source', 'admin|user')->name('user-logins.destroy');
     Route::middleware('admin.auth')->group(function () {
         Route::get('/dashboard/settings', [SettingsController::class, 'index'])->name('settings.index');
+        Route::get('/dashboard/settings/messages', [\App\Http\Controllers\MessageLogController::class, 'index'])->name('settings.messages.index');
+        Route::get('/dashboard/settings/messages/{id}', [\App\Http\Controllers\MessageLogController::class, 'show'])->whereUuid('id')->name('settings.messages.show');
         Route::put('/dashboard/settings', [SettingsController::class, 'update'])->name('settings.update');
         Route::post('/dashboard/settings/upload', [SettingsController::class, 'upload'])->name('settings.upload');
         Route::post('/dashboard/settings/test-notification', [SettingsController::class, 'testNotification'])->middleware('throttle:10,1')->name('settings.test-notification');

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { Head, Link, useForm } from "@inertiajs/vue3";
+import { Head, Link, useForm, usePage } from "@inertiajs/vue3";
 import {
     ArrowLeft,
     Camera,
@@ -19,6 +19,7 @@ import AttendanceLocationMap from '@/Components/AttendanceLocationMap.vue';
 import { distanceMeters } from '@/Utils/geofence';
 
 const props = defineProps<{ today: any; hasStaff: boolean; checkoutRequested: boolean; attendanceSettings: any; activeOvertime?: any; overtimeAction?: string | null }>();
+const attendancePage = usePage<any>();
 const isOvertime = computed(() => Boolean(props.overtimeAction));
 const actionTitle = computed(() => props.overtimeAction === 'overtime-finish' ? 'Selesai Lembur' : 'Mulai Lembur');
 const checkInComplete = computed(() => Boolean(!isOvertime.value && props.today?.checkIn && !props.today?.checkOut && !props.checkoutRequested));
@@ -392,6 +393,7 @@ onMounted(async () => {
                 </div>
             </header>
 
+            <p v-if="attendancePage.props.flash?.success" role="status" class="mx-auto max-w-2xl rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">{{ attendancePage.props.flash.success }}</p>
             <div v-if="!hasStaff" class="mx-auto max-w-2xl rounded-2xl border border-rose-200 bg-rose-50 p-6 font-bold text-rose-700 shadow-sm">
                 Profil staff tidak ditemukan pada akun ini.
             </div>

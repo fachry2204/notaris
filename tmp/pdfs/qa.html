@@ -1,0 +1,18 @@
+<!doctype html><html><head><meta charset="utf-8"><title>QA PDF KPI</title><style>body{margin:20px;background:#e6e2da;font:16px Arial}canvas{display:block;margin:20px auto;box-shadow:0 3px 15px #aaa;max-width:100%;height:auto}button{padding:12px;margin:4px}#status{display:inline-block;padding:12px}</style></head><body><button id="normal">Contoh laporan</button><button id="empty">Tanpa data</button><button id="stress">Data panjang</button><span id="status">Siap</span><div id="pages"></div><script type="module">
+import {createEmployeeKpiPdf} from '/resources/js/Utils/downloadEmployeeKpiPdf.ts';
+import fixture from './fixture.js';
+import * as pdfjs from '/node_modules/pdfjs-dist/build/pdf.mjs';
+pdfjs.GlobalWorkerOptions.workerSrc='/node_modules/pdfjs-dist/build/pdf.worker.mjs';
+window.qaResults={};
+async function run(mode){
+const d=structuredClone(fixture);d.employee.photoPath='/uploads/staff/photo_cmp5wpssz000avhm4h0nh6ybw_1778788450839.jpeg';d.employee.email='pegawai@example.test';d.employee.phone='081234567890';
+if(mode==='empty'){d.tasks=[];d.jobs=[];d.attendance=[];d.insights=[];d.employee={fullName:'Pegawai tanpa data',totalJobs:0,completed:0,processing:0,totalTasks:0,workingDays:null};d.kpiScore.score=null;Object.values(d.kpiScore.components).forEach(c=>c.score=null);}
+if(mode==='stress'){d.employee.fullName='Pegawai Pengujian Nama Sangat Panjang untuk Pemeriksaan Tata Letak Laporan';d.tasks=Array.from({length:48},(_,i)=>({...d.tasks[i%2],customTask:`Tugas ${i+1} - Verifikasi dokumen perusahaan dan pemeriksaan kelengkapan berkas hukum dengan catatan panjang`,jobTitle:'Pendirian Perseroan Terbatas dan perubahan administrasi perusahaan'}));d.attendance=Array.from({length:22},(_,i)=>({date:`2026-11-${String(i+1).padStart(2,'0')}`,checkIn:'08:00:00',checkOut:'17:00:00'}));d.evaluation={notes:'Catatan evaluasi pimpinan. '.repeat(30),improvement_plan:'Konfirmasi hambatan dan perbaiki ketepatan waktu. '.repeat(10),next_target:'Tuntaskan pekerjaan sesuai prioritas. '.repeat(10)};}
+window.lastFixture=d;document.querySelector('#status').textContent='Membuat...';
+const r=await createEmployeeKpiPdf(d,{appName:'NOTARIS DIGITAL',officeName:'Kantor Notaris Salfa Novia Roza, S.H.,M.Kn'});const bytes=new Uint8Array(await r.blob.arrayBuffer());window.qaResults[mode]={pages:r.pages,bytes:Array.from(bytes)};
+const pdf=await pdfjs.getDocument({data:bytes}).promise;document.querySelector('#pages').replaceChildren();
+for(let n=1;n<=pdf.numPages;n++){const p=await pdf.getPage(n);const v=p.getViewport({scale:1.5});const c=document.createElement('canvas');c.width=v.width;c.height=v.height;document.querySelector('#pages').appendChild(c);await p.render({canvasContext:c.getContext('2d'),viewport:v}).promise;}
+document.querySelector('#status').textContent=`${mode}: ${r.pages} halaman`;
+}
+for(const mode of ['normal','empty','stress'])document.getElementById(mode).onclick=()=>run(mode);
+</script></body></html>

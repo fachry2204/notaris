@@ -32,6 +32,7 @@ class SettingsController extends Controller
                         'fromName' => 'Notaris Digital',
                     ],
                     'whatsapp' => [
+                        'categories' => NotificationGateway::whatsappCategoryDefaults(),
                         'enabled' => false,
                         'provider' => 'fonnte',
                         'endpointUrl' => 'https://api.fonnte.com/send',
@@ -102,6 +103,8 @@ class SettingsController extends Controller
             'roles.*.permissions' => 'required|array',
             'whatsapp.provider' => 'nullable|string|max:100',
             'whatsapp.enabled' => 'required|boolean',
+            'whatsapp.categories' => 'sometimes|array:quotation,invoice,job,attendance',
+            'whatsapp.categories.*' => 'required|boolean',
             'whatsapp.endpointUrl' => 'required_if:whatsapp.enabled,true|nullable|url|max:500',
             'whatsapp.apiToken' => 'required_if:whatsapp.enabled,true|nullable|string|max:1000',
             'notificationTemplates' => 'sometimes|array',

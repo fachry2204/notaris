@@ -16,9 +16,15 @@ class NotificationGateway
 {
     private const SETTINGS_KEY = 'GLOBAL_APP_SETTINGS';
 
+    public static function whatsappCategoryDefaults(): array
+    {
+        return ['quotation'=>true, 'invoice'=>true, 'job'=>true, 'attendance'=>false];
+    }
+
     public static function templateDefaults(): array
     {
         return [
+            'attendance' => ['subject'=>'Konfirmasi {jenis_absensi} - {nama_karyawan}', 'email'=>"Halo {nama_karyawan},\n\n{jenis_absensi} Anda berhasil tercatat.\nTanggal: {tanggal}\nPukul: {jam}\nLokasi kerja: {jenis_lokasi}\nAlamat: {lokasi}\n\n{nama_kantor}", 'whatsapp'=>"Halo *{nama_karyawan}*,\n\n*{jenis_absensi}* Anda berhasil tercatat.\nTanggal: *{tanggal}*\nPukul: *{jam}*\nLokasi kerja: {jenis_lokasi}\nAlamat: {lokasi}\n\nTerima kasih.\n{nama_kantor}"],
             'quotation' => ['subject' => 'Quotation {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nQuotation {nomor} untuk {perihal} telah diterbitkan.\nTotal penawaran: {total}\n\nLihat quotation: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, quotation *{nomor}* untuk {perihal} telah diterbitkan.\n\nTotal penawaran: *{total}*\n\nLihat quotation: {tautan}\n\nHormat kami,\n{pic}"],
             'invoice' => ['subject' => 'Invoice {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nInvoice {nomor} untuk {perihal} telah tersedia.\nTotal tagihan: {total}\nJatuh tempo: {jatuh_tempo}\nStatus: {status}\n\nLihat invoice: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, invoice *{nomor}* untuk {perihal} telah tersedia.\n\nTotal: *{total}*\nJatuh tempo: {jatuh_tempo}\nStatus: {status}\n\nLihat invoice: {tautan}\n\nHormat kami,\n{pic}"],
             'job' => ['subject' => 'Informasi Berkas {nomor} - {perihal}', 'email' => "Yth. {nama_client},\n\nBerikut pembaruan berkas Anda.\nNomor berkas: {nomor}\nPerihal: {perihal}\nStatus saat ini: {status}\n\nPantau berkas: {tautan}\n\nHormat kami,\n{pic}", 'whatsapp' => "Yth. {nama_client}, berikut pembaruan berkas Anda.\n\nNomor: *{nomor}*\nPerihal: {perihal}\nStatus: *{status}*\n\nPantau berkas: {tautan}\n\nHormat kami,\n{pic}"],
@@ -28,7 +34,24 @@ class NotificationGateway
     public static function templatePlaceholders(): array
     {
         $common = ['nama_client', 'nomor', 'perihal', 'tautan', 'pic'];
-        return ['quotation' => [...$common, 'total'], 'invoice' => [...$common, 'total', 'jatuh_tempo', 'status'], 'job' => [...$common, 'status']];
+        return ['quotation' => [...$common, 'total'], 'invoice' => [...$common, 'total', 'jatuh_tempo', 'status'], 'job' => [...$common, 'status'], 'attendance'=>['nama_karyawan','jenis_absensi','tanggal','jam','jenis_lokasi','lokasi','nama_kantor']];
+    }
+
+    public function whatsappCategoryEnabled(string $type): bool
+    {
+        $settings = $this->settings()['whatsapp'];
+        return (bool)$settings['enabled'] && ($type === 'test' || (bool)($settings['categories'][$type] ?? false));
+    }
+
+    public static function normalizeIndonesianPhone(string $phone): ?string
+    {
+        // One recipient only: reject list separators instead of joining numbers.
+        if (!preg_match('/^\+?[\d\s().-]+$/D', trim($phone))) return null;
+        $phone = preg_replace('/\D/', '', $phone);
+        if (str_starts_with($phone, '0062')) $phone = substr($phone,2);
+        elseif (str_starts_with($phone, '0')) $phone = '62'.substr($phone,1);
+        elseif (str_starts_with($phone, '8')) $phone = '62'.$phone;
+        return preg_match('/^62[1-9]\d{6,11}$/D', $phone) ? $phone : null;
     }
 
     public function enabledChannels(): array
@@ -44,6 +67,7 @@ class NotificationGateway
     public function notify(string $type, array $data): array
     {
         $channels = $this->enabledChannels();
+        $channels['whatsapp'] = $this->whatsappCategoryEnabled($type);
         $sent = [];
         $missing = [];
 
@@ -81,6 +105,12 @@ class NotificationGateway
     }
 
     public function sendEmail(string $type, array $data): void
+    {
+        if (!$this->enabledChannels()['email']) return;
+        app(MessageLogService::class)->send('email', $type, $data, $this->message($type, $data), fn () => $this->deliverEmail($type, $data));
+    }
+
+    private function deliverEmail(string $type, array $data): void
     {
         $settings = $this->settings()['email'];
         if (! $settings['enabled']) {
@@ -121,16 +151,21 @@ class NotificationGateway
 
     public function sendWhatsapp(string $type, array $data): void
     {
+        if (!$this->whatsappCategoryEnabled($type)) return;
+        app(MessageLogService::class)->send('whatsapp', $type, $data, $this->message($type, $data), fn () => $this->deliverWhatsapp($type, $data));
+    }
+
+    private function deliverWhatsapp(string $type, array $data): void
+    {
         $settings = $this->settings()['whatsapp'];
-        if (! $settings['enabled']) {
+        if (! $this->whatsappCategoryEnabled($type)) {
             return;
         }
         if (empty($settings['apiToken'])) {
             throw new RuntimeException('Token API Fonnte belum diisi.');
         }
-        if (empty($data['clientPhone'])) {
-            throw new RuntimeException('Nomor WhatsApp client belum diisi.');
-        }
+        $target = self::normalizeIndonesianPhone((string)($data['clientPhone'] ?? ''));
+        if (!$target) throw new RuntimeException('Nomor WhatsApp penerima belum valid. Gunakan satu nomor Indonesia.');
 
         $message = $this->message($type, $data);
         $response = Http::asForm()
@@ -139,7 +174,7 @@ class NotificationGateway
             ->connectTimeout(5)
             ->timeout(15)
             ->post($settings['endpointUrl'], [
-                'target' => $data['clientPhone'],
+                'target' => $target,
                 'message' => $message['whatsapp'],
                 'countryCode' => '62',
                 'preview' => true,
@@ -166,6 +201,7 @@ class NotificationGateway
         if (array_key_exists($type, self::templateDefaults())) {
             $templates = array_replace_recursive(self::templateDefaults(), $this->settings()['notificationTemplates'] ?? []);
             $replacements = ['{nama_client}' => $client, '{nomor}' => $number, '{perihal}' => $title, '{status}' => $status, '{tautan}' => $url, '{total}' => $total ?? '-', '{jatuh_tempo}' => $dueDate, '{pic}' => $pic];
+            if ($type === 'attendance') $replacements += ['{nama_karyawan}'=>(string)($data['employeeName'] ?? ''), '{jenis_absensi}'=>(string)($data['attendanceType'] ?? ''), '{tanggal}'=>(string)($data['attendanceDate'] ?? ''), '{jam}'=>(string)($data['attendanceTime'] ?? ''), '{jenis_lokasi}'=>(string)($data['workLocationType'] ?? ''), '{lokasi}'=>(string)($data['locationLabel'] ?? ''), '{nama_kantor}'=>(string)($this->settings()['general']['officeName'] ?? 'Kantor Notaris')];
             return array_map(fn ($template) => strtr($template, $replacements), $templates[$type]);
         }
 
@@ -228,6 +264,7 @@ class NotificationGateway
                 'fromName' => 'Notaris Digital',
             ],
             'whatsapp' => [
+                'categories' => self::whatsappCategoryDefaults(),
                 'enabled' => false,
                 'provider' => 'fonnte',
                 'endpointUrl' => 'https://api.fonnte.com/send',

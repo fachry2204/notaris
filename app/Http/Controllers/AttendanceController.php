@@ -205,7 +205,7 @@ class AttendanceController extends Controller
             if ($distance === null) throw ValidationException::withMessages(['workLocationType'=>'Lokasi kantor belum diatur. Hubungi pimpinan atau admin.']);
             if ($distance > $settings['office_radius_meters']) throw ValidationException::withMessages(['workLocationType'=>'Anda tidak berada di sekitar kantor. Jarak '.round($distance,1).' meter; radius kantor '.$settings['office_radius_meters'].' meter.']);
         }
-        DB::transaction(function () use ($staff, $request, $data, $distance, $settings) {
+        $notificationEvidence = DB::transaction(function () use ($staff, $request, $data, $distance, $settings) {
             if (str_starts_with($data['attendanceAction'], 'overtime-')) DB::table('user')->where('id', $staff->userId)->lockForUpdate()->firstOrFail();
             // Serialize submissions for one employee so a retry cannot turn check-in into check-out.
             $locked = DB::table('staff')->where('id', $staff->id)->lockForUpdate()->first();
@@ -228,7 +228,7 @@ class AttendanceController extends Controller
                 } else {
                     DB::table('overtime_requests')->insert(['user_id'=>$userId, 'date'=>$timestamp->toDateString(), 'start_at'=>$timestamp, 'end_at'=>null, 'minutes'=>0, 'reason'=>$data['reason'], 'status'=>'ACTIVE', 'attendance_notes'=>json_encode(['start'=>$evidence]), 'created_at'=>$timestamp, 'updated_at'=>$timestamp]);
                 }
-                return;
+                return $evidence;
             }
             $existing = DB::table('attendance')->where('staffId', $staff->id)->whereDate('date', today())->lockForUpdate()->first();
             if ($data['attendanceAction'] === 'checkin' && $existing) {
@@ -248,7 +248,10 @@ class AttendanceController extends Controller
             } else {
                 DB::table('attendance')->insert(['id' => 'attendance-'.Str::random(12), 'staffId' => $staff->id, 'date' => now(), 'checkIn' => now(), 'status' => 'Hadir', 'notes' => json_encode(['checkIn' => $payload]), 'createdAt' => now(), 'updatedAt' => now()]);
             }
+            return $payload;
         });
+
+        $delivery = app(\App\Services\AttendanceNotificationService::class)->send($staff->userId, $data['attendanceAction'], $notificationEvidence);
 
         $message = match ($data['attendanceAction']) {
             'overtime-start' => 'Absen mulai lembur berhasil. Tekan Selesai Lembur saat pekerjaan selesai.',
@@ -256,6 +259,9 @@ class AttendanceController extends Controller
             'checkout' => 'Absen pulang berhasil.',
             default => 'Absen masuk berhasil.',
         };
+        if ($delivery === 'sent') $message .= ' Konfirmasi WhatsApp dikirim ke nomor Anda.';
+        elseif ($delivery === 'missing') $message .= ' WhatsApp belum terkirim: lengkapi nomor HP Indonesia yang valid pada profil Anda.';
+        elseif ($delivery === 'failed') $message .= ' WhatsApp belum terkirim karena gangguan pengiriman; absensi tetap tersimpan.';
         return redirect()->route('attendance.checkin')->with('success', $message);
     }
 
