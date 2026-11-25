@@ -459,7 +459,7 @@ const getRowNumber = (index: number | string) => {
                             <button
                                 type="submit"
                                 :disabled="incomeForm.processing"
-                                class="rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                                class="save-action rounded-xl bg-emerald-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
                             >
                                 {{ incomeForm.processing ? 'Menyimpan...' : 'Simpan Uang Masuk' }}
                             </button>
@@ -552,7 +552,7 @@ const getRowNumber = (index: number | string) => {
                             <button
                                 type="submit"
                                 :disabled="expenseForm.processing"
-                                class="rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
+                                class="save-action rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 disabled:opacity-50"
                             >
                                 {{ expenseForm.processing ? 'Menyimpan...' : 'Simpan Uang Keluar' }}
                             </button>

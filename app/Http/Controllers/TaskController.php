@@ -44,6 +44,9 @@ class TaskController extends Controller
                 'task.id',
                 'task.userId',
                 'task.taskType',
+                'task.workStatus',
+                'task.targetDate',
+                'task.completedAt',
                 'task.customTask',
                 'task.fee',
                 'task.isPaid',
@@ -122,6 +125,39 @@ class TaskController extends Controller
                 'unpaidFee' => $unpaidFee,
             ],
         ]);
+    }
+
+    public function updateWorkStatus(Request $request, string $id)
+    {
+        $data = $request->validate([
+            'status' => 'required|in:PENDING,PROSES,SELESAI,CANCELLED',
+            'targetDate' => 'nullable|date_format:Y-m-d',
+            'reason' => 'required|string|max:1000',
+        ]);
+        abort_if(trim($data['reason']) === '', 422, 'Alasan perubahan wajib diisi.');
+        $actorId = (string) $request->session()->get('auth_user.id', '');
+        $role = $request->session()->get('auth_user.role');
+        $source = $request->session()->get('auth_user.source');
+        DB::transaction(function () use ($id, $data, $actorId, $role, $source) {
+            $task = DB::table('job_employee_task')->where('id', $id)->lockForUpdate()->first();
+            abort_unless($task, 404);
+            abort_unless(in_array($role, ['ADMINISTRATOR', 'PIMPINAN'], true) || ($source === 'user' && $actorId !== '' && $task->userId === $actorId), 403);
+            $target = $data['targetDate'] ?? null;
+            if ($task->workStatus === $data['status'] && $task->targetDate === $target) return;
+            DB::table('task_status_history')->insert([
+                'taskId' => $task->id, 'userId' => $task->userId,
+                'taskLabel' => $task->customTask ?: $task->taskType,
+                'oldStatus' => $task->workStatus, 'newStatus' => $data['status'],
+                'targetDate' => $target, 'actorId' => $actorId ?: null,
+                'reason' => trim($data['reason']), 'createdAt' => now(),
+            ]);
+            DB::table('job_employee_task')->where('id', $id)->update([
+                'workStatus' => $data['status'], 'targetDate' => $target,
+                'completedAt' => $data['status'] === 'SELESAI' ? ($task->workStatus === 'SELESAI' ? $task->completedAt : now()) : null,
+                'updatedAt' => now(),
+            ]);
+        });
+        return back()->with('success', 'Status tugas berhasil diperbarui.');
     }
 
     public function paymentPreview(Request $request, string $id)

@@ -92,7 +92,7 @@ class UserLoginController extends Controller
         $data = $this->validated($request, null, null, true);
         $this->ensureUniqueAcrossSources($data);
 
-        DB::transaction(function () use ($data) {
+        DB::transaction(function () use ($data, $request) {
             $id = 'user-'.Str::lower(Str::random(12));
             DB::table('user')->insert([
                 'id' => $id,
@@ -110,7 +110,7 @@ class UserLoginController extends Controller
             DB::table('staff')->insert([
                 'id' => 'staff-'.Str::lower(Str::random(12)),
                 'userId' => $id,
-                'photoPath' => null,
+                'photoPath' => $request->hasFile('photo') ? $this->storePhoto($request) : null,
                 'ktpPath' => null,
                 'attendance_enabled' => $data['attendance_enabled'] ?? true,
                 'payroll_enabled' => $data['payroll_enabled'] ?? true,
@@ -130,7 +130,8 @@ class UserLoginController extends Controller
         abort_unless($account, 404);
         $account->source = $source;
         if ($source === 'user') {
-            $staff = DB::table('staff')->where('userId', $id)->first(['attendance_enabled', 'payroll_enabled']);
+            $staff = DB::table('staff')->where('userId', $id)->first(['attendance_enabled', 'payroll_enabled', 'photoPath']);
+            $account->photoPath = $staff?->photoPath;
             $account->attendance_enabled = $staff ? (bool) $staff->attendance_enabled : false;
             $account->payroll_enabled = $staff ? (bool) $staff->payroll_enabled : false;
         }
@@ -163,18 +164,20 @@ class UserLoginController extends Controller
             $payload['passwordHash'] = Hash::make($data['password']);
         }
 
-        DB::transaction(function () use ($table, $id, $payload, $source, $data) {
+        DB::transaction(function () use ($table, $id, $payload, $source, $data, $request) {
+            if ($source === 'admin' && $request->hasFile('photo')) $payload['photoPath'] = $this->storePhoto($request);
             DB::table($table)->where('id', $id)->update($payload);
-            if ($source === 'user' && (array_key_exists('attendance_enabled', $data) || array_key_exists('payroll_enabled', $data))) {
+            if ($source === 'user' && (array_key_exists('attendance_enabled', $data) || array_key_exists('payroll_enabled', $data) || $request->hasFile('photo'))) {
                 $staff = DB::table('staff')->where('userId', $id)->first();
                 $flags = [];
+                if ($request->hasFile('photo')) $flags['photoPath'] = $this->storePhoto($request);
                 foreach (['attendance_enabled', 'payroll_enabled'] as $key) {
                     if (array_key_exists($key, $data)) $flags[$key] = $data[$key];
                 }
                 if ($staff) {
                     DB::table('staff')->where('id', $staff->id)->update([...$flags, 'updatedAt' => now()]);
                 } else {
-                    DB::table('staff')->insert(['id' => 'staff-'.Str::lower(Str::random(12)), 'userId' => $id, 'attendance_enabled' => $flags['attendance_enabled'] ?? false, 'payroll_enabled' => $flags['payroll_enabled'] ?? false, 'createdAt' => now(), 'updatedAt' => now()]);
+                    DB::table('staff')->insert(['id' => 'staff-'.Str::lower(Str::random(12)), 'userId' => $id, 'attendance_enabled' => $flags['attendance_enabled'] ?? false, 'payroll_enabled' => $flags['payroll_enabled'] ?? false, 'photoPath' => $flags['photoPath'] ?? null, 'createdAt' => now(), 'updatedAt' => now()]);
                 }
             }
         });
@@ -234,6 +237,13 @@ class UserLoginController extends Controller
         return back()->with('success', 'User login berhasil dihapus.');
     }
 
+    private function storePhoto(Request $request): string
+    {
+        $path = $request->file('photo')->store('uploads/staff', 'public_root');
+        if (! $path) throw ValidationException::withMessages(['photo' => 'Foto tidak dapat disimpan.']);
+        return '/'.$path;
+    }
+
     private function validated(Request $request, ?string $source, ?string $id, bool $creating): array
     {
         $roles = $source === 'admin' ? ['ADMINISTRATOR', 'PIMPINAN'] : self::ROLES;
@@ -247,6 +257,7 @@ class UserLoginController extends Controller
             'isActive' => ['required', 'boolean'],
             'attendance_enabled' => ['sometimes', 'boolean'],
             'payroll_enabled' => ['sometimes', 'boolean'],
+            'photo' => ['nullable', 'image', 'max:5120'],
             'password' => [$creating ? 'required' : 'nullable', 'string', 'min:4'],
         ]);
     }

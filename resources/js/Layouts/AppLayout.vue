@@ -73,6 +73,7 @@ const sections = [
     {
         title: "UTAMA",
         items: [
+            ["Profil Saya", UserCog, "/dashboard/profile", ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"]],
             [
                 "Dashboard",
                 LayoutDashboard,
@@ -101,7 +102,7 @@ const sections = [
                 "Invoice",
                 Receipt,
                 "/dashboard/invoice",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
             ],
             [
                 "Keuangan",
@@ -125,18 +126,12 @@ const sections = [
                 "Data Berkas",
                 FolderOpen,
                 "/dashboard/jobs/inbound",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
+                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
             ],
             [
                 "Daftar Akta",
                 ClipboardList,
                 "/dashboard/akta",
-                ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN", "OB"],
-            ],
-            [
-                "Template Dokumen",
-                FileText,
-                "/dashboard/modules",
                 ["ADMINISTRATOR", "PIMPINAN", "STAFFADMIN"],
             ],
         ],
@@ -274,12 +269,13 @@ watch([() => page.url, appName, faviconUrl], queueBrowserBrandingSync);
 watch(primaryColor, (newColor) => applyPrimaryColor(newColor));
 
 const mobile = computed(() => [
-    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: FolderOpen, color: 'text-amber-600' },
-    { label: "Data Akta", href: "/dashboard/akta", icon: FileText, color: 'text-emerald-600' },
+    { label: "Profil", href: "/dashboard/profile", icon: UserCog, color: 'text-amber-700' },
+    { label: "Data Berkas", href: "/dashboard/jobs/inbound", icon: FolderOpen, color: 'text-amber-600', hideForOb: true },
+    { label: "Data Akta", href: "/dashboard/akta", icon: FileText, color: 'text-emerald-600', hideForOb: true },
     { label: "Absensi", href: "/dashboard/pegawai/absensi/absenku", icon: Fingerprint, color: 'text-white' },
     { label: "Data Tugas", href: "/dashboard/tasks", icon: ClipboardList, color: 'text-blue-600' },
     { label: "Rekap Absen", href: "/dashboard/pegawai/absensi", icon: Clock, color: 'text-violet-600' },
-]);
+].filter(item => !(role.value === 'OB' && item.hideForOb)));
 </script>
 
 <template>
@@ -398,7 +394,7 @@ const mobile = computed(() => [
                     >
                         <Menu class="h-5 w-5" />
                     </button>
-                    <form class="relative flex-1 max-w-lg" role="search" @submit.prevent="submitSearch">
+                    <form v-if="role !== 'OB'" class="relative flex-1 max-w-lg" role="search" @submit.prevent="submitSearch">
                         <Search class="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
                         <input
                             v-model="searchQuery"
@@ -442,12 +438,12 @@ const mobile = computed(() => [
 
                     <!-- Profile Info -->
                     <div class="flex items-center gap-2.5 pl-1">
-                        <div
+                        <Link href="/dashboard/profile" aria-label="Buka profil saya"
                             class="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-[#F5C344] to-[#C99A3D] text-xs font-black text-stone-900 shadow-xs border border-amber-300"
                         >
                             <img v-if="profilePhoto" :src="profilePhoto" alt="" class="h-full w-full object-cover" />
                             <span v-else>{{ user?.fullName ? user.fullName.slice(0, 2).toUpperCase() : 'NR' }}</span>
-                        </div>
+                        </Link>
                         <div class="text-left hidden lg:block">
                             <p class="text-xs font-bold text-stone-900 leading-tight">
                                 {{ user?.fullName || 'Novia Roza, S.H., M.Kn' }}

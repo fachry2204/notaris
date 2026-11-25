@@ -82,6 +82,15 @@ const hasActiveFilters = computed(() => {
     );
 });
 
+const statusTask = ref<any | null>(null);
+const statusForm = ref({ status: 'PENDING', targetDate: '', reason: '' });
+const openStatus = (task: any) => { statusTask.value = task; statusForm.value = { status: task.workStatus || 'PENDING', targetDate: task.targetDate || '', reason: '' }; };
+const saveStatus = () => {
+    if (!statusTask.value) return;
+    router.patch(`/dashboard/tasks/${encodeURIComponent(statusTask.value.id)}/work-status`, statusForm.value, { preserveScroll: true, onSuccess: () => { statusTask.value = null; } });
+};
+const workStatusLabel = (value: string | null) => ({ PENDING: 'Menunggu', PROSES: 'Dalam Proses', SELESAI: 'Selesai', CANCELLED: 'Dibatalkan' } as Record<string, string>)[value || ''] || 'Belum diketahui';
+
 const selectedTask = ref<any | null>(null);
 const paymentPreview = ref<any | null>(null);
 const previewLoading = ref(false);
@@ -366,9 +375,9 @@ const getRowNumber = (index: number | string) => {
                 <article v-for="task in tasks.data" :key="task.id" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div class="flex items-start justify-between gap-2 border-b border-slate-100 pb-3"><div class="min-w-0"><p class="break-all text-xs font-black text-teal-700">{{ task.trackingCode || 'Nomor berkas tidak tersedia' }}</p><h2 class="mt-2 break-words text-sm font-black text-slate-900">{{ task.jobTitle || 'Berkas Tanpa Judul' }}</h2><p class="mt-1 text-xs text-slate-500">{{ task.jobCategory || '—' }}</p></div><span class="shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold" :class="taskTypeColor(task.taskType)">{{ task.taskType }}</span></div>
                     <dl class="mt-3 grid grid-cols-2 gap-3 text-xs"><div><dt class="text-slate-500">Pegawai</dt><dd class="mt-1 break-words font-bold">{{ task.employeeName || 'Pegawai' }}</dd></div><div><dt class="text-slate-500">Client</dt><dd class="mt-1 break-words font-bold">{{ task.clientName || '—' }}</dd></div><div><dt class="text-slate-500">Tanggal tugas</dt><dd class="mt-1 font-semibold">{{ formatDate(task.createdAt) }}</dd></div><div><dt class="text-slate-500">Fee pegawai</dt><dd class="mt-1 font-black">{{ formatCurrency(task.fee) }}</dd></div></dl>
-                    <p v-if="task.customTask" class="mt-3 text-xs text-slate-600">{{ task.customTask }}</p>
+                    <button type="button" class="mt-3 block rounded-lg border border-amber-400 px-3 py-2 text-xs font-bold text-amber-800" @click="openStatus(task)">Status tugas: {{ workStatusLabel(task.workStatus) }} · Ubah</button><p v-if="task.customTask" class="mt-3 text-xs text-slate-600">{{ task.customTask }}</p>
                     <p class="mt-3 inline-flex rounded-full px-2 py-1 text-[10px] font-bold" :class="task.deedSignedDate ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'">{{ task.deedSignedDate ? 'Akta Sudah Ditandatangani' : 'Akta Belum Ditandatangani' }}</p>
-                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><button v-if="canManagePayment" type="button" @click="openPaymentModal(task)" class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</button><span v-else class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</span><Link v-if="task.jobId && task.jobType" :href="`/dashboard/jobs/${task.jobType}/${task.jobId}`" class="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700"><Eye class="h-4 w-4" /> Detail berkas</Link></div>
+                    <div class="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3"><button v-if="canManagePayment" type="button" @click="openPaymentModal(task)" class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</button><span v-else class="rounded-full border px-3 py-1.5 text-xs font-bold" :class="task.isPaid ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-rose-200 bg-rose-50 text-rose-700'">{{ task.isPaid ? 'Terbayar' : 'Belum Terbayar' }}</span><Link v-if="currentUser?.role !== 'OB' && task.jobId && task.jobType" :href="`/dashboard/jobs/${task.jobType}/${task.jobId}`" class="inline-flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-xs font-bold text-teal-700"><Eye class="h-4 w-4" /> Detail berkas</Link></div>
                 </article>
                 <nav v-if="tasks.links && tasks.links.length > 3" aria-label="Halaman data tugas" class="flex flex-wrap justify-center gap-1"><Component :is="link.url ? Link : 'span'" v-for="(link, i) in tasks.links" :key="i" :href="link.url || undefined" v-html="link.label" class="rounded-lg border px-3 py-2 text-xs font-bold" :class="link.active ? 'bg-[var(--primary)] text-white' : !link.url ? 'bg-slate-50 text-slate-400' : 'bg-white text-slate-700'" /></nav>
             </div>
@@ -418,7 +427,7 @@ const getRowNumber = (index: number | string) => {
                                         >
                                             {{ task.taskType }}
                                         </span>
-                                        <p v-if="task.customTask" class="text-xs font-medium text-slate-600 italic">
+                                        <button type="button" class="block rounded-lg border border-amber-400 px-2 py-1 text-xs font-bold text-amber-800" @click="openStatus(task)">{{ workStatusLabel(task.workStatus) }} · Ubah</button><p v-if="task.customTask" class="text-xs font-medium text-slate-600 italic">
                                             "{{ task.customTask }}"
                                         </p>
                                     </div>
@@ -486,7 +495,7 @@ const getRowNumber = (index: number | string) => {
                                     <div class="flex items-center justify-center gap-2">
                                         <!-- Icon Lihat Detail Berkas -->
                                         <Link
-                                            v-if="task.jobId && task.jobType"
+                                            v-if="currentUser?.role !== 'OB' && task.jobId && task.jobType"
                                             :href="`/dashboard/jobs/${task.jobType}/${task.jobId}`"
                                             title="Lihat Detail Berkas"
                                             class="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-blue-200 bg-blue-50 text-blue-600 transition hover:bg-blue-100 hover:scale-105 active:scale-95"
@@ -520,6 +529,17 @@ const getRowNumber = (index: number | string) => {
                         />
                     </div>
                 </div>
+            </div>
+            <div v-if="statusTask" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-labelledby="task-status-title">
+                <form class="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 text-slate-900 shadow-xl" @submit.prevent="saveStatus">
+                    <h2 id="task-status-title" class="text-xl font-bold">Ubah Status Tugas</h2>
+                    <p class="text-sm text-slate-600">{{ statusTask.customTask || statusTask.taskType }} · {{ statusTask.employeeName }}</p>
+                    <label class="block text-sm font-semibold">Status<select v-model="statusForm.status" class="mt-1 block w-full rounded-lg border border-slate-300 p-2"><option value="PENDING">Menunggu</option><option value="PROSES">Dalam Proses</option><option value="SELESAI">Selesai</option><option value="CANCELLED">Dibatalkan</option></select></label>
+                    <label class="block text-sm font-semibold">Target selesai (opsional)<input v-model="statusForm.targetDate" type="date" class="mt-1 block w-full rounded-lg border border-slate-300 p-2" /></label>
+                    <label class="block text-sm font-semibold">Alasan perubahan<textarea v-model="statusForm.reason" required maxlength="1000" class="mt-1 block w-full rounded-lg border border-slate-300 p-2"></textarea></label>
+                    <p v-if="Object.keys(page.props.errors || {}).length" role="alert" class="text-sm text-red-700">{{ Object.values(page.props.errors || {}).join(' ') }}</p>
+                    <div class="flex justify-end gap-2"><button type="button" class="rounded-lg border px-4 py-2" @click="statusTask = null">Batal</button><button type="submit" class="save-action rounded-lg bg-amber-600 px-4 py-2 font-bold text-white">Simpan</button></div>
+                </form>
             </div>
         </main>
 

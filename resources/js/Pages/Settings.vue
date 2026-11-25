@@ -66,7 +66,7 @@ const defaults = [
         permissions: {
             dashboard: true,
             client: false,
-            berkas: true,
+            berkas: false,
             finance: false,
             invoice: false,
             settings: false,
@@ -127,7 +127,12 @@ const f = useForm({
         fromAddress: p.settings.email?.fromAddress || "",
         fromName: p.settings.email?.fromName || "Notaris Digital",
     },
-    roles: p.settings.roles?.length ? p.settings.roles : defaults,
+    roles: defaults.map(role => {
+        const saved = (p.settings.roles || []).find((item: any) => item.id === role.id);
+        const merged = { ...role, ...saved, permissions: { ...role.permissions, ...saved?.permissions } };
+        if (role.id === "OB") Object.assign(merged.permissions, { client: false, berkas: false, invoice: false, finance: false, settings: false });
+        return merged;
+    }).concat((p.settings.roles || []).filter((item: any) => !defaults.some(role => role.id === item.id))),
     whatsapp: {
         enabled: Boolean(p.settings.whatsapp?.enabled),
         provider: p.settings.whatsapp?.provider || "fonnte",
@@ -164,25 +169,23 @@ const sendTest = async (channel: 'email' | 'whatsapp') => {
     } finally { testSending.value = ''; }
 };
 const uploading = ref("");
+const uploadMessage = ref("");
+const uploadError = ref("");
 const upload = async (type: "logo" | "favicon", e: Event) => {
-    const file = (e.target as HTMLInputElement).files?.[0];
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
     if (!file) return;
-    uploading.value = type;
-    const fd = new FormData();
-    fd.append("type", type);
-    fd.append("file", file);
-    const token = (
-        document.querySelector("meta[name=csrf-token]") as HTMLMetaElement
-    )?.content;
-    const res = await fetch("/dashboard/settings/upload", {
-        method: "POST",
-        headers: { "X-CSRF-TOKEN": token, Accept: "application/json" },
-        body: fd,
-    });
-    const data = await res.json();
-    if (res.ok)
+    uploading.value = type; uploadMessage.value = ""; uploadError.value = "";
+    try {
+        const fd = new FormData(); fd.append("type", type); fd.append("file", file);
+        const token = (document.querySelector("meta[name=csrf-token]") as HTMLMetaElement)?.content;
+        const res = await fetch("/dashboard/settings/upload", { method: "POST", credentials: "same-origin", headers: { "X-CSRF-TOKEN": token, Accept: "application/json" }, body: fd });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.url) throw new Error(data.errors?.file?.[0] || data.message || "Unggahan gagal. Periksa file dan coba lagi.");
         f.branding[type === "logo" ? "logoUrl" : "faviconUrl"] = data.url;
-    uploading.value = "";
+        uploadMessage.value = `${type === "logo" ? "Logo" : "Favicon"} berhasil diunggah. Klik Simpan Pengaturan untuk menerapkan.`;
+    } catch (error) { uploadError.value = error instanceof Error ? error.message : "Unggahan gagal. Coba lagi."; }
+    finally { uploading.value = ""; input.value = ""; }
 };
 const permissions = [
     "dashboard",
@@ -342,6 +345,9 @@ const save = () =>
                             /></label>
                         </div>
 
+                        <p v-if="uploadMessage" role="status" class="text-sm font-semibold text-emerald-700">{{ uploadMessage }}</p>
+                        <p v-if="uploadError" role="alert" class="text-sm font-semibold text-red-700">{{ uploadError }}</p>
+                        <p class="text-xs text-slate-500">Gunakan gambar maksimal 2 MB. Simpan pengaturan setelah unggahan selesai.</p>
                         <div class="mt-6 border-t pt-6">
                             <h3 class="font-black text-slate-800">Warna Utama Tema (Primary Color)</h3>
                             <p class="mt-1 text-xs text-slate-500">Pilih warna utama aplikasi. Warna tombol, badge aktif, dan aksen navigasi akan menyesuaikan secara otomatis.</p>
@@ -739,6 +745,7 @@ const save = () =>
                                     >
                                         <input
                                             v-model="r.permissions[key]"
+                                            :disabled="r.id === 'OB' && key !== 'dashboard'"
                                             type="checkbox"
                                             class="rounded text-pink-500"
                                         />
@@ -898,8 +905,8 @@ const save = () =>
                 <button
                     v-if="tab !== 'admins'"
                     type="submit"
-                    :disabled="f.processing"
-                    class="mt-6 inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white"
+                    :disabled="f.processing || !!uploading"
+                    class="save-action mt-6 inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white"
                 >
                     <Save class="h-5 w-5" />{{
                         f.processing ? "Menyimpan..." : "Simpan Pengaturan"

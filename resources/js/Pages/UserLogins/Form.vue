@@ -32,16 +32,17 @@ const form = useForm({
     attendance_enabled: Boolean(props.account?.attendance_enabled ?? (props.account?.source !== "admin" && !props.account)),
     payroll_enabled: Boolean(props.account?.payroll_enabled ?? (props.account?.source !== "admin" && !props.account)),
     password: "",
+    photo: null as File | null,
 });
 
 const save = () => {
     if (props.account) {
-        form.put(
-            `/dashboard/system/users/${props.account.source}/${props.account.id}`,
+        form.transform(data => ({ ...data, _method: "put" })).post(
+            `/dashboard/system/users/${props.account.source}/${props.account.id}`, { forceFormData: true },
         );
         return;
     }
-    form.post("/dashboard/system/users");
+    form.post("/dashboard/system/users", { forceFormData: true });
 };
 
 const roleLabel = (value: string) =>
@@ -95,6 +96,7 @@ const inputClass =
                         Sumber akun tidak diubah agar riwayat login tetap aman.
                     </div>
 
+                    <label class="block text-sm font-bold">Foto profil <span class="font-normal text-slate-500">(opsional, maksimal 5 MB)</span><img v-if="account?.photoPath" :src="account.photoPath" alt="Foto profil saat ini" class="my-3 h-20 w-20 rounded-xl object-cover" /><input type="file" accept="image/*" class="mt-2 block w-full text-sm" @change="form.photo = ($event.target as HTMLInputElement).files?.[0] || null" /><span v-if="form.errors.photo" class="text-red-700">{{ form.errors.photo }}</span></label>
                     <div class="grid gap-5 md:grid-cols-2">
                         <label class="block md:col-span-2">
                             <span class="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-600">
@@ -185,7 +187,7 @@ const inputClass =
                         <Link href="/dashboard/system/users" class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 px-6 text-sm font-bold text-slate-600 hover:bg-slate-50">
                             Batal
                         </Link>
-                        <button :disabled="form.processing" class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-7 text-sm font-black text-white shadow-md disabled:opacity-50">
+                        <button :disabled="form.processing" class="save-action inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-7 text-sm font-black text-white shadow-md disabled:opacity-50">
                             <Save class="h-4 w-4" /> {{ form.processing ? "Menyimpan..." : "Simpan User Login" }}
                         </button>
                     </div>

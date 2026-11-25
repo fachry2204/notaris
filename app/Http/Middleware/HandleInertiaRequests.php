@@ -73,8 +73,9 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->session()->get('auth_user'),
                 'photoUrl' => function () use ($request) {
                     $user = $request->session()->get('auth_user');
-                    if (! $user || ($user['source'] ?? null) !== 'user' || empty($user['id'])) return null;
-                    return DB::table('staff')->where('userId', $user['id'])->value('photoPath');
+                    if (! $user || empty($user['id'])) return null;
+                    if (($user['source'] ?? null) === 'admin') return DB::table('admin')->where('id', $user['id'])->value('photoPath');
+                    return ($user['source'] ?? null) === 'user' ? DB::table('staff')->where('userId', $user['id'])->value('photoPath') : null;
                 },
             ],
             'flash' => ['success' => fn () => $request->session()->get('success')],

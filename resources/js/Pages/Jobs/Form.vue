@@ -992,7 +992,7 @@ const deleteSavedAttachment = (id: string) => {
                 <div class="flex flex-col gap-3 sm:flex-row">
                     <button
                         :disabled="f.processing"
-                        class="flex-1 rounded-xl bg-pink-600 px-6 py-4 font-black text-white disabled:opacity-50"
+                        class="save-action flex-1 rounded-xl bg-pink-600 px-6 py-4 font-black text-white disabled:opacity-50"
                     >
                         {{
                             f.processing

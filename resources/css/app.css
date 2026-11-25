@@ -266,3 +266,14 @@ button, a, [role="button"] {
   .desktop-workspace main .finance-expense > div p { color:#be123c !important; }
   .desktop-workspace main .finance-balance > div p { color:#0369a1 !important; }
 }
+
+/* Consistent, high-contrast primary save actions across application themes. */
+button.save-action, button.save-action:hover, button.save-action:focus-visible {
+  background-color: #047857 !important;
+  border-color: #047857 !important;
+  color: #fff !important;
+}
+button.save-action:hover:not(:disabled) { background-color: #065f46 !important; border-color: #065f46 !important; }
+button.save-action:focus-visible { outline: 3px solid #34d399 !important; outline-offset: 3px; }
+button.save-action:disabled { opacity: .6; cursor: not-allowed; }
+button.save-action svg { color: inherit; }

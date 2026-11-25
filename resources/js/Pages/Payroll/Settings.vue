@@ -26,7 +26,7 @@ const submit = () => form.put('/dashboard/payroll/settings');
 <Head title="Pengaturan Payroll" />
 <AppLayout>
 <main class="payroll mx-auto max-w-[1600px] space-y-5 p-3 sm:p-5">
-    <div class="flex flex-wrap items-center justify-between gap-4"><div><Link href="/dashboard/payroll" class="text-sm font-semibold text-amber-700">← Kembali ke Payroll</Link><h1 class="mt-2 text-2xl font-black">Pengaturan Payroll</h1><p class="muted mt-1 text-sm">Atur jam kerja dan potongan keterlambatan.</p></div><button class="primary" :disabled="form.processing" @click="submit"><Save class="h-4 w-4" /> Simpan Pengaturan</button></div>
+    <div class="flex flex-wrap items-center justify-between gap-4"><div><Link href="/dashboard/payroll" class="text-sm font-semibold text-amber-700">← Kembali ke Payroll</Link><h1 class="mt-2 text-2xl font-black">Pengaturan Payroll</h1><p class="muted mt-1 text-sm">Atur jam kerja dan potongan keterlambatan.</p></div><button class="save-action primary" :disabled="form.processing" @click="submit"><Save class="h-4 w-4" /> Simpan Pengaturan</button></div>
     <div v-if="page.props.flash?.success" class="notice">{{ page.props.flash.success }}</div>
     <div v-if="Object.keys(form.errors).length" class="error">{{ Object.values(form.errors).join(' ') }}</div>
     <div class="grid gap-5 xl:grid-cols-3">

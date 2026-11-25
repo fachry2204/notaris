@@ -149,9 +149,12 @@ class SettingsController extends Controller
             'type' => 'required|in:logo,favicon',
             'file' => 'required|image|max:2048',
         ]);
-        $path = '/'.$request->file('file')->store('uploads/settings', 'public_root');
+        $stored = $request->file('file')->store('uploads/settings', 'public_root');
+        if (! $stored) {
+            return response()->json(['message' => 'Gambar tidak dapat disimpan di server. Periksa izin folder upload.'], 500);
+        }
 
-        return response()->json(['url' => $path]);
+        return response()->json(['url' => '/'.$stored]);
     }
 
     public function testNotification(Request $request, NotificationGateway $gateway)

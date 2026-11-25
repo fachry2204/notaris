@@ -458,7 +458,7 @@ const cardStatusStyle = (x: any) => {
                             Batal
                         </button>
                         <button
-                            class="rounded-xl bg-amber-500 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-600"
+                            class="save-action rounded-xl bg-amber-500 px-5 py-2 text-xs font-bold text-white shadow-md hover:bg-amber-600"
                         >
                             Simpan Perubahan
                         </button>

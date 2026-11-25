@@ -526,7 +526,7 @@ const save = () =>
                 <div class="flex justify-end">
                     <button
                         :disabled="form.processing"
-                        class="inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white shadow-lg shadow-pink-500/20 disabled:opacity-50"
+                        class="save-action inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white shadow-lg shadow-pink-500/20 disabled:opacity-50"
                     >
                         <Save class="h-5 w-5" />
                         {{

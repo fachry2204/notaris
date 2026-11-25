@@ -11,6 +11,7 @@ const f = useForm({
     password: "",
     role: p.staff?.role || "STAFFADMIN",
     birthday: p.staff?.birthday?.slice(0, 10) || "",
+    division: p.staff?.division || "",
     isActive: Boolean(p.staff?.isActive ?? true),
     photo: null as File | null,
     ktp: null as File | null,
@@ -92,7 +93,8 @@ const input =
                                 type="email"
                                 required
                                 :class="input" /></label
-                        ><label
+                        ><label class="block"><span class="label">Divisi (opsional)</span><input v-model="f.division" :class="input" maxlength="120" placeholder="Contoh: Administrasi" /></label>
+                        <label
                             ><span class="label">Nomor Handphone</span
                             ><input v-model="f.phone" :class="input" /></label
                         ><label v-if="staff"
@@ -164,7 +166,7 @@ const input =
                             ><X />Batal</Link
                         ><button
                             :disabled="f.processing"
-                            class="flex h-13 items-center gap-2 rounded-2xl bg-pink-500 px-10 font-black text-white shadow-xl shadow-pink-500/20"
+                            class="save-action flex h-13 items-center gap-2 rounded-2xl bg-pink-500 px-10 font-black text-white shadow-xl shadow-pink-500/20"
                         >
                             <Save />{{
                                 f.processing ? "Menyimpan..." : "Simpan Data"

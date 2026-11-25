@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\KpiReportDataService;
+use App\Services\KpiInsightService;
 use App\Support\JobDateRange;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -197,9 +199,10 @@ class ModuleController extends Controller
     private function productivityData(?JobDateRange $range = null, ?string $employeeId = null): array
     {
         $staff = DB::table('user')
-            ->select('id', 'fullName', 'username', 'role', 'createdAt')
-            ->when($employeeId, fn ($query) => $query->where('id', $employeeId))
-            ->whereIn('role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])
+            ->leftJoin('staff as profile', 'profile.userId', '=', 'user.id')
+            ->select('user.id', 'user.fullName', 'user.username', 'user.role', 'user.createdAt', 'profile.division')
+            ->when($employeeId, fn ($query) => $query->where('user.id', $employeeId))
+            ->whereIn('user.role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])
             ->get()
             ->keyBy('id')
             ->map(fn ($user) => [
@@ -312,7 +315,7 @@ class ModuleController extends Controller
         ];
     }
 
-    public function productivityShow(Request $request, string $id)
+    public function productivityShow(Request $request, string $id, KpiReportDataService $reportData, KpiInsightService $insights)
     {
         $role = $request->session()->get('auth_user.role');
         $own = $request->session()->get('auth_user.id') === $id
@@ -325,44 +328,56 @@ class ModuleController extends Controller
         $data = $this->productivityData($range, $id);
         $employee = $data['staff']->firstWhere('id', $id);
         abort_unless($employee, 404);
-        $jobs = collect();
-        foreach (['badan_hukum' => 'Badan Hukum/Usaha', 'non_badan_hukum' => 'Non Badan Hukum', 'ppat' => 'PPAT'] as $table => $label) {
-            $jobs = $jobs->concat($range->apply(DB::table($table))->where('staffId', $id)
-                ->select('id', 'title', 'trackingCode', 'status', 'deadline', 'createdAt', 'updatedAt')
-                ->orderBy('createdAt', $sort)->when(! $report, fn ($query) => $query->limit(10))->get()->map(function ($job) use ($table, $label) {
-                    $job->jobType = $table;
-                    $job->category = $label;
-                    return $job;
-                }));
-        }
-        $tasks = $range->apply(DB::table('job_employee_task as t'), 't.createdAt')
-            ->leftJoin('badan_hukum as bh', 'bh.id', '=', 't.badanHukumId')
-            ->leftJoin('non_badan_hukum as nbh', 'nbh.id', '=', 't.nonBadanHukumId')
-            ->leftJoin('ppat as p', 'p.id', '=', 't.ppatId')
-            ->where('t.userId', $id)
-            ->select('t.id', 't.taskType', 't.customTask', 't.createdAt')
-            ->selectRaw('COALESCE(bh.title, nbh.title, p.title) as jobTitle')
-            ->orderBy('t.createdAt', $sort)->when(! $report, fn ($query) => $query->limit(10))->get();
-        $profile = DB::table('staff')->where('userId', $id)->first();
-        $employee['photoPath'] = $profile?->photoPath;
+        $payload = $reportData->build($employee, $range, $sort, $report, $data['periodLabel']);
+        $allTasks = $report ? $payload['tasks'] : $reportData->build($employee, $range, $sort, true, $data['periodLabel'])['tasks'];
+        $payload['kpiScore'] = app(\App\Services\KpiCalculationService::class)->calculate($allTasks, $employee);
+        $payload['evaluation'] = $range->start && $range->end
+            ? DB::table('kpi_evaluations')->where('user_id', $id)->where('period_start', $range->start->toDateString())->where('period_end', $range->end->toDateString())->first()
+            : null;
         if ($report) {
-            $personal = DB::table('user')->where('id', $id)->select('email', 'phone', 'birthday', 'isActive')->first();
-            $employee = [...$employee, ...(array) $personal];
+            $payload['insights'] = $insights->generate($employee);
+            foreach ($payload['kpiScore']['components'] as $component) {
+                $payload['insights'][] = $component['score'] === null
+                    ? $component['label'].': data belum mencukupi untuk analisis.'
+                    : $component['label'].': '.$component['score'].'% ('.$component['numerator'].' dari '.$component['denominator'].'). Tinjau bersama pegawai dan periksa konteks pekerjaan.';
+            }
+            $payload['comparison'] = null;
+            if ($range->start && $range->end) {
+                $days = (int) $range->start->diffInDays($range->end->copy()->startOfDay()) + 1;
+                $previousEnd = $range->start->copy()->subDay()->endOfDay();
+                $previousStart = $previousEnd->copy()->startOfDay()->subDays($days - 1);
+                $previousRange = new JobDateRange($previousStart, $previousEnd);
+                $previous = $this->productivityData($previousRange, $id)['staff']->firstWhere('id', $id);
+                $firstCompletions = DB::table('task_status_history')
+                    ->where('userId', $id)->where('newStatus', 'SELESAI')
+                    ->select('taskId')->selectRaw('MIN(createdAt) as firstCompletedAt')->groupBy('taskId');
+                $completionDates = DB::query()->fromSub($firstCompletions, 'completed_tasks');
+                $previousCompletions = (clone $completionDates)->whereBetween('firstCompletedAt', [$previousStart, $previousEnd])->count();
+                $currentCompletions = (clone $completionDates)->whereBetween('firstCompletedAt', [$range->start, $range->end])->count();
+                $payload['comparison'] = [
+                    'previousCompletions' => $previousCompletions,
+                    'currentCompletions' => $currentCompletions,
+                    'previousStart' => $previousStart->toDateString(),
+                    'previousEnd' => $previousEnd->toDateString(),
+                    'currentStart' => $range->start->toDateString(),
+                    'currentEnd' => $range->end->toDateString(),
+                    'previous' => array_intersect_key($previous, array_flip(['totalJobs', 'totalTasks', 'presentDays', 'lateDays', 'workingDays'])),
+                ];
+            }
         }
-        $attendance = $profile ? DB::table('attendance')->where('staffId', $profile->id)
-            ->whereBetween('date', [$range->start ?? now()->startOfMonth(), ($range->end ?? now()->endOfDay())->min(now()->endOfDay())])
-            ->select('date', 'checkIn', 'checkOut')->orderBy('date', $sort)->get() : collect();
-
-        $payload = [
-            'employee' => $employee,
-            'periodLabel' => $range->start ? $range->start->translatedFormat('d M Y').' - '.$range->end->translatedFormat('d M Y') : $data['periodLabel'],
-            'filters' => [...$range->filters(), 'sort' => $sort],
-            'jobs' => ($sort === 'asc' ? $jobs->sortBy('createdAt') : $jobs->sortByDesc('createdAt'))->when(! $report, fn ($items) => $items->take(10))->values(),
-            'tasks' => $tasks,
-            'attendance' => $attendance,
-        ];
 
         return $report ? response()->json($payload)->header('Cache-Control', 'private, no-store') : Inertia::render('Modules/ProductivityDetail', $payload);
+    }
+
+    public function saveKpiEvaluation(Request $request, string $id)
+    {
+        abort_unless(in_array($request->session()->get('auth_user.role'), ['ADMINISTRATOR', 'PIMPINAN'], true), 403);
+        abort_unless(DB::table('user')->where('id', $id)->exists(), 404);
+        $range = JobDateRange::fromRequest($request);
+        if (! $range->start || ! $range->end) throw \Illuminate\Validation\ValidationException::withMessages(['period' => 'Pilih periode awal dan akhir untuk menyimpan evaluasi.']);
+        $data = $request->validate(['notes' => 'nullable|string|max:5000', 'improvement_plan' => 'nullable|string|max:5000', 'next_target' => 'nullable|string|max:5000']);
+        DB::table('kpi_evaluations')->updateOrInsert(['user_id' => $id, 'period_start' => $range->start->toDateString(), 'period_end' => $range->end->toDateString()], [...$data, 'updated_by' => (string) $request->session()->get('auth_user.id'), 'updated_at' => now()]);
+        return back()->with('success', 'Evaluasi pimpinan tersimpan.');
     }
 
     public function deeds(Request $request)

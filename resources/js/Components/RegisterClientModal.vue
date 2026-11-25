@@ -35,7 +35,7 @@ const registerClient = () => clientForm.post('/dashboard/clients', {
                         <label v-for="field in ([['province', 'Provinsi'], ['city', 'Kota / Kabupaten'], ['district', 'Kecamatan'], ['village', 'Kelurahan / Desa']] as const)" :key="field[0]" class="text-sm font-bold">{{ field[1] }}<input v-model="clientForm[field[0]]" maxlength="100" class="mt-1 w-full rounded-xl border-slate-200" /></label>
                     </div>
                     <p v-if="(clientForm.errors.sourceInvoiceId || clientForm.errors.sourceQuotationId)" class="mt-3 text-sm font-bold text-rose-600">{{ (clientForm.errors.sourceInvoiceId || clientForm.errors.sourceQuotationId) }}</p>
-                    <div class="mt-5 flex justify-end gap-2"><button type="button" @click="emit('close')" :disabled="clientForm.processing" class="rounded-xl border px-4 py-2 font-bold">Batal</button><button :disabled="clientForm.processing" class="rounded-xl bg-amber-500 px-4 py-2 font-bold text-black disabled:opacity-50">{{ clientForm.processing ? 'Menyimpan...' : 'Simpan Client' }}</button></div>
+                    <div class="mt-5 flex justify-end gap-2"><button type="button" @click="emit('close')" :disabled="clientForm.processing" class="rounded-xl border px-4 py-2 font-bold">Batal</button><button :disabled="clientForm.processing" class="save-action rounded-xl bg-amber-500 px-4 py-2 font-bold text-black disabled:opacity-50">{{ clientForm.processing ? 'Menyimpan...' : 'Simpan Client' }}</button></div>
                 </form>
             </div>
     </Teleport>

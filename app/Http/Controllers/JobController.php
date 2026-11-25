@@ -693,6 +693,7 @@ class JobController extends Controller
             DB::table('signed_deeds')->where('job_type', $type)->where('job_id', $id)->delete();
             DB::table('job_progress_photos')->whereIn('progress_id', DB::table('jobprogress')->where($fk, $id)->select('id'))->delete();
             DB::table('uploaded_job_receipts')->where('job_type', $type)->where('job_id', $id)->delete();
+            \App\Services\TaskStatusArchive::removed(DB::table('job_employee_task')->where($fk, $id)->get());
             foreach (['founder', 'attachment', 'jobprogress', 'job_employee_task'] as $table) {
                 DB::table($table)->where($fk, $id)->delete();
             }DB::table($type)->where('id', $id)->delete();
@@ -771,6 +772,7 @@ class JobController extends Controller
                 'id' => 'JET-'.Str::random(12),
                 'userId' => $employeeTask['userId'],
                 'taskType' => $employeeTask['taskType'],
+                'workStatus' => 'PENDING',
                 'customTask' => $employeeTask['taskType'] === 'Lainnya'
                     ? $employeeTask['customTask']
                     : null,
@@ -825,6 +827,7 @@ class JobController extends Controller
                 'id' => $newTaskId,
                 'userId' => $employeeTask['userId'],
                 'taskType' => $employeeTask['taskType'],
+                'workStatus' => 'PENDING',
                 'customTask' => $employeeTask['taskType'] === 'Lainnya' ? ($employeeTask['customTask'] ?? null) : null,
                 'fee' => $canManageFee ? max(0, (float) ($employeeTask['fee'] ?? 0)) : 0,
                 $foreignKey => $jobId,
@@ -834,10 +837,10 @@ class JobController extends Controller
             $retainedIds[] = $newTaskId;
         }
 
-        DB::table('job_employee_task')
-            ->where($foreignKey, $jobId)
-            ->when($retainedIds, fn ($query) => $query->whereNotIn('id', $retainedIds))
-            ->delete();
+        $removedTasks = DB::table('job_employee_task')->where($foreignKey, $jobId)
+            ->when($retainedIds, fn ($query) => $query->whereNotIn('id', $retainedIds));
+        \App\Services\TaskStatusArchive::removed((clone $removedTasks)->get());
+        $removedTasks->delete();
     }
 
     private function foreignKey(string $table): string

@@ -494,7 +494,7 @@ onMounted(() => {
                             ><X />Batal</Link
                         ><button
                             :disabled="form.processing"
-                            class="flex h-14 items-center gap-2 rounded-2xl bg-pink-500 px-12 text-lg font-black text-white shadow-xl shadow-pink-500/20"
+                            class="save-action flex h-14 items-center gap-2 rounded-2xl bg-pink-500 px-12 text-lg font-black text-white shadow-xl shadow-pink-500/20"
                         >
                             <Save />{{
                                 form.processing

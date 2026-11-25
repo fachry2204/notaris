@@ -430,7 +430,7 @@ const remove = () =>
                         <span v-for="(message, field) in form.errors" :key="field" class="block text-xs text-red-600">{{ String(field).startsWith('proofs.') ? message : '' }}</span>
                     </div><button
                         :disabled="form.processing"
-                        class="mt-4 rounded-xl bg-pink-500 px-5 py-3 font-bold text-white"
+                        class="save-action mt-4 rounded-xl bg-pink-500 px-5 py-3 font-bold text-white"
                     >
                         Simpan Pembayaran
                     </button>

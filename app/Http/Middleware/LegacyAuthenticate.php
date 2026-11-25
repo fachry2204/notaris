@@ -14,6 +14,14 @@ class LegacyAuthenticate
             return redirect()->route('login');
         }
 
+        if ($request->session()->get('auth_user.role') === 'OB' && $request->is(
+            'dashboard/quotation', 'dashboard/quotation/*', 'dashboard/invoice', 'dashboard/invoice/*',
+            'dashboard/clients', 'dashboard/clients/*', 'dashboard/jobs', 'dashboard/jobs/*',
+            'dashboard/akta', 'dashboard/modules', 'dashboard/modules/*', 'dashboard/attachments/*'
+        )) {
+            abort(403, 'Menu ini tidak tersedia untuk role OB.');
+        }
+
         return $next($request);
     }
 }

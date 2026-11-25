@@ -728,7 +728,7 @@ const address =
                         <label class="block text-xs font-bold text-slate-600">Invoice<select v-model="invoiceForm.invoiceId" required class="mt-1 block h-11 w-full rounded-xl border-slate-200 bg-white text-sm"><option value="">Pilih invoice</option><option v-for="invoice in filteredInvoices" :key="invoice.id" :value="invoice.id">{{ invoice.invoiceNumber }} · {{ invoice.clientName || 'Client belum ditentukan' }} · {{ invoice.status }} · {{ money(invoice.amount) }}</option></select></label>
                         <p v-if="!filteredInvoices.length" class="text-xs text-slate-500">Tidak ada invoice yang sesuai.</p>
                         <p v-if="invoiceForm.errors.invoiceId" role="alert" class="text-xs font-bold text-red-600">{{ invoiceForm.errors.invoiceId }}</p>
-                        <div class="flex flex-wrap gap-2"><button type="submit" :disabled="invoiceForm.processing || !invoiceForm.invoiceId" class="h-10 rounded-xl bg-pink-600 px-4 text-xs font-black text-white disabled:opacity-50">{{ invoiceForm.processing ? 'Menyimpan...' : 'Hubungkan Invoice' }}</button><button type="button" @click="showInvoicePicker = false; invoiceForm.clearErrors()" class="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700">Batal</button></div>
+                        <div class="flex flex-wrap gap-2"><button type="submit" :disabled="invoiceForm.processing || !invoiceForm.invoiceId" class="save-action h-10 rounded-xl bg-pink-600 px-4 text-xs font-black text-white disabled:opacity-50">{{ invoiceForm.processing ? 'Menyimpan...' : 'Hubungkan Invoice' }}</button><button type="button" @click="showInvoicePicker = false; invoiceForm.clearErrors()" class="h-10 rounded-xl border border-slate-200 bg-white px-4 text-xs font-bold text-slate-700">Batal</button></div>
                     </form>
 
                     <div
@@ -938,7 +938,7 @@ const address =
                         <p v-if="deedError || deedForm.errors.photos" class="mt-1 text-xs text-red-600">{{ deedError || deedForm.errors.photos }}</p>
                         <p v-for="(message, field) in deedForm.errors" :key="field" class="text-xs text-red-600">{{ String(field).startsWith('photos.') ? message : '' }}</p>
                     </div>
-                    <button :disabled="deedForm.processing" class="w-full rounded-xl bg-teal-700 p-3 font-bold text-white disabled:opacity-50">{{ deedForm.processing ? 'Menyimpan...' : 'Simpan Tanda Tangan' }}</button>
+                    <button :disabled="deedForm.processing" class="save-action w-full rounded-xl bg-teal-700 p-3 font-bold text-white disabled:opacity-50">{{ deedForm.processing ? 'Menyimpan...' : 'Simpan Tanda Tangan' }}</button>
                 </form>
             </div>
         </Teleport>
@@ -956,7 +956,7 @@ const address =
                         <p v-if="progressPhotoError || progressForm.errors.photos" class="mt-1 text-xs text-red-600">{{ progressPhotoError || progressForm.errors.photos }}</p>
                         <p v-for="(message, field) in progressForm.errors" :key="field" class="text-xs text-red-600">{{ String(field).startsWith('photos.') ? message : '' }}</p>
                     </div>
-                    <button :disabled="progressForm.processing" class="mt-5 w-full rounded-xl bg-emerald-700 p-3 font-bold text-white disabled:opacity-50">{{ progressForm.processing ? 'Menyimpan...' : 'Simpan Progres' }}</button>
+                    <button :disabled="progressForm.processing" class="save-action mt-5 w-full rounded-xl bg-emerald-700 p-3 font-bold text-white disabled:opacity-50">{{ progressForm.processing ? 'Menyimpan...' : 'Simpan Progres' }}</button>
                 </form>
             </div>
         </Teleport>
@@ -982,7 +982,7 @@ const address =
                         <label class="block font-bold">Tanggal dokumen<input v-model="receiptForm.document_date" type="date" required class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.document_date" class="text-rose-600">{{ receiptForm.errors.document_date }}</span></label>
                         <label class="block font-bold">Yang menerima<input v-model="receiptForm.receiver" required maxlength="191" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.receiver" class="text-rose-600">{{ receiptForm.errors.receiver }}</span></label>
                         <label class="block font-bold">Yang menyerahkan<input v-model="receiptForm.submitter" required maxlength="191" class="mt-1 w-full rounded-xl border-slate-200" /><span v-if="receiptForm.errors.submitter" class="text-rose-600">{{ receiptForm.errors.submitter }}</span></label>
-                        <div class="flex gap-3"><button type="button" @click="receiptMode = 'choose'" class="rounded-xl border px-4 py-2 font-bold">Kembali</button><button :disabled="receiptForm.processing" class="rounded-xl bg-teal-700 px-4 py-2 font-bold text-white disabled:opacity-50">{{ receiptForm.processing ? 'Mengunggah...' : 'Simpan tanda terima' }}</button></div>
+                        <div class="flex gap-3"><button type="button" @click="receiptMode = 'choose'" class="rounded-xl border px-4 py-2 font-bold">Kembali</button><button :disabled="receiptForm.processing" class="save-action rounded-xl bg-teal-700 px-4 py-2 font-bold text-white disabled:opacity-50">{{ receiptForm.processing ? 'Mengunggah...' : 'Simpan tanda terima' }}</button></div>
                     </form>
                 </div>
             </div>
@@ -1061,7 +1061,7 @@ const address =
                         <button
                             type="submit"
                             :disabled="feeForm.processing"
-                            class="h-10 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-sm disabled:opacity-50"
+                            class="save-action h-10 rounded-xl bg-[var(--primary)] px-5 text-sm font-black text-white shadow-sm disabled:opacity-50"
                         >
                             {{ feeForm.processing ? "Menyimpan..." : "Simpan Fee" }}
                         </button>

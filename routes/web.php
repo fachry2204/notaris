@@ -47,6 +47,8 @@ Route::middleware('admin.auth')->group(function () {
 
 Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/profile', [\App\Http\Controllers\ProfileController::class, 'show'])->name('profile.show');
+    Route::put('/dashboard/profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::get('/dashboard/clients/new', [ClientController::class, 'create'])->name('clients.create');
     Route::resource('dashboard/clients', ClientController::class)->only(['index', 'store', 'show', 'edit', 'update', 'destroy'])->names('clients');
     Route::get('/dashboard/jobs', [JobController::class, 'index'])->name('jobs.index');
@@ -113,6 +115,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/pegawai/data', [StaffController::class, 'index'])->name('staff.index');
     Route::get('/dashboard/tasks', [TaskController::class, 'index'])->name('tasks.index');
     Route::get('/dashboard/tasks/{id}/payment-preview', [TaskController::class, 'paymentPreview'])->name('tasks.payment-preview');
+    Route::patch('/dashboard/tasks/{id}/work-status', [TaskController::class, 'updateWorkStatus'])->name('tasks.work-status');
     Route::patch('/dashboard/tasks/{id}/payment', [TaskController::class, 'togglePaymentStatus'])->name('tasks.payment');
     Route::get('/dashboard/pegawai/new', [StaffController::class, 'create'])->name('staff.create');
     Route::post('/dashboard/pegawai/data', [StaffController::class, 'store'])->name('staff.store');
@@ -147,6 +150,7 @@ Route::middleware('legacy.auth')->group(function () {
     Route::get('/dashboard/reports/export', [ReportController::class, 'export'])->name('reports.export');
     Route::get('/dashboard/stats', [ModuleController::class, 'stats'])->name('stats.index');
     Route::get('/dashboard/productivity', [ModuleController::class, 'productivity'])->name('productivity.index');
+    Route::put('/dashboard/productivity/{id}/evaluation', [ModuleController::class, 'saveKpiEvaluation'])->name('productivity.evaluation');
     Route::get('/dashboard/productivity/{id}', [ModuleController::class, 'productivityShow'])->name('productivity.show');
     Route::get('/dashboard/akta', [ModuleController::class, 'deeds'])->name('deeds.index');
     Route::get('/dashboard/saksi', [ModuleController::class, 'witnesses'])->name('witnesses.index');

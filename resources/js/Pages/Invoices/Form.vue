@@ -457,7 +457,7 @@ const backUrl = computed(() => {
                             form.processing ||
                             (!invoice && !form.jobId && !form.quotationId)
                         "
-                        class="inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white disabled:opacity-40"
+                        class="save-action inline-flex h-12 items-center gap-2 rounded-xl bg-pink-500 px-7 font-black text-white disabled:opacity-40"
                     >
                         <Save class="h-5 w-5" />
                         {{

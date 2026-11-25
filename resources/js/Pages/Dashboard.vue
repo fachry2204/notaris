@@ -216,13 +216,13 @@ const filteredJobs = computed(() => {
 const quickActions = computed(() => {
     const canManageClients = ['ADMINISTRATOR', 'PIMPINAN', 'STAFFADMIN'].includes(props.user?.role);
     return [
-        { label: 'Berkas Baru', href: '/dashboard/jobs/new', icon: FilePlus2, visible: true },
+        { label: 'Berkas Baru', href: '/dashboard/jobs/new', icon: FilePlus2, visible: props.user?.role !== 'OB' },
         { label: 'Buat Invoice', href: '/dashboard/invoice/new', icon: Receipt, visible: props.canViewFinance },
         { label: 'Input Absensi', href: '/dashboard/pegawai/absensi/absenku', icon: Fingerprint, visible: true },
         { label: 'Client Baru', href: '/dashboard/clients/new', icon: Users, visible: canManageClients },
         { label: 'Buat Quotation', href: '/dashboard/quotation/new', icon: FileSignature, visible: canManageClients },
         { label: 'Data Tugas', href: '/dashboard/tasks', icon: FileCheck, visible: true },
-        { label: 'Daftar Akta', href: '/dashboard/akta', icon: FileText, visible: true },
+        { label: 'Daftar Akta', href: '/dashboard/akta', icon: FileText, visible: props.user?.role !== 'OB' },
         { label: 'Statistik', href: '/dashboard/stats', icon: TrendingUp, visible: props.canViewFinance },
     ].filter(action => action.visible);
 });

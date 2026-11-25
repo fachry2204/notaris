@@ -150,9 +150,102 @@ class ApplicationTest extends TestCase
         $expectedJobs = collect(['badan_hukum', 'non_badan_hukum', 'ppat'])->sum(fn ($table) => DB::table($table)->where('staffId', $employee->id)->count());
         $this->withSession(['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']])
             ->get($path)->assertOk()->assertJsonCount($expectedTasks, 'tasks')->assertJsonCount($expectedJobs, 'jobs')
-            ->assertJsonPath('employee.email', $employee->email)->assertHeader('Cache-Control', 'no-store, private');
+            ->assertJsonPath('employee.email', $employee->email)->assertJsonStructure(['insights'])->assertHeader('Cache-Control', 'no-store, private');
         $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])
             ->get($path)->assertForbidden();
+    }
+
+    public function test_kpi_report_compares_equal_length_periods_using_record_dates(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $employee = DB::table('user')->whereIn('role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])->first();
+        if (! $employee) $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        $expected = DB::table('job_employee_task')->where('userId', $employee->id)
+            ->whereBetween('createdAt', ['2026-01-01 00:00:00', '2026-01-10 23:59:59'])->count();
+        $session = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $path = '/dashboard/productivity/'.$employee->id;
+        $this->withSession($session)->get($path.'?report=1&start_date=2026-01-11&end_date=2026-01-20')
+            ->assertOk()->assertJsonPath('comparison.previousStart', '2026-01-01')
+            ->assertJsonPath('comparison.previousEnd', '2026-01-10')
+            ->assertJsonPath('comparison.previous.totalTasks', $expected);
+        $this->withSession($session)->get($path.'?report=1')->assertOk()->assertJsonPath('comparison', null);
+    }
+
+    public function test_task_work_status_tracks_changes_and_restricts_access(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $user = DB::table('user')->whereIn('role', ['STAFFADMIN', 'OB'])->first();
+        if (! $user) $this->markTestSkipped('Data pegawai pengujian belum tersedia.');
+        $id = 'kpi-status-test-'.\Illuminate\Support\Str::random(8);
+        DB::table('job_employee_task')->insert(['id' => $id, 'userId' => $user->id, 'taskType' => 'PIC', 'createdAt' => now(), 'updatedAt' => now()]);
+        $path = '/dashboard/tasks/'.$id.'/work-status';
+        $payload = ['status' => 'SELESAI', 'targetDate' => '2026-11-30', 'reason' => 'Tugas selesai'];
+        $this->withSession(['auth_user' => ['id' => 'other-user', 'role' => 'STAFFADMIN', 'source' => 'user']])->patch($path, $payload)->assertForbidden();
+        $this->withSession(['auth_user' => ['id' => $user->id, 'role' => 'STAFFADMIN', 'source' => 'user']])->patch($path, $payload)->assertRedirect();
+        $this->assertDatabaseHas('job_employee_task', ['id' => $id, 'workStatus' => 'SELESAI', 'targetDate' => '2026-11-30']);
+        $this->assertNotNull(DB::table('job_employee_task')->where('id', $id)->value('completedAt'));
+        $this->assertDatabaseHas('task_status_history', ['taskId' => $id, 'oldStatus' => null, 'newStatus' => 'SELESAI', 'reason' => 'Tugas selesai']);
+        $this->withSession(['auth_user' => ['id' => $user->id, 'role' => 'STAFFADMIN', 'source' => 'user']])->patch($path, ['status' => 'PROSES', 'reason' => 'Dibuka kembali'])->assertRedirect();
+        $this->assertNull(DB::table('job_employee_task')->where('id', $id)->value('completedAt'));
+        $this->assertDatabaseHas('task_status_history', ['taskId' => $id, 'oldStatus' => 'SELESAI', 'newStatus' => 'PROSES']);
+    }
+
+    public function test_ob_role_cannot_access_restricted_modules(): void
+    {
+        config(['app.url' => 'http://localhost']);
+        url()->forceRootUrl('http://localhost');
+        $ob = ['auth_user' => ['id' => 'test-ob', 'role' => 'OB', 'source' => 'user']];
+        foreach (['/dashboard/quotation', '/dashboard/invoice', '/dashboard/clients', '/dashboard/jobs/inbound', '/dashboard/jobs/new', '/dashboard/akta', '/dashboard/modules'] as $path) {
+            $response = $this->withSession($ob)->get($path);
+            // A missing route is inaccessible as well.
+            $this->assertContains($response->status(), [403, 404], $path);
+        }
+        $this->withSession($ob)->get('/dashboard/tasks')->assertOk();
+        $admin = ['auth_user' => ['id' => 'test-admin', 'role' => 'ADMINISTRATOR', 'source' => 'admin']];
+        $this->withSession($admin)->get('/dashboard/invoice')->assertOk();
+        $this->withSession($admin)->get('/dashboard/jobs/inbound')->assertOk();
+    }
+
+    public function test_kpi_evaluation_requires_manager_and_stays_in_selected_period(): void
+    {
+        config(['app.url' => 'http://localhost']); url()->forceRootUrl('http://localhost');
+        $user = DB::table('user')->whereIn('role', ['STAFFADMIN', 'OB', 'ADMINISTRATOR', 'PIMPINAN'])->first();
+        if (! $user) $this->markTestSkipped('Pegawai uji tidak tersedia.');
+        $path = '/dashboard/productivity/'.$user->id.'/evaluation';
+        $data = ['start_date'=>'2026-01-01', 'end_date'=>'2026-01-31', 'notes'=>'Catatan uji', 'improvement_plan'=>'Rencana uji', 'next_target'=>'Target uji'];
+        $this->withSession(['auth_user'=>['id'=>$user->id,'role'=>'STAFFADMIN','source'=>'user']])->put($path, $data)->assertForbidden();
+        $this->withSession(['auth_user'=>['id'=>'test-admin','role'=>'ADMINISTRATOR','source'=>'admin']])->put($path, $data)->assertRedirect();
+        $this->assertDatabaseHas('kpi_evaluations', ['user_id'=>$user->id,'period_start'=>'2026-01-01','period_end'=>'2026-01-31','notes'=>'Catatan uji']);
+        $this->withSession(['auth_user'=>['id'=>'test-admin','role'=>'ADMINISTRATOR','source'=>'admin']])->get('/dashboard/productivity/'.$user->id.'?report=1&start_date=2026-01-01&end_date=2026-01-31')->assertOk()->assertJsonPath('evaluation.notes', 'Catatan uji');
+    }
+
+    public function test_self_profile_requires_current_password_and_supports_photo(): void
+    {
+        config(['app.url'=>'http://localhost']); url()->forceRootUrl('http://localhost');
+        Storage::fake('public_root');
+        $id = 'profile-test-user';
+        DB::table('user')->insert(['id'=>$id,'username'=>'profile-test-user','email'=>'profile-test@example.invalid','fullName'=>'Uji Profil','passwordHash'=>\Illuminate\Support\Facades\Hash::make('old-password'),'role'=>'STAFFADMIN','isActive'=>true,'createdAt'=>now(),'updatedAt'=>now()]);
+        $session=['auth_user'=>['id'=>$id,'source'=>'user','role'=>'STAFFADMIN']];
+        $data=['fullName'=>'Nama Baru','email'=>'profile-test@example.invalid','phone'=>'','current_password'=>'salah','password'=>'new-password','password_confirmation'=>'new-password'];
+        $this->withSession($session)->put('/dashboard/profile',$data)->assertSessionHasErrors('current_password');
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('old-password', DB::table('user')->where('id',$id)->value('passwordHash')));
+        $data['current_password']='old-password'; $data['photo']=UploadedFile::fake()->image('profil.png');
+        $this->withSession($session)->put('/dashboard/profile',$data)->assertRedirect()->assertSessionHasNoErrors();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('new-password', DB::table('user')->where('id',$id)->value('passwordHash')));
+        $photo=DB::table('staff')->where('userId',$id)->value('photoPath'); $this->assertNotEmpty($photo); Storage::disk('public_root')->assertExists(ltrim($photo,'/'));
+        $this->withSession($session)->get('/dashboard/profile')->assertOk()->assertInertia(fn(Assert $page)=>$page->where('profile.fullName','Nama Baru')->where('profile.photoPath',$photo));
+    }
+
+    public function test_logo_upload_is_stored_and_requires_admin(): void
+    {
+        config(['app.url'=>'http://localhost']); url()->forceRootUrl('http://localhost'); Storage::fake('public_root');
+        $this->postJson('/dashboard/settings/upload',['type'=>'logo','file'=>UploadedFile::fake()->image('logo.png')])->assertRedirect();
+        $admin = DB::table('admin')->where('role','ADMINISTRATOR')->where('isActive',true)->first();
+        if (! $admin) $this->markTestSkipped('Admin pengujian belum tersedia.');
+        $result=$this->withSession(['auth_user'=>['id'=>$admin->id,'source'=>'admin','role'=>'ADMINISTRATOR']])->postJson('/dashboard/settings/upload',['type'=>'logo','file'=>UploadedFile::fake()->image('logo.png')])->assertOk();
+        Storage::disk('public_root')->assertExists(ltrim($result->json('url'),'/'));
     }
 
     public function test_kpi_detail_uses_the_viewed_employees_photo(): void
